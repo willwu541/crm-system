@@ -21,6 +21,7 @@ function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
+        credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) {
@@ -58,7 +59,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="admin@example.com"
+              placeholder="admin@wibergmetal.com"
               required
               autoComplete="email"
             />
@@ -87,7 +88,7 @@ function LoginForm() {
           </button>
         </form>
         <p className="mt-4 text-center text-xs text-slate-500">
-          测试账号: admin@example.com / admin123
+          管理员: admin@wibergmetal.com / admin123
         </p>
       </div>
     </div>

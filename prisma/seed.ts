@@ -13,29 +13,29 @@ const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // 创建默认管理员账号: admin@example.com / admin123
+  // 管理员: admin@wibergmetal.com / admin123
   const adminHash = await bcrypt.hash("admin123", 10);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@example.com" },
-    update: {},
+    where: { email: "admin@wibergmetal.com" },
+    update: { passwordHash: adminHash, name: "Admin", role: "ADMIN" },
     create: {
-      email: "admin@example.com",
+      email: "admin@wibergmetal.com",
       passwordHash: adminHash,
-      name: "管理员",
+      name: "Admin",
       role: "ADMIN",
     },
   });
-  console.log("管理员账号已创建:", admin.email);
+  console.log("管理员账号已创建/更新:", admin.email);
 
-  // 创建示例业务员: sales@example.com / sales123
+  // 示例业务员: sales@wibergmetal.com / sales123
   const salesHash = await bcrypt.hash("sales123", 10);
   const sales = await prisma.user.upsert({
-    where: { email: "sales@example.com" },
+    where: { email: "sales@wibergmetal.com" },
     update: {},
     create: {
-      email: "sales@example.com",
+      email: "sales@wibergmetal.com",
       passwordHash: salesHash,
-      name: "业务员张三",
+      name: "业务员",
       role: "SALES",
     },
   });

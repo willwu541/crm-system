@@ -21,8 +21,13 @@ export async function login(email: string, password: string): Promise<SessionUse
   });
   if (!user) return null;
 
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return null;
+  try {
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return null;
+  } catch {
+    // passwordHash 格式异常时 bcrypt 会抛错，统一按认证失败处理
+    return null;
+  }
 
   return {
     id: user.id,
@@ -40,7 +45,7 @@ export async function setSession(user: SessionUser): Promise<void> {
   });
   cookieStore.set(SESSION_COOKIE, Buffer.from(payload).toString("base64"), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     sameSite: "lax",
     maxAge: SESSION_MAX_AGE,
     path: "/",
