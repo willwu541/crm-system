@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         createdBy: { select: { name: true } },
+        opportunity: { select: { id: true, projectName: true } },
         _count: { select: { quotes: true } },
       },
       orderBy: { createdAt: "desc" },

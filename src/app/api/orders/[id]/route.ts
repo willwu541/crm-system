@@ -88,3 +88,42 @@ export async function PATCH(
     return NextResponse.json({ error: "更新失败" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getSession();
+  if (!user) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id,
+      ...(user.role === "SALES" ? { createdById: user.id } : {}),
+    },
+  });
+
+  if (!order) {
+    return NextResponse.json({ error: "订单不存在" }, { status: 404 });
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (order.opportunityId) {
+        await tx.opportunity.update({
+          where: { id: order.opportunityId },
+          data: { status: "OPPORTUNITY" },
+        });
+      }
+      await tx.order.delete({ where: { id } });
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Delete order error:", e);
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
+  }
+}

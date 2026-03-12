@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ConvertToOrderButton } from "./ConvertToOrderButton";
 
 interface Opportunity {
   id: string;
@@ -152,12 +153,25 @@ export function OpportunityList() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">{o.createdBy.name}</td>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/opportunities/${o.id}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      详情
-                    </Link>
+                    <span className="flex gap-3">
+                      <Link
+                        href={`/opportunities/${o.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        详情
+                      </Link>
+                      {o.status === "OPPORTUNITY" && (
+                        <ConvertToOrderButton opportunityId={o.id} compact />
+                      )}
+                      {o.status === "CONVERTED" && o.order && (
+                        <Link
+                          href={`/orders/${o.order.id}`}
+                          className="text-green-600 hover:underline"
+                        >
+                          查看订单
+                        </Link>
+                      )}
+                    </span>
                   </td>
                 </tr>
               ))}

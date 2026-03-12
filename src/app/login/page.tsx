@@ -87,9 +87,6 @@ function LoginForm() {
             {loading ? "登录中..." : "登录"}
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-slate-500">
-          管理员: admin@wibergmetal.com / admin123
-        </p>
       </div>
     </div>
   );

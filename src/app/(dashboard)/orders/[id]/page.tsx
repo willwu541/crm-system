@@ -7,6 +7,7 @@ import { OrderDetailContent } from "@/components/orders/OrderDetailContent";
 import { OrderStatusSelect } from "@/components/orders/OrderStatusSelect";
 import { OrderProductionSelect } from "@/components/orders/OrderProductionSelect";
 import { OrderPaymentSelect } from "@/components/orders/OrderPaymentSelect";
+import { OrderDeleteButton } from "@/components/orders/OrderDeleteButton";
 
 const STATUS_MAP: Record<string, string> = {
   DRAFT: "草稿",
@@ -30,6 +31,7 @@ export default async function OrderDetailPage({
     },
     include: {
       createdBy: { select: { name: true } },
+      opportunity: { select: { id: true, projectName: true } },
       items: { orderBy: { sortOrder: "asc" }, include: { attachments: true } },
       attachments: { where: { orderItemId: null } },
       _count: { select: { quotes: true } },
@@ -65,6 +67,11 @@ export default async function OrderDetailPage({
           >
             返回列表
           </Link>
+          <OrderDeleteButton
+            orderId={id}
+            orderNo={order.orderNo}
+            variant="button"
+          />
         </div>
       </div>
 
@@ -110,6 +117,19 @@ export default async function OrderDetailPage({
               />
             </dd>
           </div>
+          {order.opportunity && (
+            <div>
+              <dt className="text-sm text-slate-500">来源商机</dt>
+              <dd>
+                <Link
+                  href={`/opportunities/${order.opportunity.id}`}
+                  className="text-blue-600 hover:underline"
+                >
+                  {order.opportunity.projectName}
+                </Link>
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="text-sm text-slate-500">客户名称</dt>
             <dd>{order.customerName}</dd>

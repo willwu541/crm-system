@@ -18,14 +18,17 @@ interface Props {
     remark: string;
   };
   opportunityId?: string;
+  defaultCustomerId?: string;
 }
 
-export function OpportunityForm({ initial, opportunityId }: Props) {
+export function OpportunityForm({ initial, opportunityId, defaultCustomerId }: Props) {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [customerId, setCustomerId] = useState(initial?.customerId ?? "");
+  const [customerId, setCustomerId] = useState(
+    initial?.customerId ?? defaultCustomerId ?? ""
+  );
   const [projectName, setProjectName] = useState(initial?.projectName ?? "");
   const [isQuoted, setIsQuoted] = useState(initial?.isQuoted ?? false);
   const [intentionLevel, setIntentionLevel] = useState(initial?.intentionLevel ?? "");

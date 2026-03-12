@@ -33,6 +33,12 @@ export default async function CustomerDetailPage({
         <h1 className="text-xl font-semibold text-slate-800">客户详情 - {customer.name}</h1>
         <div className="flex gap-2">
           <Link
+            href={`/opportunities/new?customerId=${id}`}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            新建商机
+          </Link>
+          <Link
             href="/customers"
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
           >

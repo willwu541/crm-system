@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     include: {
       customer: { select: { name: true } },
       createdBy: { select: { name: true } },
+      order: { select: { id: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 50,

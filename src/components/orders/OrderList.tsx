@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { OrderDeleteButton } from "./OrderDeleteButton";
 
 interface Order {
   id: string;
@@ -17,6 +18,7 @@ interface Order {
   supplierPaymentStatus: string | null;
   createdAt: string;
   createdBy: { name: string };
+  opportunity?: { id: string; projectName: string } | null;
   _count: { quotes: number };
 }
 
@@ -138,6 +140,7 @@ export function OrderList() {
                 <th className="px-4 py-3 text-left font-medium text-slate-700">订单编号</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">客户</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">项目</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">来源商机</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">主状态</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">标签</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">报价</th>
@@ -152,6 +155,18 @@ export function OrderList() {
                   <td className="px-4 py-3 font-medium text-slate-800">{o.orderNo}</td>
                   <td className="px-4 py-3 text-slate-600">{o.customerName}</td>
                   <td className="px-4 py-3 text-slate-600">{o.projectName}</td>
+                  <td className="px-4 py-3">
+                    {o.opportunity ? (
+                      <Link
+                        href={`/opportunities/${o.opportunity.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {o.opportunity.projectName}
+                      </Link>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-xs ${
@@ -201,12 +216,15 @@ export function OrderList() {
                     {new Date(o.createdAt).toLocaleDateString("zh-CN")}
                   </td>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/orders/${o.id}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      详情
-                    </Link>
+                    <span className="flex gap-3">
+                      <Link
+                        href={`/orders/${o.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        详情
+                      </Link>
+                      <OrderDeleteButton orderId={o.id} orderNo={o.orderNo} />
+                    </span>
                   </td>
                 </tr>
               ))}

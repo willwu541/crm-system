@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function ConvertToOrderButton({ opportunityId }: { opportunityId: string }) {
+export function ConvertToOrderButton({
+  opportunityId,
+  compact,
+}: {
+  opportunityId: string;
+  compact?: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,6 +31,22 @@ export function ConvertToOrderButton({ opportunityId }: { opportunityId: string 
     } finally {
       setLoading(false);
     }
+  }
+
+  if (compact) {
+    return (
+      <>
+        {error && <span className="text-xs text-red-600">{error}</span>}
+        <button
+          type="button"
+          onClick={handleConvert}
+          disabled={loading}
+          className="text-green-600 hover:underline disabled:opacity-50"
+        >
+          {loading ? "转换中..." : "转订单"}
+        </button>
+      </>
+    );
   }
 
   return (
