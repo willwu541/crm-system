@@ -66,7 +66,7 @@ export function UserList() {
       <button
         type="button"
         onClick={() => setShowForm(!showForm)}
-        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
       >
         {showForm ? "取消" : "新建用户"}
       </button>
@@ -126,7 +126,7 @@ export function UserList() {
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700 disabled:opacity-50"
             >
               {submitting ? "创建中..." : "创建"}
             </button>

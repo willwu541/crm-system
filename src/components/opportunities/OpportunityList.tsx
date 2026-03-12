@@ -71,7 +71,7 @@ export function OpportunityList() {
               }}
               className={`rounded-md px-3 py-1.5 text-sm ${
                 status === s
-                  ? "bg-blue-600 text-white"
+                  ? "bg-teal-600 text-white"
                   : "border border-slate-300 text-slate-700 hover:bg-slate-50"
               }`}
             >
@@ -96,7 +96,7 @@ export function OpportunityList() {
         </form>
         <Link
           href="/opportunities/new"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
         >
           新建商机
         </Link>
@@ -128,7 +128,7 @@ export function OpportunityList() {
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-xs ${
                         o.status === "OPPORTUNITY"
-                          ? "bg-blue-50 text-blue-700"
+                          ? "bg-teal-50 text-teal-700"
                           : o.status === "CONVERTED"
                             ? "bg-green-50 text-green-700"
                             : "bg-slate-100 text-slate-500"
@@ -156,7 +156,7 @@ export function OpportunityList() {
                     <span className="flex gap-3">
                       <Link
                         href={`/opportunities/${o.id}`}
-                        className="text-blue-600 hover:underline"
+                        className="text-teal-600 hover:underline"
                       >
                         详情
                       </Link>

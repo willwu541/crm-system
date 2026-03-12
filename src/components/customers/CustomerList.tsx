@@ -57,7 +57,7 @@ export function CustomerList() {
         </form>
         <Link
           href="/customers/new"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
         >
           新建客户
         </Link>
@@ -87,7 +87,7 @@ export function CustomerList() {
                   <td className="px-4 py-3 text-slate-600">{c.contactPhone}</td>
                   <td className="px-4 py-3 text-slate-500">{c.address || "-"}</td>
                   <td className="px-4 py-3">
-                    <Link href={`/customers/${c.id}`} className="text-blue-600 hover:underline">
+                    <Link href={`/customers/${c.id}`} className="text-teal-600 hover:underline">
                       详情
                     </Link>
                   </td>

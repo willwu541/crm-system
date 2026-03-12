@@ -355,7 +355,7 @@ export function OrderForm() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-teal-600 px-6 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50"
         >
           {loading ? "提交中..." : "创建订单"}
         </button>

@@ -101,7 +101,7 @@ export function QuoteLinks({ orderId }: Props) {
           type="button"
           onClick={createLink}
           disabled={creating}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700 disabled:opacity-50"
         >
           {creating ? "生成中..." : "生成外协链接"}
         </button>

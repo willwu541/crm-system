@@ -111,7 +111,7 @@ export function AttachmentUpload({
                 href={a.filePath}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-teal-600 hover:underline"
               >
                 {a.fileName}
               </a>
@@ -167,7 +167,7 @@ export function AttachmentUpload({
                           href={a.filePath}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
+                          className="text-teal-600 hover:underline"
                         >
                           {a.fileName}
                         </a>

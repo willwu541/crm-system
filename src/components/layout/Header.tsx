@@ -14,41 +14,41 @@ export function Header({ user }: { user: SessionUser }) {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-slate-200 bg-white shadow-sm">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
         <div className="flex items-center gap-8">
-          <Link href="/opportunities" className="font-semibold text-slate-800">
+          <Link href="/opportunities" className="font-semibold text-teal-700">
             河北双亿-伟荣-wiberg · 钢格板业务系统
           </Link>
           <nav className="flex gap-4">
             <Link
               href="/opportunities"
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
             >
               商机管理
             </Link>
             <Link
               href="/customers"
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
             >
               客户管理
             </Link>
             <Link
               href="/orders"
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
             >
               订单管理
             </Link>
             <Link
               href="/orders"
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
             >
               外放询价
             </Link>
             {user.role === "ADMIN" && (
               <Link
                 href="/admin/users"
-                className="text-sm text-slate-600 hover:text-slate-900"
+                className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
               >
                 用户管理
               </Link>
@@ -61,7 +61,7 @@ export function Header({ user }: { user: SessionUser }) {
           </span>
           <button
             onClick={handleLogout}
-            className="text-sm text-slate-600 hover:text-slate-900"
+            className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
           >
             退出
           </button>

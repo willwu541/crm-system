@@ -57,7 +57,7 @@ export default async function OrderDetailPage({
         <div className="flex gap-2">
           <Link
             href={`/orders/${id}/quotes`}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            className="rounded-md bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700"
           >
             查看报价 ({order._count.quotes})
           </Link>
@@ -123,7 +123,7 @@ export default async function OrderDetailPage({
               <dd>
                 <Link
                   href={`/opportunities/${order.opportunity.id}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-teal-600 hover:underline"
                 >
                   {order.opportunity.projectName}
                 </Link>

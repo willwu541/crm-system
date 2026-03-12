@@ -122,7 +122,7 @@ export function OrderList() {
         </select>
         <Link
           href="/orders/new"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
         >
           新建订单
         </Link>
@@ -159,7 +159,7 @@ export function OrderList() {
                     {o.opportunity ? (
                       <Link
                         href={`/opportunities/${o.opportunity.id}`}
-                        className="text-blue-600 hover:underline"
+                        className="text-teal-600 hover:underline"
                       >
                         {o.opportunity.projectName}
                       </Link>
@@ -171,7 +171,7 @@ export function OrderList() {
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-xs ${
                         o.mainStatus === "CONVERTED"
-                          ? "bg-blue-50 text-blue-700"
+                          ? "bg-teal-50 text-teal-700"
                           : o.mainStatus === "IN_PRODUCTION"
                             ? "bg-amber-50 text-amber-700"
                             : o.mainStatus === "PENDING_SHIPMENT"
@@ -204,7 +204,7 @@ export function OrderList() {
                         </span>
                       )}
                       {o.customerPaymentStatus && (
-                        <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                        <span className="rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700">
                           客户{PAYMENT_STATUS_MAP[o.customerPaymentStatus]}
                         </span>
                       )}
@@ -219,7 +219,7 @@ export function OrderList() {
                     <span className="flex gap-3">
                       <Link
                         href={`/orders/${o.id}`}
-                        className="text-blue-600 hover:underline"
+                        className="text-teal-600 hover:underline"
                       >
                         详情
                       </Link>

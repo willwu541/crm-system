@@ -68,7 +68,7 @@ export default async function OpportunityDetailPage({
             <dd>
               <Link
                 href={`/customers/${opp.customer.id}`}
-                className="text-blue-600 hover:underline"
+                className="text-teal-600 hover:underline"
               >
                 {opp.customer.name}
               </Link>
@@ -113,7 +113,7 @@ export default async function OpportunityDetailPage({
           <h2 className="mb-4 font-medium text-slate-800">关联订单</h2>
           <Link
             href={`/orders/${opp.order.id}`}
-            className="text-blue-600 hover:underline"
+            className="text-teal-600 hover:underline"
           >
             查看订单 {opp.order.orderNo}
           </Link>

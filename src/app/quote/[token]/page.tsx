@@ -269,7 +269,7 @@ export default function QuotePage() {
                     href={a.filePath}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-blue-600 hover:underline"
+                    className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-600 hover:underline"
                   >
                     {a.fileName}
                   </a>
@@ -281,7 +281,7 @@ export default function QuotePage() {
                       href={a.filePath}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-blue-600 hover:underline"
+                      className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-600 hover:underline"
                     >
                       {item.specModel} - {a.fileName}
                     </a>
@@ -386,7 +386,7 @@ export default function QuotePage() {
             <button
               type="submit"
               disabled={expired || submitting}
-              className="rounded-md bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-teal-600 px-6 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50"
             >
               {submitting ? "提交中..." : "提交报价"}
             </button>

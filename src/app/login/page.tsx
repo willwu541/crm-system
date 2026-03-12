@@ -39,13 +39,13 @@ function LoginForm() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-center text-xl font-semibold text-slate-800">
+      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-md">
+        <h1 className="mb-6 text-center text-xl font-semibold text-teal-800">
           河北双亿-伟荣-wiberg · 钢格板业务系统
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
               {error}
             </div>
           )}
@@ -58,7 +58,7 @@ function LoginForm() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               placeholder="admin@wibergmetal.com"
               required
               autoComplete="email"
@@ -73,7 +73,7 @@ function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               placeholder="••••••••"
               required
               autoComplete="current-password"
@@ -82,7 +82,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
           >
             {loading ? "登录中..." : "登录"}
           </button>

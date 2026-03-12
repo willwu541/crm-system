@@ -34,7 +34,7 @@ export default async function CustomerDetailPage({
         <div className="flex gap-2">
           <Link
             href={`/opportunities/new?customerId=${id}`}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            className="rounded-md bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700"
           >
             新建商机
           </Link>
@@ -69,7 +69,7 @@ export default async function CustomerDetailPage({
           <ul className="space-y-2">
             {serializedOpps.map((o: { id: string; projectName: string; status: string }) => (
               <li key={o.id}>
-                <Link href={`/opportunities/${o.id}`} className="text-blue-600 hover:underline">
+                <Link href={`/opportunities/${o.id}`} className="text-teal-600 hover:underline">
                   {o.projectName} ({o.status})
                 </Link>
               </li>
@@ -86,7 +86,7 @@ export default async function CustomerDetailPage({
           <ul className="space-y-2">
             {serializedOrders.map((o: { id: string; orderNo: string }) => (
               <li key={o.id}>
-                <Link href={`/orders/${o.id}`} className="text-blue-600 hover:underline">
+                <Link href={`/orders/${o.id}`} className="text-teal-600 hover:underline">
                   {o.orderNo}
                 </Link>
               </li>
