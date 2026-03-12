@@ -1,0 +1,231 @@
+// 钢格板业务管理系统 - 数据库模型
+// 使用标准 PostgreSQL: postgresql://user:password@localhost:5432/dbname
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  SALES
+}
+
+enum OrderStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum QuoteStatus {
+  PENDING
+  PREFERRED
+  SELECTED
+}
+
+enum MainStatus {
+  OPPORTUNITY
+  CONVERTED
+  IN_PRODUCTION
+  PENDING_SHIPMENT
+  COMPLETED
+  CANCELLED
+}
+
+enum IntentionLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ProductionMode {
+  SELF
+  OUTSOURCE
+  MIXED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         UserRole @default(SALES)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  orders       Order[]
+  opportunities Opportunity[]
+
+  @@map("users")
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  contactName  String   @map("contact_name")
+  contactPhone String   @map("contact_phone")
+  address      String?
+  remark       String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  opportunities Opportunity[]
+  orders        Order[]
+
+  @@map("customers")
+}
+
+model Opportunity {
+  id              String         @id @default(cuid())
+  customerId      String         @map("customer_id")
+  projectName     String         @map("project_name")
+  status          MainStatus     @default(OPPORTUNITY)
+  isQuoted        Boolean        @default(false) @map("is_quoted")
+  intentionLevel  IntentionLevel? @map("intention_level")
+  estimatedAmount Decimal?       @map("estimated_amount") @db.Decimal(18, 4)
+  remark          String?
+  createdById     String         @map("created_by_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy  User       @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  order      Order?     @relation
+
+  @@map("opportunities")
+}
+
+model Order {
+  id                    String         @id @default(cuid())
+  orderNo               String         @unique @map("order_no")
+  customerId             String?        @map("customer_id")
+  opportunityId         String?        @unique @map("opportunity_id")
+  customerName          String         @map("customer_name")
+  contactName           String         @map("contact_name")
+  contactPhone          String         @map("contact_phone")
+  projectName           String         @map("project_name")
+  deliveryRegion        String         @map("delivery_region")
+  quoteDeadline         DateTime?      @map("quote_deadline")
+  remark                String?
+  status                OrderStatus    @default(DRAFT)
+  mainStatus            MainStatus?    @map("main_status")
+  isQuoted              Boolean        @default(false) @map("is_quoted")
+  intentionLevel        IntentionLevel? @map("intention_level")
+  productionMode        ProductionMode? @map("production_mode")
+  hasSelectedSupplier   Boolean        @default(false) @map("has_selected_supplier")
+  customerPaymentStatus PaymentStatus? @map("customer_payment_status")
+  supplierPaymentStatus PaymentStatus? @map("supplier_payment_status")
+  createdById           String         @map("created_by_id")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  customer     Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  opportunity  Opportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  createdBy    User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items        OrderItem[]
+  attachments  OrderAttachment[]
+  quoteLinks   QuoteLink[]
+  quotes       Quote[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                 String   @id @default(cuid())
+  orderId            String   @map("order_id")
+  sortOrder          Int      @default(0) @map("sort_order")
+  productType        String   @map("product_type")
+  specModel          String   @map("spec_model")
+  dimensions         String?
+  quantity           Decimal  @db.Decimal(18, 4)
+  unit               String
+  surfaceTreatment   String?  @map("surface_treatment")
+  specialRequirement String?  @map("special_requirement")
+  remark             String?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  order        Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  attachments  OrderAttachment[]
+  quoteItems   QuoteItem[]
+
+  @@map("order_items")
+}
+
+model OrderAttachment {
+  id           String   @id @default(cuid())
+  orderId      String   @map("order_id")
+  orderItemId  String?  @map("order_item_id")
+  fileName     String   @map("file_name")
+  filePath     String   @map("file_path")
+  fileSize     Int      @map("file_size")
+  mimeType     String   @map("mime_type")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("order_attachments")
+}
+
+model QuoteLink {
+  id           String    @id @default(cuid())
+  orderId      String    @map("order_id")
+  token        String    @unique
+  supplierName String?   @map("supplier_name")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  quotes Quote[]
+
+  @@map("quote_links")
+}
+
+model Quote {
+  id               String      @id @default(cuid())
+  orderId          String      @map("order_id")
+  quoteLinkId      String      @map("quote_link_id")
+  supplierName     String      @map("supplier_name")
+  contactName      String      @map("contact_name")
+  contactPhone     String      @map("contact_phone")
+  contactWechat    String?     @map("contact_wechat")
+  totalRemark      String?     @map("total_remark")
+  expectedDelivery DateTime?   @map("expected_delivery")
+  includeTax       Boolean     @default(false) @map("include_tax")
+  includeShipping  Boolean     @default(false) @map("include_shipping")
+  status           QuoteStatus @default(PENDING)
+  submittedAt      DateTime    @map("submitted_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  quoteLink QuoteLink  @relation(fields: [quoteLinkId], references: [id], onDelete: Restrict)
+  items     QuoteItem[]
+
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String   @id @default(cuid())
+  quoteId     String   @map("quote_id")
+  orderItemId String   @map("order_item_id")
+  price       Decimal  @db.Decimal(18, 4)
+  remark      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quote     Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
+}
