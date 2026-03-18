@@ -3,8 +3,17 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateToken } from "@/lib/utils";
 
+function getBaseUrl(request: NextRequest): string {
+  const env = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (env) return env.replace(/\/$/, "");
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "http";
+  if (host) return `${proto}://${host}`.replace(/\/$/, "");
+  return request.nextUrl.origin;
+}
+
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSession();
@@ -29,7 +38,10 @@ export async function GET(
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ data: links });
+  const baseUrl = getBaseUrl(request);
+  const data = links.map((l) => ({ ...l, quoteUrl: `${baseUrl}/quote/${l.token}` }));
+
+  return NextResponse.json({ data });
 }
 
 export async function POST(
@@ -74,7 +86,7 @@ export async function POST(
       },
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const baseUrl = getBaseUrl(request);
     const quoteUrl = `${baseUrl}/quote/${token}`;
 
     return NextResponse.json({

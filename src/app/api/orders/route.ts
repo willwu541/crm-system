@@ -40,8 +40,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         createdBy: { select: { name: true } },
-        opportunity: { select: { id: true, projectName: true } },
-        _count: { select: { quotes: true } },
+        _count: { select: { quotes: true, quoteLinks: true } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -73,11 +72,7 @@ const orderItemSchema = z.object({
 });
 
 const createOrderSchema = z.object({
-  customerName: z.string().min(1, "客户名称必填"),
-  contactName: z.string().min(1, "联系人必填"),
-  contactPhone: z.string().min(1, "联系电话必填"),
-  projectName: z.string().min(1, "项目名称必填"),
-  deliveryRegion: z.string().min(1, "交货地区必填"),
+  orderNo: z.string().optional(),
   quoteDeadline: z.string().optional(),
   remark: z.string().optional(),
   items: z.array(orderItemSchema).min(1, "至少添加一条明细"),
@@ -98,16 +93,16 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data;
-    const orderNo = generateOrderNo();
+    const orderNo = data.orderNo?.trim() || generateOrderNo();
 
     const order = await prisma.order.create({
       data: {
         orderNo,
-        customerName: data.customerName,
-        contactName: data.contactName,
-        contactPhone: data.contactPhone,
-        projectName: data.projectName,
-        deliveryRegion: data.deliveryRegion,
+        customerName: "-",
+        contactName: "-",
+        contactPhone: "-",
+        projectName: "-",
+        deliveryRegion: "-",
         quoteDeadline: data.quoteDeadline ? new Date(data.quoteDeadline) : null,
         remark: data.remark ?? null,
         status: "DRAFT",

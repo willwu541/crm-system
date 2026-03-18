@@ -19,6 +19,7 @@ export async function GET(
     },
     include: {
       createdBy: { select: { name: true } },
+      selectedQuote: { select: { id: true, supplierName: true } },
       items: { orderBy: { sortOrder: "asc" }, include: { attachments: true } },
       attachments: { where: { orderItemId: null } },
       quoteLinks: true,
@@ -57,7 +58,7 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { status, mainStatus, productionMode, customerPaymentStatus, supplierPaymentStatus } = body;
+    const { status, mainStatus, productionMode, customerPaymentStatus, supplierPaymentStatus, finalPrice, isOrderedToSupplier } = body;
 
     const data: Record<string, unknown> = {};
     if (status && ["DRAFT", "PUBLISHED", "CLOSED"].includes(status)) data.status = status;
@@ -73,6 +74,10 @@ export async function PATCH(
     if (supplierPaymentStatus && ["UNPAID", "PARTIAL", "PAID"].includes(supplierPaymentStatus)) {
       data.supplierPaymentStatus = supplierPaymentStatus;
     }
+    const fp = typeof finalPrice === "string" ? parseFloat(finalPrice) : finalPrice;
+    if (typeof fp === "number" && !isNaN(fp) && fp >= 0) data.finalPrice = fp;
+    if (finalPrice === null || finalPrice === "") data.finalPrice = null;
+    if (typeof isOrderedToSupplier === "boolean") data.isOrderedToSupplier = isOrderedToSupplier;
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "无有效更新" }, { status: 400 });
@@ -112,15 +117,7 @@ export async function DELETE(
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      if (order.opportunityId) {
-        await tx.opportunity.update({
-          where: { id: order.opportunityId },
-          data: { status: "OPPORTUNITY" },
-        });
-      }
-      await tx.order.delete({ where: { id } });
-    });
+    await prisma.order.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("Delete order error:", e);

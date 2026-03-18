@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-interface Customer {
+interface Supplier {
   id: string;
   name: string;
   contactName: string;
@@ -11,30 +11,30 @@ interface Customer {
   address: string | null;
 }
 
-export function CustomerList() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+export function SupplierList() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState("");
 
-  async function fetchCustomers() {
+  async function fetchSuppliers() {
     setLoading(true);
     try {
       const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : "";
-      const res = await fetch(`/api/customers${params}`);
+      const res = await fetch(`/api/suppliers${params}`);
       const json = await res.json();
-      if (res.ok) setCustomers(json.data || []);
+      if (res.ok) setSuppliers(json.data || []);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    fetchCustomers();
+    fetchSuppliers();
   }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    fetchCustomers();
+    fetchSuppliers();
   }
 
   return (
@@ -45,7 +45,7 @@ export function CustomerList() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="客户名称/联系人/电话"
+            placeholder="加工户名称/联系人/电话"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           <button
@@ -56,23 +56,23 @@ export function CustomerList() {
           </button>
         </form>
         <Link
-          href="/customers/new"
+          href="/suppliers/new"
           className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
         >
-          新建客户
+          新增加工户
         </Link>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
-        ) : customers.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">暂无客户</div>
+        ) : suppliers.length === 0 ? (
+          <div className="p-8 text-center text-slate-500">暂无加工户</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">客户名称</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">加工户名称</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">联系人</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">联系电话</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">地址</th>
@@ -80,14 +80,14 @@ export function CustomerList() {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{c.name}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.contactName}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.contactPhone}</td>
-                  <td className="px-4 py-3 text-slate-500">{c.address || "-"}</td>
+              {suppliers.map((s) => (
+                <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium text-slate-800">{s.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{s.contactName}</td>
+                  <td className="px-4 py-3 text-slate-600">{s.contactPhone}</td>
+                  <td className="px-4 py-3 text-slate-500">{s.address || "-"}</td>
                   <td className="px-4 py-3">
-                    <Link href={`/customers/${c.id}`} className="text-teal-600 hover:underline">
+                    <Link href={`/suppliers/${s.id}`} className="text-teal-600 hover:underline">
                       详情
                     </Link>
                   </td>

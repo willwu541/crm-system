@@ -62,13 +62,12 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  orders       Order[]
-  opportunities Opportunity[]
+  orders Order[]
 
   @@map("users")
 }
 
-model Customer {
+model Supplier {
   id           String   @id @default(cuid())
   name         String
   contactName  String   @map("contact_name")
@@ -78,37 +77,12 @@ model Customer {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  opportunities Opportunity[]
-  orders        Order[]
-
-  @@map("customers")
-}
-
-model Opportunity {
-  id              String         @id @default(cuid())
-  customerId      String         @map("customer_id")
-  projectName     String         @map("project_name")
-  status          MainStatus     @default(OPPORTUNITY)
-  isQuoted        Boolean        @default(false) @map("is_quoted")
-  intentionLevel  IntentionLevel? @map("intention_level")
-  estimatedAmount Decimal?       @map("estimated_amount") @db.Decimal(18, 4)
-  remark          String?
-  createdById     String         @map("created_by_id")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  createdBy  User       @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  order      Order?     @relation
-
-  @@map("opportunities")
+  @@map("suppliers")
 }
 
 model Order {
   id                    String         @id @default(cuid())
   orderNo               String         @unique @map("order_no")
-  customerId             String?        @map("customer_id")
-  opportunityId         String?        @unique @map("opportunity_id")
   customerName          String         @map("customer_name")
   contactName           String         @map("contact_name")
   contactPhone          String         @map("contact_phone")
@@ -122,19 +96,21 @@ model Order {
   intentionLevel        IntentionLevel? @map("intention_level")
   productionMode        ProductionMode? @map("production_mode")
   hasSelectedSupplier   Boolean        @default(false) @map("has_selected_supplier")
+  selectedQuoteId       String?        @unique @map("selected_quote_id")
+  finalPrice            Decimal?       @map("final_price") @db.Decimal(18, 4)
+  isOrderedToSupplier   Boolean        @default(false) @map("is_ordered_to_supplier")
   customerPaymentStatus PaymentStatus? @map("customer_payment_status")
   supplierPaymentStatus PaymentStatus? @map("supplier_payment_status")
   createdById           String         @map("created_by_id")
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
 
-  customer     Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  opportunity  Opportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
   createdBy    User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   items        OrderItem[]
   attachments  OrderAttachment[]
-  quoteLinks   QuoteLink[]
-  quotes       Quote[]
+  quoteLinks     QuoteLink[]
+  quotes         Quote[]
+  selectedQuote  Quote?       @relation("SelectedQuote", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
 
   @@map("orders")
 }
@@ -211,6 +187,7 @@ model Quote {
   order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   quoteLink QuoteLink  @relation(fields: [quoteLinkId], references: [id], onDelete: Restrict)
   items     QuoteItem[]
+  orderAsSelected Order? @relation("SelectedQuote")
 
   @@map("quotes")
 }

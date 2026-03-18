@@ -11,10 +11,10 @@ interface Props {
     address: string;
     remark: string;
   };
-  customerId?: string;
+  supplierId?: string;
 }
 
-export function CustomerForm({ initial, customerId }: Props) {
+export function SupplierForm({ initial, supplierId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -30,8 +30,8 @@ export function CustomerForm({ initial, customerId }: Props) {
     setLoading(true);
 
     try {
-      const url = customerId ? `/api/customers/${customerId}` : "/api/customers";
-      const method = customerId ? "PUT" : "POST";
+      const url = supplierId ? `/api/suppliers/${supplierId}` : "/api/suppliers";
+      const method = supplierId ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -45,7 +45,7 @@ export function CustomerForm({ initial, customerId }: Props) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "保存失败");
-      router.push(customerId ? `/customers/${customerId}` : "/customers");
+      router.push(supplierId ? `/suppliers/${supplierId}` : "/suppliers");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
@@ -60,7 +60,7 @@ export function CustomerForm({ initial, customerId }: Props) {
         <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       )}
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">客户名称 *</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700">加工户名称 *</label>
         <input
           type="text"
           value={name}

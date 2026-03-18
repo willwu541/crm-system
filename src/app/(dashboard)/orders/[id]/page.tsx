@@ -8,6 +8,7 @@ import { OrderStatusSelect } from "@/components/orders/OrderStatusSelect";
 import { OrderProductionSelect } from "@/components/orders/OrderProductionSelect";
 import { OrderPaymentSelect } from "@/components/orders/OrderPaymentSelect";
 import { OrderDeleteButton } from "@/components/orders/OrderDeleteButton";
+import { OrderFinalResult } from "@/components/orders/OrderFinalResult";
 
 const STATUS_MAP: Record<string, string> = {
   DRAFT: "草稿",
@@ -31,7 +32,7 @@ export default async function OrderDetailPage({
     },
     include: {
       createdBy: { select: { name: true } },
-      opportunity: { select: { id: true, projectName: true } },
+      selectedQuote: { select: { id: true, supplierName: true } },
       items: { orderBy: { sortOrder: "asc" }, include: { attachments: true } },
       attachments: { where: { orderItemId: null } },
       _count: { select: { quotes: true } },
@@ -75,6 +76,14 @@ export default async function OrderDetailPage({
         </div>
       </div>
 
+      <OrderFinalResult
+        orderId={id}
+        selectedSupplier={order.selectedQuote?.supplierName ?? null}
+        finalPrice={order.finalPrice != null ? String(order.finalPrice) : null}
+        isOrderedToSupplier={order.isOrderedToSupplier}
+        mainStatus={order.mainStatus}
+      />
+
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium text-slate-800">主信息</h2>
         <dl className="grid gap-3 sm:grid-cols-2">
@@ -116,39 +125,6 @@ export default async function OrderDetailPage({
                 currentStatus={order.supplierPaymentStatus}
               />
             </dd>
-          </div>
-          {order.opportunity && (
-            <div>
-              <dt className="text-sm text-slate-500">来源商机</dt>
-              <dd>
-                <Link
-                  href={`/opportunities/${order.opportunity.id}`}
-                  className="text-teal-600 hover:underline"
-                >
-                  {order.opportunity.projectName}
-                </Link>
-              </dd>
-            </div>
-          )}
-          <div>
-            <dt className="text-sm text-slate-500">客户名称</dt>
-            <dd>{order.customerName}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-slate-500">联系人</dt>
-            <dd>{order.contactName}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-slate-500">联系电话</dt>
-            <dd>{order.contactPhone}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-slate-500">项目名称</dt>
-            <dd>{order.projectName}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-slate-500">交货地区</dt>
-            <dd>{order.deliveryRegion}</dd>
           </div>
           <div>
             <dt className="text-sm text-slate-500">报价截止时间</dt>

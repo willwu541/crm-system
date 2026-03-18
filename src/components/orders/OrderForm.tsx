@@ -30,11 +30,7 @@ export function OrderForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [customerName, setCustomerName] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [projectName, setProjectName] = useState("");
-  const [deliveryRegion, setDeliveryRegion] = useState("");
+  const [orderNo, setOrderNo] = useState("");
   const [quoteDeadline, setQuoteDeadline] = useState("");
   const [remark, setRemark] = useState("");
 
@@ -74,11 +70,7 @@ export function OrderForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerName: customerName.trim(),
-          contactName: contactName.trim(),
-          contactPhone: contactPhone.trim(),
-          projectName: projectName.trim(),
-          deliveryRegion: deliveryRegion.trim(),
+          orderNo: orderNo.trim() || undefined,
           quoteDeadline: quoteDeadline || undefined,
           remark: remark.trim() || undefined,
           items: validItems.map((i) => ({
@@ -118,66 +110,18 @@ export function OrderForm() {
 
       {/* 订单主信息 */}
       <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 font-medium text-slate-800">订单主信息</h2>
+        <h2 className="mb-4 font-medium text-slate-800">订单信息</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              客户名称 <span className="text-red-500">*</span>
+              订单编号
             </label>
             <input
               type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+              value={orderNo}
+              onChange={(e) => setOrderNo(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              联系人 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              联系电话 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              项目名称 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              交货地区 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={deliveryRegion}
-              onChange={(e) => setDeliveryRegion(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
-              required
+              placeholder="不填则自动生成"
             />
           </div>
           <div>
@@ -194,13 +138,14 @@ export function OrderForm() {
         </div>
         <div className="mt-4">
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            总体备注
+            内部备注（加工户不可见）
           </label>
           <textarea
             value={remark}
             onChange={(e) => setRemark(e.target.value)}
-            rows={3}
+            rows={2}
             className="w-full rounded-md border border-slate-300 px-3 py-2"
+            placeholder="可选"
           />
         </div>
       </div>

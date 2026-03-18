@@ -57,9 +57,15 @@ export async function GET(
     attachments: itemAttachments.filter((a) => a.orderItemId === item.id),
   }));
 
+  // 加工户仅可见：订单号、报价截止、明细规格数量、附件
+  const orderForQuote = {
+    orderNo: link.order.orderNo,
+    quoteDeadline: link.order.quoteDeadline,
+  };
+
   return NextResponse.json({
     data: {
-      order: link.order,
+      order: orderForQuote,
       items: itemsWithAttachments,
       orderAttachments: link.order.attachments,
       expired,

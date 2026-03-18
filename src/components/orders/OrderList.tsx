@@ -18,8 +18,7 @@ interface Order {
   supplierPaymentStatus: string | null;
   createdAt: string;
   createdBy: { name: string };
-  opportunity?: { id: string; projectName: string } | null;
-  _count: { quotes: number };
+  _count: { quotes: number; quoteLinks: number };
 }
 
 interface Pagination {
@@ -35,18 +34,6 @@ const MAIN_STATUS_MAP: Record<string, string> = {
   PENDING_SHIPMENT: "待发货",
   COMPLETED: "已完成",
   CANCELLED: "已取消",
-};
-
-const PRODUCTION_MODE_MAP: Record<string, string> = {
-  SELF: "自制",
-  OUTSOURCE: "外放",
-  MIXED: "混合",
-};
-
-const PAYMENT_STATUS_MAP: Record<string, string> = {
-  UNPAID: "未收",
-  PARTIAL: "部分收",
-  PAID: "已收",
 };
 
 export function OrderList() {
@@ -95,7 +82,7 @@ export function OrderList() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="订单号/客户/项目"
+            placeholder="订单号/项目"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           <button
@@ -138,12 +125,9 @@ export function OrderList() {
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">订单编号</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">客户</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">项目</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">来源商机</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">主状态</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">标签</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">报价</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">进度</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">创建人</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">创建时间</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">操作</th>
@@ -153,20 +137,7 @@ export function OrderList() {
               {orders.map((o) => (
                 <tr key={o.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-800">{o.orderNo}</td>
-                  <td className="px-4 py-3 text-slate-600">{o.customerName}</td>
                   <td className="px-4 py-3 text-slate-600">{o.projectName}</td>
-                  <td className="px-4 py-3">
-                    {o.opportunity ? (
-                      <Link
-                        href={`/opportunities/${o.opportunity.id}`}
-                        className="text-teal-600 hover:underline"
-                      >
-                        {o.opportunity.projectName}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-400">-</span>
-                    )}
-                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-xs ${
@@ -187,30 +158,30 @@ export function OrderList() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="flex flex-wrap gap-1">
-                      {o.isQuoted && (
-                        <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                          已报价
-                        </span>
-                      )}
-                      {o.productionMode && (
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                          {PRODUCTION_MODE_MAP[o.productionMode]}
-                        </span>
-                      )}
-                      {o.hasSelectedSupplier && (
-                        <span className="rounded bg-green-50 px-2 py-0.5 text-xs text-green-700">
-                          已选外协
-                        </span>
-                      )}
-                      {o.customerPaymentStatus && (
-                        <span className="rounded bg-teal-50 px-2 py-0.5 text-xs text-teal-700">
-                          客户{PAYMENT_STATUS_MAP[o.customerPaymentStatus]}
-                        </span>
-                      )}
+                    <span className="flex flex-wrap gap-1.5">
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs ${
+                          (o._count?.quoteLinks ?? 0) > 0
+                            ? "bg-teal-50 text-teal-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {(o._count?.quoteLinks ?? 0) > 0 ? "已发加工户" : "未发"}
+                      </span>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {o._count.quotes}家报价
+                      </span>
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs ${
+                          o.hasSelectedSupplier
+                            ? "bg-green-50 text-green-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {o.hasSelectedSupplier ? "已选定" : "未选定"}
+                      </span>
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{o._count.quotes}</td>
                   <td className="px-4 py-3 text-slate-600">{o.createdBy.name}</td>
                   <td className="px-4 py-3 text-slate-500">
                     {new Date(o.createdAt).toLocaleDateString("zh-CN")}

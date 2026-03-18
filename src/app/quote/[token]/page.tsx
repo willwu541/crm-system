@@ -17,11 +17,7 @@ interface OrderItem {
 
 interface Order {
   orderNo: string;
-  customerName: string;
-  projectName: string;
-  deliveryRegion: string;
   quoteDeadline: string | null;
-  remark: string | null;
 }
 
 interface Attachment {
@@ -165,32 +161,18 @@ export default function QuotePage() {
             </div>
           )}
 
-          <div className="mb-6 space-y-4">
-            <h2 className="font-medium text-slate-800">订单信息</h2>
+          <div className="mb-6">
+            <h2 className="mb-2 font-medium text-slate-800">订单信息</h2>
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">客户</dt>
-                <dd>{order.customerName}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">项目</dt>
-                <dd>{order.projectName}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">交货地区</dt>
-                <dd>{order.deliveryRegion}</dd>
+                <dt className="text-slate-500">订单编号</dt>
+                <dd className="font-medium">{order.orderNo}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">报价截止</dt>
                 <dd>{order.quoteDeadline ? new Date(order.quoteDeadline).toLocaleString("zh-CN") : "-"}</dd>
               </div>
             </dl>
-            {order.remark && (
-              <div>
-                <dt className="text-slate-500">备注</dt>
-                <dd className="text-slate-700">{order.remark}</dd>
-              </div>
-            )}
           </div>
 
           <div className="mb-6">

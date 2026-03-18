@@ -34,9 +34,42 @@ export async function PATCH(
       return NextResponse.json({ error: "无效状态" }, { status: 400 });
     }
 
-    const updated = await prisma.quote.update({
+    const orderId = quote.orderId;
+
+    if (status === "SELECTED") {
+      await prisma.$transaction([
+        prisma.quote.updateMany({
+          where: { orderId, id: { not: id } },
+          data: { status: "PENDING" },
+        }),
+        prisma.quote.update({
+          where: { id },
+          data: { status: "SELECTED" },
+        }),
+        prisma.order.update({
+          where: { id: orderId },
+          data: {
+            hasSelectedSupplier: true,
+            selectedQuoteId: id,
+          },
+        }),
+      ]);
+    } else {
+      await prisma.quote.update({
+        where: { id },
+        data: { status },
+      });
+      if (quote.status === "SELECTED") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { hasSelectedSupplier: false, selectedQuoteId: null },
+        });
+      }
+    }
+
+    const updated = await prisma.quote.findUnique({
       where: { id },
-      data: { status },
+      include: { items: true },
     });
 
     return NextResponse.json({ data: updated });
