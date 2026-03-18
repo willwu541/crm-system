@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import path from "path";
 import { createReadStream, statSync } from "fs";
+import { Readable } from "stream";
 
 export async function GET(
   request: NextRequest,
@@ -46,9 +47,10 @@ export async function GET(
     }
 
     const fileName = att.fileName;
-    const stream = createReadStream(safePath);
+    const nodeStream = createReadStream(safePath);
+    const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
 
-    return new NextResponse(stream, {
+    return new NextResponse(webStream, {
       headers: {
         "Content-Type": "application/octet-stream",
         "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
