@@ -9,7 +9,7 @@ export default async function DashboardLayout({
 }) {
   const user = await getSession();
   if (!user) {
-    redirect("/login?redirect=" + encodeURIComponent("/orders"));
+    redirect("/login?redirect=" + encodeURIComponent("/dashboard"));
   }
 
   return (

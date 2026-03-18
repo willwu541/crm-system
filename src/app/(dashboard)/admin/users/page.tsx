@@ -5,7 +5,7 @@ import { UserList } from "@/components/admin/UserList";
 export default async function AdminUsersPage() {
   const user = await getSession();
   if (!user) redirect("/login");
-  if (user.role !== "ADMIN") redirect("/opportunities");
+  if (user.role !== "ADMIN") redirect("/orders");
 
   return (
     <div>

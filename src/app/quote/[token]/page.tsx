@@ -175,6 +175,44 @@ export default function QuotePage() {
             </dl>
           </div>
 
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+            <h2 className="mb-3 font-medium text-slate-800">图纸文件</h2>
+            {orderAttachments.length > 0 || items.some((i) => i.attachments?.length) ? (
+              <div className="flex flex-wrap gap-2">
+                {orderAttachments.map((a) => (
+                  <a
+                    key={a.filePath}
+                    href={`/api/quote/${token}/download?path=${encodeURIComponent(a.filePath)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-teal-600 shadow-sm hover:bg-teal-50 hover:underline"
+                  >
+                    <span aria-hidden>📎</span>
+                    {a.fileName}（下载）
+                  </a>
+                ))}
+                {items.map((item) =>
+                  item.attachments?.map((a) => (
+                    <a
+                      key={`${item.id}-${a.filePath}`}
+                      href={`/api/quote/${token}/download?path=${encodeURIComponent(a.filePath)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-teal-600 shadow-sm hover:bg-teal-50 hover:underline"
+                    >
+                      <span aria-hidden>📎</span>
+                      {item.specModel} - {a.fileName}（下载）
+                    </a>
+                  ))
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-amber-800">
+                暂无图纸附件。如需图纸请与甲方联系，或请甲方在订单详情页上传后重新发送链接。
+              </p>
+            )}
+          </div>
+
           <div className="mb-6">
             <h2 className="mb-3 font-medium text-slate-800">订单明细</h2>
             <div className="overflow-x-auto">
@@ -240,38 +278,6 @@ export default function QuotePage() {
               </table>
             </div>
           </div>
-
-          {(orderAttachments.length > 0 || items.some((i) => i.attachments?.length)) && (
-            <div className="mb-6">
-              <h2 className="mb-3 font-medium text-slate-800">图纸附件</h2>
-              <div className="flex flex-wrap gap-2">
-                {orderAttachments.map((a) => (
-                  <a
-                    key={a.filePath}
-                    href={a.filePath}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-600 hover:underline"
-                  >
-                    {a.fileName}
-                  </a>
-                ))}
-                {items.map((item) =>
-                  item.attachments?.map((a) => (
-                    <a
-                      key={`${item.id}-${a.filePath}`}
-                      href={a.filePath}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-600 hover:underline"
-                    >
-                      {item.specModel} - {a.fileName}
-                    </a>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <h2 className="font-medium text-slate-800">您的信息</h2>

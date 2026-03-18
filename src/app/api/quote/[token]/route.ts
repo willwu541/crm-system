@@ -111,6 +111,32 @@ export async function POST(
       }
     }
 
+    // 自动收集加工户信息到加工户管理
+    const supplierName = data.supplierName.trim();
+    const contactName = data.contactName.trim();
+    const contactPhone = data.contactPhone.trim();
+    const existing = await prisma.supplier.findFirst({
+      where: {
+        name: supplierName,
+        contactPhone,
+      },
+    });
+    if (existing) {
+      await prisma.supplier.update({
+        where: { id: existing.id },
+        data: { contactName },
+      });
+    } else {
+      await prisma.supplier.create({
+        data: {
+          name: supplierName,
+          contactName,
+          contactPhone,
+          remark: data.totalRemark?.trim() || null,
+        },
+      });
+    }
+
     const quote = await prisma.quote.create({
       data: {
         orderId: link.orderId,

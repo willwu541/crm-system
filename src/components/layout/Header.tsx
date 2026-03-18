@@ -22,6 +22,12 @@ export function Header({ user }: { user: SessionUser }) {
           </Link>
           <nav className="flex gap-4">
             <Link
+              href="/dashboard"
+              className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
+            >
+              后台概览
+            </Link>
+            <Link
               href="/orders"
               className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
             >
