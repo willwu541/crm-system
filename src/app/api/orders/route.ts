@@ -128,7 +128,36 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: order });
   } catch (e) {
-    console.error("Create order error:", e);
-    return NextResponse.json({ error: "创建订单失败" }, { status: 500 });
+    const err = e as Error & { code?: string };
+    console.error("Create order error:", err);
+    const msg = String(err?.message ?? "");
+    if (msg.includes("Unique constraint") || err?.code === "P2002") {
+      return NextResponse.json(
+        { error: "订单编号已存在，请更换或留空自动生成" },
+        { status: 400 }
+      );
+    }
+    if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
+      return NextResponse.json(
+        { error: "数据库连接失败，请检查 DATABASE_URL 或稍后重试" },
+        { status: 500 }
+      );
+    }
+    if (msg.includes("DATABASE_URL is not set")) {
+      return NextResponse.json(
+        { error: "数据库未配置：请在项目根目录创建 .env 文件并设置 DATABASE_URL" },
+        { status: 500 }
+      );
+    }
+    if (msg.includes("relation") && msg.includes("does not exist")) {
+      return NextResponse.json(
+        { error: "数据库表不存在，请运行: npx prisma db push" },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: msg || "创建订单失败" },
+      { status: 500 }
+    );
   }
 }

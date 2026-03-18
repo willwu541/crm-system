@@ -86,12 +86,18 @@ export function OrderForm() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "创建失败");
+      let data: { error?: string; data?: { id: string } };
+      try {
+        data = await res.json();
+      } catch {
+        setError(res.ok ? "响应解析失败" : `请求失败 (${res.status})`);
         return;
       }
-      router.push(`/orders/${data.data.id}`);
+      if (!res.ok) {
+        setError(data?.error ?? "创建失败");
+        return;
+      }
+      router.push(`/orders/${data.data!.id}`);
       router.refresh();
     } catch (err) {
       setError("网络错误，请重试");
@@ -107,6 +113,14 @@ export function OrderForm() {
           {error}
         </div>
       )}
+
+      {/* 图纸文件 */}
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-2 font-medium text-slate-800">图纸文件</h2>
+        <p className="text-sm text-slate-600">
+          订单创建后将跳转到详情页，可在该页上传图纸（支持 pdf、jpg、png、gif、zip，单文件不超过 10MB）。
+        </p>
+      </div>
 
       {/* 订单主信息 */}
       <div className="rounded-lg border border-slate-200 bg-white p-6">

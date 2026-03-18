@@ -184,7 +184,10 @@ export default async function OrderDetailPage({
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 font-medium text-slate-800">附件</h2>
+        <h2 className="mb-4 font-medium text-slate-800">图纸文件</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          支持 pdf、jpg、png、gif、zip，单文件不超过 10MB。可上传订单级附件或明细级附件。
+        </p>
         <OrderDetailContent
           orderId={id}
           orderAttachments={serializedAttachments}
