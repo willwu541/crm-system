@@ -152,7 +152,7 @@ export default function QuotePage() {
       <div className="mx-auto max-w-3xl px-4">
         <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="mb-6 text-xl font-semibold text-slate-800">
-            河北双亿-伟荣-wiberg 外协报价填写 - {order.orderNo}
+            外协报价填写 - {order.orderNo}
           </h1>
 
           {expired && (

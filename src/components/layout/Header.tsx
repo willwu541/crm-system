@@ -18,7 +18,7 @@ export function Header({ user }: { user: SessionUser }) {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
         <div className="flex items-center gap-8">
           <Link href="/orders" className="font-semibold text-teal-700">
-            河北双亿-伟荣-wiberg · 钢格板业务系统
+            钢格板业务系统
           </Link>
           <nav className="flex gap-4">
             <Link
@@ -40,12 +40,20 @@ export function Header({ user }: { user: SessionUser }) {
               加工户管理
             </Link>
             {user.role === "ADMIN" && (
-              <Link
-                href="/admin/users"
-                className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
-              >
-                用户管理
-              </Link>
+              <>
+                <Link
+                  href="/admin/users"
+                  className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
+                >
+                  用户管理
+                </Link>
+                <Link
+                  href="/admin/logs"
+                  className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
+                >
+                  操作日志
+                </Link>
+              </>
             )}
           </nav>
         </div>

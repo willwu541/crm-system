@@ -2,7 +2,7 @@
  * 初始化管理员账号脚本（使用 pg 直连，绕过 Prisma adapter 问题）
  * 用法: npx tsx scripts/init-admin.ts
  *
- * 创建/更新 admin@wibergmetal.com / admin123
+ * 创建/更新管理员账号
  */
 import "dotenv/config";
 import pg from "pg";
@@ -15,7 +15,7 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const ADMIN_EMAIL = "admin@wibergmetal.com";
+const ADMIN_EMAIL = "admin@example.com";
 const ADMIN_PASSWORD = "admin123";
 const ADMIN_NAME = "Admin";
 

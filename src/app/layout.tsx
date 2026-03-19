@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "河北双亿-伟荣-wiberg · 钢格板业务系统",
-  description: "河北双亿-伟荣-wiberg 钢格板业务系统 - 商机、订单、外放询价管理",
+  title: "钢格板业务系统",
+  description: "钢格板业务系统 - 商机、订单、外放询价管理",
 };
 
 export default function RootLayout({

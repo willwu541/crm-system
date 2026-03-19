@@ -41,7 +41,7 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-md">
         <h1 className="mb-6 text-center text-xl font-semibold text-teal-800">
-          河北双亿-伟荣-wiberg · 钢格板业务系统
+          钢格板业务系统
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -59,7 +59,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              placeholder="admin@wibergmetal.com"
+              placeholder="admin@example.com"
               required
               autoComplete="email"
             />

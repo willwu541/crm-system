@@ -206,3 +206,17 @@ model QuoteItem {
 
   @@map("quote_items")
 }
+
+model OperationLog {
+  id          String   @id @default(cuid())
+  action      String   @map("action")
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  targetName  String   @map("target_name")
+  userId      String   @map("user_id")
+  userName    String   @map("user_name")
+  details     String?  @map("details")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("operation_logs")
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createOpLog } from "@/lib/oplog";
 
 export async function DELETE(
   _request: NextRequest,
@@ -25,6 +26,16 @@ export async function DELETE(
   if (user.role === "SALES" && att.order.createdById !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
+
+  await createOpLog({
+    action: "删除附件",
+    targetType: "attachment",
+    targetId: id,
+    targetName: att.fileName,
+    userId: user.id,
+    userName: user.name,
+    details: `订单: ${att.order.orderNo}`,
+  });
 
   await prisma.orderAttachment.delete({ where: { id } });
   return NextResponse.json({ ok: true });

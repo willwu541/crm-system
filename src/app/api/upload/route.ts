@@ -7,11 +7,14 @@ const ALLOWED_TYPES = [
   "application/pdf",
   "image/jpeg",
   "image/jpg",
+  "image/pjpeg",
   "image/png",
+  "image/x-png",
   "image/gif",
   "application/zip",
 ];
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_EXT = /\.(pdf|jpg|jpeg|png|gif|zip)$/i;
+const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
 export async function POST(request: NextRequest) {
   const user = await getSession();
@@ -32,14 +35,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少 orderId" }, { status: 400 });
     }
 
-    if (!ALLOWED_TYPES.includes(file.type) && !file.name.match(/\.(pdf|jpg|jpeg|png|gif|zip)$/i)) {
+    const extOk = ALLOWED_EXT.test(file.name);
+    const typeOk = !file.type || ALLOWED_TYPES.includes(file.type);
+    if (!extOk && !typeOk) {
       return NextResponse.json(
         { error: "仅支持 pdf、jpg、png、gif、zip 格式" },
         { status: 400 }
       );
     }
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: "文件大小不能超过 10MB" }, { status: 400 });
+      return NextResponse.json({ error: "文件大小不能超过 50MB" }, { status: 400 });
     }
 
     const dir = orderItemId
@@ -65,6 +70,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error("Upload error:", e);
-    return NextResponse.json({ error: "上传失败" }, { status: 500 });
+    const msg = e instanceof Error ? e.message : "";
+    return NextResponse.json(
+      { error: msg.includes("ENOENT") || msg.includes("EACCES") ? "文件写入失败，请检查服务器权限" : "上传失败，请检查文件格式和大小或稍后重试" },
+      { status: 500 }
+    );
   }
 }

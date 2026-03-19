@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createOpLog } from "@/lib/oplog";
 
 export async function PATCH(
   request: NextRequest,
@@ -35,6 +36,16 @@ export async function PATCH(
     }
 
     const orderId = quote.orderId;
+
+    await createOpLog({
+      action: "修改报价",
+      targetType: "quote",
+      targetId: id,
+      targetName: `${quote.supplierName} - 订单${quote.order.orderNo}`,
+      userId: user.id,
+      userName: user.name,
+      details: `状态: ${quote.status} → ${status}`,
+    });
 
     if (status === "SELECTED") {
       await prisma.$transaction([

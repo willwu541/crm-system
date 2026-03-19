@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createOpLog } from "@/lib/oplog";
 import { z } from "zod";
 
 export async function GET(
@@ -54,6 +55,16 @@ export async function PUT(
       return NextResponse.json({ error: "无有效更新" }, { status: 400 });
     }
 
+    await createOpLog({
+      action: "修改加工户",
+      targetType: "supplier",
+      targetId: id,
+      targetName: supplier.name,
+      userId: user.id,
+      userName: user.name,
+      details: JSON.stringify(data),
+    });
+
     const updated = await prisma.supplier.update({
       where: { id },
       data: data as never,
@@ -77,6 +88,14 @@ export async function DELETE(
   if (!supplier) return NextResponse.json({ error: "加工户不存在" }, { status: 404 });
 
   try {
+    await createOpLog({
+      action: "删除加工户",
+      targetType: "supplier",
+      targetId: id,
+      targetName: supplier.name,
+      userId: user.id,
+      userName: user.name,
+    });
     await prisma.supplier.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (e) {

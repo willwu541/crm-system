@@ -41,8 +41,8 @@ export function AttachmentUpload({
       setError("仅支持 pdf、jpg、png、gif、zip 格式");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("文件不能超过 10MB");
+    if (file.size > 50 * 1024 * 1024) {
+      setError("文件不能超过 50MB");
       return;
     }
 
@@ -59,22 +59,64 @@ export function AttachmentUpload({
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
+        credentials: "same-origin",
       });
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadData.error || "上传失败");
+      const text = await uploadRes.text();
+
+      const isHtml = (s: string) => s.trim().startsWith("<") || s.includes("<!DOCTYPE") || s.includes("<html");
+      if (uploadRes.status === 413 || (text && isHtml(text))) {
+        setError("上传失败：文件过大或 Nginx 限制。请确认 Nginx 中已添加 client_max_body_size 52m; 并执行 nginx -s reload");
+        return;
+      }
+
+      let uploadData: { error?: string; fileName?: string; filePath?: string; fileSize?: number; mimeType?: string } = {};
+      if (text && !isHtml(text) && text.trim().startsWith("{")) {
+        try {
+          uploadData = JSON.parse(text);
+        } catch {
+          setError("上传失败：服务器返回异常");
+          return;
+        }
+      }
+      if (!uploadRes.ok) {
+        setError(uploadData.error || "上传失败");
+        return;
+      }
 
       const attRes = await fetch(`/api/orders/${orderId}/attachments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           ...uploadData,
           orderItemId: orderItemId || null,
         }),
       });
-      if (!attRes.ok) throw new Error("保存失败");
+      const attText = await attRes.text();
+      if (attRes.status === 413 || (attText && isHtml(attText))) {
+        setError("上传失败：请求被拦截，请检查 Nginx 配置");
+        return;
+      }
+      if (!attRes.ok) {
+        let attData: { error?: string } = {};
+        if (attText && !isHtml(attText) && attText.trim().startsWith("{")) {
+          try {
+            attData = JSON.parse(attText);
+          } catch {
+            /* ignore */
+          }
+        }
+        setError(attData.error || "保存失败");
+        return;
+      }
       onUploaded();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "上传失败");
+      const msg = e instanceof Error ? e.message : "上传失败";
+      if (msg.includes("Unexpected token") || msg.includes("is not valid JSON")) {
+        setError("上传失败：服务器返回了非 JSON 响应，可能是 Nginx 限制。请确认 client_max_body_size 52m; 已生效");
+      } else {
+        setError(msg);
+      }
     } finally {
       setUploading(false);
       setUploadingItem(null);
@@ -82,12 +124,33 @@ export function AttachmentUpload({
   }
 
   async function deleteAttachment(id: string) {
+    setError("");
     try {
-      const res = await fetch(`/api/attachments/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("删除失败");
+      const res = await fetch(`/api/attachments/${id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const text = await res.text();
+      if (res.status === 404 || (text && text.trim().startsWith("<"))) {
+        setError("删除失败：接口可能未正确配置，请检查 Nginx 是否将 /api 请求转发到应用");
+        return;
+      }
+      if (!res.ok) {
+        let msg = "删除失败";
+        if (text && text.trim().startsWith("{")) {
+          try {
+            const j = JSON.parse(text);
+            if (j.error) msg = j.error;
+          } catch {
+            /* ignore */
+          }
+        }
+        setError(msg);
+        return;
+      }
       onDeleted();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "删除失败");
+      setError(e instanceof Error ? e.message : "删除失败，请检查网络连接");
     }
   }
 
