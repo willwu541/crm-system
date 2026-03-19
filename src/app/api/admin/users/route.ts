@@ -17,6 +17,7 @@ export async function GET() {
       email: true,
       name: true,
       role: true,
+      tenant: true,
       createdAt: true,
     },
   });
@@ -29,6 +30,7 @@ const createSchema = z.object({
   password: z.string().min(6, "密码至少6位"),
   name: z.string().min(1, "姓名必填"),
   role: z.enum(["ADMIN", "SALES"]),
+  tenant: z.enum(["domestic", "export"]),
 });
 
 export async function POST(request: NextRequest) {
@@ -55,14 +57,23 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+    let tenantId: string | undefined;
+    if (parsed.data.tenant === "export") {
+      const tenant = await prisma.exportTenant.findUnique({
+        where: { slug: "default" },
+      });
+      tenantId = tenant?.id;
+    }
     const newUser = await prisma.user.create({
       data: {
         email: parsed.data.email.toLowerCase(),
         passwordHash,
         name: parsed.data.name,
         role: parsed.data.role,
+        tenant: parsed.data.tenant,
+        tenantId,
       },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, role: true, tenant: true, tenantId: true },
     });
 
     return NextResponse.json({ data: newUser });

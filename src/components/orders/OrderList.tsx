@@ -76,18 +76,18 @@ export function OrderList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <form onSubmit={handleSearch} className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <form onSubmit={handleSearch} className="flex flex-1 min-w-0 gap-2">
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="订单号/项目"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="flex-1 min-w-0 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
-            className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800"
+            className="shrink-0 rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800"
           >
             搜索
           </button>
@@ -98,7 +98,7 @@ export function OrderList() {
             setMainStatus(e.target.value);
             setPage(1);
           }}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-0"
         >
           <option value="">全部状态</option>
           <option value="CONVERTED">已成交</option>
@@ -115,13 +115,13 @@ export function OrderList() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : orders.length === 0 ? (
           <div className="p-8 text-center text-slate-500">暂无订单</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">订单编号</th>

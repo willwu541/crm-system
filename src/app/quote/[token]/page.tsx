@@ -148,11 +148,11 @@ export default function QuotePage() {
   const { order, items, orderAttachments, expired } = data;
 
   return (
-    <div className="min-h-screen bg-slate-100 py-8">
-      <div className="mx-auto max-w-3xl px-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-h-screen bg-slate-100 py-4 sm:py-8">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
           <h1 className="mb-6 text-xl font-semibold text-slate-800">
-            外协报价填写 - {order.orderNo}
+            客户报价 - {order.orderNo}
           </h1>
 
           {expired && (
@@ -252,7 +252,7 @@ export default function QuotePage() {
                             }))
                           }
                           disabled={expired}
-                          className="w-24 rounded border border-slate-300 px-2 py-1"
+                          className="min-w-[4rem] w-20 sm:w-24 rounded border border-slate-300 px-2 py-1.5"
                         />
                       </td>
                       <td className="px-2 py-2">
@@ -269,7 +269,7 @@ export default function QuotePage() {
                             }))
                           }
                           disabled={expired}
-                          className="w-24 rounded border border-slate-300 px-2 py-1"
+                          className="min-w-[4rem] w-20 sm:w-24 rounded border border-slate-300 px-2 py-1.5"
                         />
                       </td>
                     </tr>
@@ -374,7 +374,7 @@ export default function QuotePage() {
             <button
               type="submit"
               disabled={expired || submitting}
-              className="rounded-md bg-teal-600 px-6 py-2 font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[44px] rounded-md bg-teal-600 px-6 py-3 font-medium text-white hover:bg-teal-700 disabled:opacity-50 touch-manipulation"
             >
               {submitting ? "提交中..." : "提交报价"}
             </button>

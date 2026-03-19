@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 export default async function HomePage() {
   const user = await getSession();
   if (user) {
-    redirect("/dashboard");
+    redirect(user.tenant === "export" ? "/export/dashboard" : "/dashboard");
   }
   redirect("/login");
 }

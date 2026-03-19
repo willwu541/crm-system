@@ -5,27 +5,38 @@ import { prisma } from "./prisma";
 const SESSION_COOKIE = "session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 天
 
+export type Tenant = "domestic" | "export";
+
 export interface SessionUser {
   id: string;
   email: string;
   name: string;
   role: "ADMIN" | "SALES";
+  tenant: Tenant;
+  /** 当 tenant=export 时必填，指向 ExportTenant */
+  tenantId?: string;
 }
 
-export async function login(email: string, password: string): Promise<SessionUser | null> {
+export async function login(
+  email: string,
+  password: string,
+  tenant: Tenant
+): Promise<SessionUser | null> {
   const emailNorm = email?.trim()?.toLowerCase();
   if (!emailNorm) return null;
 
   const user = await prisma.user.findFirst({
     where: { email: emailNorm },
+    select: { id: true, email: true, name: true, role: true, tenant: true, tenantId: true, passwordHash: true },
   });
   if (!user) return null;
+
+  if (user.tenant !== tenant) return null;
 
   try {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return null;
   } catch {
-    // passwordHash 格式异常时 bcrypt 会抛错，统一按认证失败处理
     return null;
   }
 
@@ -34,6 +45,8 @@ export async function login(email: string, password: string): Promise<SessionUse
     email: user.email,
     name: user.name,
     role: user.role,
+    tenant: user.tenant as Tenant,
+    tenantId: user.tenantId ?? undefined,
   };
 }
 
@@ -60,7 +73,9 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     const payload = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
     if (payload.expires && payload.expires < Date.now()) return null;
-    return payload as SessionUser;
+    const user = payload as SessionUser;
+    if (!user.tenant) user.tenant = "domestic";
+    return user;
   } catch {
     return null;
   }

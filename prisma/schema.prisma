@@ -53,16 +53,28 @@ enum PaymentStatus {
   PAID
 }
 
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  name         String
-  role         UserRole @default(SALES)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+enum Tenant {
+  domestic
+  export
+}
 
-  orders Order[]
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         UserRole  @default(SALES)
+  tenant       Tenant    @default(domestic)
+  tenantId     String?   @map("tenant_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  orders            Order[]
+  exportTenant      ExportTenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  exportLeads       ExportLead[]
+  exportCustomers   ExportCustomer[]
+  exportActivities  ExportActivity[]
+  exportTasks       ExportTask[]
 
   @@map("users")
 }
@@ -108,9 +120,9 @@ model Order {
   createdBy    User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   items        OrderItem[]
   attachments  OrderAttachment[]
-  quoteLinks     QuoteLink[]
-  quotes         Quote[]
-  selectedQuote  Quote?       @relation("SelectedQuote", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
+  quoteLinks   QuoteLink[]
+  quotes       Quote[]
+  selectedQuote Quote?       @relation("SelectedQuote", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
 
   @@map("orders")
 }
@@ -182,7 +194,7 @@ model Quote {
   status           QuoteStatus @default(PENDING)
   submittedAt      DateTime    @map("submitted_at")
   createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
 
   order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   quoteLink QuoteLink  @relation(fields: [quoteLinkId], references: [id], onDelete: Restrict)
@@ -219,4 +231,308 @@ model OperationLog {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("operation_logs")
+}
+
+// ========== 外贸 CRM ==========
+
+model ExportTenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users      User[]
+  leads      ExportLead[]
+  customers  ExportCustomer[]
+  contacts   ExportContact[]
+  activities ExportActivity[]
+  quotes     ExportQuote[]
+  orders     ExportOrder[]
+  tasks      ExportTask[]
+  sequences  ExportSequence[]
+
+  @@map("export_tenants")
+}
+
+model ExportSequence {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  prefix    String   // CUS, QUO, ORD
+  year      Int
+  lastSeq   Int      @default(0) @map("last_seq")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant ExportTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, prefix, year])
+  @@index([tenantId])
+  @@map("export_sequences")
+}
+
+model ExportLead {
+  id                     String   @id @default(cuid())
+  tenantId               String   @map("tenant_id")
+  companyName            String   @map("company_name")
+  website                String?
+  country                String?
+  city                   String?
+  address                String?
+  customerType           String?  @map("customer_type")
+  sourceChannel          String?  @map("source_channel")
+  sourceKeyword          String?  @map("source_keyword")
+  email                  String?
+  phone                  String?
+  whatsapp               String?
+  linkedin               String?
+  mainBusiness           String?  @map("main_business")
+  interestedProducts     String[] @map("interested_products")
+  priority               String?
+  ownerId                String   @map("owner_id")
+  status                 String   @default("new")
+  notes                  String?
+  lastContactAt          DateTime? @map("last_contact_at")
+  isDuplicate            Boolean  @default(false) @map("is_duplicate")
+  duplicateReason        String?  @map("duplicate_reason")
+  convertedToCustomerId  String?  @map("converted_to_customer_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  customer ExportCustomer? @relation(fields: [convertedToCustomerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("export_leads")
+}
+
+model ExportCustomer {
+  id                  String    @id @default(cuid())
+  tenantId            String    @map("tenant_id")
+  customerCode        String    @map("customer_code")
+  companyName         String    @map("company_name")
+  website             String?
+  country             String?
+  city                String?
+  address             String?
+  customerType        String?   @map("customer_type")
+  industry            String?
+  marketPriority      String?   @map("market_priority")
+  valueLevel          String?   @map("value_level")
+  interestedProducts  String[]  @map("interested_products")
+  sourceChannel       String?   @map("source_channel")
+  ownerId             String    @map("owner_id")
+  status              String    @default("to_develop")
+  lastFollowUpAt      DateTime? @map("last_follow_up_at")
+  nextFollowUpAt      DateTime? @map("next_follow_up_at")
+  lastStageChangedAt  DateTime? @map("last_stage_changed_at")
+  lostReason          String?   @map("lost_reason")
+  isWon               Boolean   @default(false) @map("is_won")
+  notes               String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant    ExportTenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner     User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contacts  ExportContact[]
+  activities ExportActivity[]
+  quotes    ExportQuote[]
+  orders    ExportOrder[]
+  tasks     ExportTask[]
+  leads     ExportLead[]
+
+  @@unique([tenantId, customerCode])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("export_customers")
+}
+
+model ExportContact {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  customerId String   @map("customer_id")
+  name       String
+  title      String?
+  email      String?
+  phone      String?
+  whatsapp   String?
+  linkedin   String?
+  language   String?
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  activities ExportActivity[]
+  quotes     ExportQuote[]
+  tasks      ExportTask[]
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@map("export_contacts")
+}
+
+model ExportActivity {
+  id                    String    @id @default(cuid())
+  tenantId              String    @map("tenant_id")
+  customerId            String    @map("customer_id")
+  contactId             String?   @map("contact_id")
+  type                  String
+  subject               String?
+  content               String?
+  customerFeedback      String?   @map("customer_feedback")
+  customerNameSnapshot  String?   @map("customer_name_snapshot")
+  contactNameSnapshot   String?   @map("contact_name_snapshot")
+  contactEmailSnapshot  String?   @map("contact_email_snapshot")
+  nextFollowUpAt       DateTime? @map("next_follow_up_at")
+  ownerId               String    @map("owner_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contact  ExportContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("export_activities")
+}
+
+model ExportQuote {
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  quoteNo        String    @map("quote_no")
+  customerId     String    @map("customer_id")
+  contactId      String?   @map("contact_id")
+  quoteDate      DateTime  @map("quote_date")
+  currency       String?
+  incoterm       String?
+  validityDate   DateTime? @map("validity_date")
+  productSummary String?   @map("product_summary")
+  totalAmount    Decimal?  @map("total_amount") @db.Decimal(18, 4)
+  status         String    @default("draft")
+  isWon          Boolean   @default(false) @map("is_won")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contact  ExportContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  items    ExportQuoteItem[]
+  orders   ExportOrder[]
+
+  @@unique([tenantId, quoteNo])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("export_quotes")
+}
+
+model ExportQuoteItem {
+  id          String   @id @default(cuid())
+  quoteId     String   @map("quote_id")
+  productType String   @map("product_type")
+  spec        String?
+  description String?
+  quantity    Decimal  @db.Decimal(18, 4)
+  unit        String
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
+  amount      Decimal  @db.Decimal(18, 4)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quote ExportQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("export_quote_items")
+}
+
+model ExportOrder {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  orderNo          String    @map("order_no")
+  customerId       String    @map("customer_id")
+  quoteId          String?   @map("quote_id")
+  orderDate        DateTime  @map("order_date")
+  currency         String?
+  totalAmount      Decimal?  @map("total_amount") @db.Decimal(18, 4)
+  paymentTerm      String?   @map("payment_term")
+  paymentStatus    String    @default("unpaid") @map("payment_status")
+  productionStatus String   @default("pending") @map("production_status")
+  shippingStatus   String    @default("pending") @map("shipping_status")
+  eta              DateTime? @map("eta")
+  actualShipDate   DateTime? @map("actual_ship_date")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  quote    ExportQuote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  items    ExportOrderItem[]
+
+  @@unique([tenantId, orderNo])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("export_orders")
+}
+
+model ExportOrderItem {
+  id          String   @id @default(cuid())
+  orderId     String   @map("order_id")
+  productType String   @map("product_type")
+  spec        String?
+  description String?
+  quantity    Decimal  @db.Decimal(18, 4)
+  unit        String
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
+  amount      Decimal  @db.Decimal(18, 4)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  order ExportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("export_order_items")
+}
+
+model ExportTask {
+  id         String    @id @default(cuid())
+  tenantId   String    @map("tenant_id")
+  title      String
+  customerId String?   @map("customer_id")
+  contactId  String?   @map("contact_id")
+  dueDate    DateTime? @map("due_date")
+  priority   String    @default("medium")
+  status     String    @default("todo")
+  ownerId    String    @map("owner_id")
+  notes      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  contact  ExportContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([customerId])
+  @@index([dueDate])
+  @@index([createdAt])
+  @@map("export_tasks")
 }

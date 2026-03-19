@@ -30,13 +30,13 @@ export default async function OrderQuotesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-slate-800">
           报价回收 - {order.orderNo}
         </h1>
         <Link
           href={`/orders/${id}`}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+          className="shrink-0 rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
         >
           返回订单
         </Link>

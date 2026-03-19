@@ -3,6 +3,7 @@ import { login, setSession } from "@/lib/auth";
 import { z } from "zod";
 
 const schema = z.object({
+  tenant: z.enum(["domestic", "export"]),
   email: z.string().email("请输入有效邮箱"),
   password: z.string().min(1, "请输入密码"),
 });
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await login(parsed.data.email, parsed.data.password);
+    const user = await login(parsed.data.email, parsed.data.password, parsed.data.tenant);
     if (!user) {
       return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
     }

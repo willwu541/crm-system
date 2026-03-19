@@ -39,14 +39,14 @@ export function SupplierList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-4">
-        <form onSubmit={handleSearch} className="flex gap-2">
+      <div className="flex flex-wrap gap-3">
+        <form onSubmit={handleSearch} className="flex flex-1 min-w-0 gap-2">
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="加工户名称/联系人/电话"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="flex-1 min-w-0 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
@@ -63,13 +63,13 @@ export function SupplierList() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : suppliers.length === 0 ? (
           <div className="p-8 text-center text-slate-500">暂无加工户</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[500px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">加工户名称</th>

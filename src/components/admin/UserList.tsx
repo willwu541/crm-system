@@ -7,6 +7,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  tenant: string;
   createdAt: string;
 }
 
@@ -18,6 +19,7 @@ export function UserList() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<"ADMIN" | "SALES">("SALES");
+  const [tenant, setTenant] = useState<"domestic" | "export">("domestic");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -44,7 +46,7 @@ export function UserList() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name, role }),
+        body: JSON.stringify({ email, password, name, role, tenant }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "创建失败");
@@ -53,6 +55,7 @@ export function UserList() {
       setPassword("");
       setName("");
       setRole("SALES");
+      setTenant("domestic");
       fetchUsers();
     } catch (e) {
       setError(e instanceof Error ? e.message : "创建失败");
@@ -121,6 +124,17 @@ export function UserList() {
                 <option value="ADMIN">管理员</option>
               </select>
             </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">入口</label>
+              <select
+                value={tenant}
+                onChange={(e) => setTenant(e.target.value as "domestic" | "export")}
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
+              >
+                <option value="domestic">内贸</option>
+                <option value="export">外贸</option>
+              </select>
+            </div>
           </div>
           <div className="mt-4 flex gap-2">
             <button
@@ -151,6 +165,7 @@ export function UserList() {
                 <th className="px-4 py-3 text-left font-medium text-slate-700">邮箱</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">姓名</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">角色</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">入口</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">创建时间</th>
               </tr>
             </thead>
@@ -162,6 +177,11 @@ export function UserList() {
                   <td className="px-4 py-3">
                     <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
                       {u.role === "ADMIN" ? "管理员" : "业务员"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
+                      {u.tenant === "export" ? "外贸" : "内贸"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500">
