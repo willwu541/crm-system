@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { parseInterestedProducts } from "@/lib/export/interested-products";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -73,10 +72,12 @@ const createSchema = z.object({
   whatsapp: z.string().optional(),
   linkedin: z.string().optional(),
   mainBusiness: z.string().optional(),
-  interestedProducts: z.union([z.string(), z.array(z.string())]).optional(),
+  productInterest: z.string().optional(),
   priority: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
+  /** 仅管理员：分配给业务员 */
+  ownerId: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -93,14 +94,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { interestedProducts, ...rest } = parsed.data;
+    const { ownerId: bodyOwnerId, ...rest } = parsed.data;
+    let ownerId = user!.id;
+    if (user!.role === "ADMIN" && bodyOwnerId) {
+      const assignee = await prisma.user.findFirst({
+        where: { id: bodyOwnerId, tenant: "export", tenantId: ctx!.tenantId },
+        select: { id: true },
+      });
+      if (assignee) ownerId = assignee.id;
+    }
+
     const lead = await prisma.exportLead.create({
       data: {
         ...rest,
         tenantId: ctx!.tenantId,
-        ownerId: user!.id,
+        ownerId,
         status: parsed.data.status ?? "new",
-        interestedProducts: parseInterestedProducts(interestedProducts),
       },
       include: { owner: { select: { id: true, name: true } } },
     });

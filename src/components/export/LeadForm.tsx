@@ -1,27 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  CUSTOMER_TYPES,
-  INTERESTED_PRODUCTS,
-  LEAD_STATUSES,
-} from "@/lib/export-constants";
+import { CUSTOMER_TYPES, LEAD_STATUSES } from "@/lib/export-constants";
+import type { SessionUser } from "@/lib/auth";
 
 interface LeadFormProps {
   initial?: Record<string, unknown>;
   leadId?: string;
-  /** 在抽屉模式下，保存成功后调用，不跳转 */
   onSuccess?: () => void;
-  /** 在抽屉模式下，取消时调用 */
   onCancel?: () => void;
+}
+
+interface ExportUser {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [me, setMe] = useState<SessionUser | null>(null);
+  const [users, setUsers] = useState<ExportUser[]>([]);
+
   const [form, setForm] = useState({
     companyName: (initial?.companyName as string) ?? "",
     website: (initial?.website as string) ?? "",
@@ -36,15 +40,41 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
     whatsapp: (initial?.whatsapp as string) ?? "",
     linkedin: (initial?.linkedin as string) ?? "",
     mainBusiness: (initial?.mainBusiness as string) ?? "",
-    interestedProducts: (() => {
-      const v = initial?.interestedProducts;
-      if (Array.isArray(v)) return (v[0] as string) ?? "";
-      return (v as string) ?? "";
+    productInterest: (() => {
+      const v = initial?.productInterest;
+      if (typeof v === "string") return v;
+      const legacy = initial?.interestedProducts;
+      if (Array.isArray(legacy)) return legacy.filter(Boolean).join(", ");
+      return "";
     })(),
     priority: (initial?.priority as string) ?? "",
     status: (initial?.status as string) ?? "new",
     notes: (initial?.notes as string) ?? "",
+    ownerId: (initial?.owner as { id?: string })?.id ?? (initial?.ownerId as string) ?? "",
   });
+
+  useEffect(() => {
+    if (initial?.owner && typeof initial.owner === "object" && "id" in (initial.owner as object)) {
+      setForm((f) => ({ ...f, ownerId: String((initial.owner as { id: string }).id) }));
+    }
+  }, [initial]);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.user) setMe(j.user);
+      })
+      .catch(() => {});
+    fetch("/api/export/users")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.data) setUsers(j.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isAdmin = me?.role === "ADMIN";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,10 +83,32 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
     try {
       const url = leadId ? `/api/export/leads/${leadId}` : "/api/export/leads";
       const method = leadId ? "PATCH" : "POST";
+      const body: Record<string, unknown> = {
+        companyName: form.companyName,
+        website: form.website || undefined,
+        country: form.country || undefined,
+        city: form.city || undefined,
+        address: form.address || undefined,
+        customerType: form.customerType || undefined,
+        sourceChannel: form.sourceChannel || undefined,
+        sourceKeyword: form.sourceKeyword || undefined,
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        whatsapp: form.whatsapp || undefined,
+        linkedin: form.linkedin || undefined,
+        mainBusiness: form.mainBusiness || undefined,
+        productInterest: form.productInterest || undefined,
+        priority: form.priority || undefined,
+        status: form.status,
+        notes: form.notes || undefined,
+      };
+      if (isAdmin && form.ownerId) {
+        body.ownerId = form.ownerId;
+      }
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "保存失败");
@@ -92,6 +144,24 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
+        {isAdmin && users.length > 0 && (
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">负责人（业务员）</label>
+            <select
+              value={form.ownerId}
+              onChange={(e) => setForm((f) => ({ ...f, ownerId: e.target.value }))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+            >
+              <option value="">默认（自己）</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">管理员可将线索分配给外贸业务员跟进</p>
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">网站</label>
           <input
@@ -206,20 +276,15 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">感兴趣产品</label>
-          <select
-            value={form.interestedProducts}
-            onChange={(e) => setForm((f) => ({ ...f, interestedProducts: e.target.value }))}
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">感兴趣产品 / 需求说明</label>
+          <textarea
+            value={form.productInterest}
+            onChange={(e) => setForm((f) => ({ ...f, productInterest: e.target.value }))}
+            rows={3}
+            placeholder="可自由填写，如：钢格板、踏步板等"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">请选择</option>
-            {INTERESTED_PRODUCTS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">优先级</label>

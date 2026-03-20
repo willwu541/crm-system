@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { TaskFormClient } from "./TaskFormClient";
+import { ExportDeleteButton } from "./ExportDeleteButton";
 
 export function TaskDetailClient({ taskId }: { taskId: string }) {
   const { toast } = useToast();
@@ -73,6 +74,12 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
           >
             编辑
           </button>
+          <ExportDeleteButton
+            apiPath={`/api/export/tasks/${taskId}`}
+            redirectTo="/export/tasks"
+            label="删除任务"
+            className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
+          />
           <Link
             href="/export/tasks"
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"

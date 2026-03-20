@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
 
 async function getActivityOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
@@ -76,12 +77,35 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
   const { error: err } = await getActivityOrError(id, ctx!.tenantId, ctx!.ownerFilter);
   if (err) return err;
 
-  await prisma.exportActivity.delete({ where: { id, tenantId: ctx!.tenantId } });
-  return NextResponse.json({ ok: true });
+  const full = await prisma.exportActivity.findUnique({
+    where: { id, tenantId: ctx!.tenantId },
+    include: {
+      customer: { select: { companyName: true, customerCode: true } },
+      contact: { select: { name: true } },
+      owner: { select: { id: true, name: true } },
+    },
+  });
+  if (!full) return NextResponse.json({ error: "跟进记录不存在" }, { status: 404 });
+
+  try {
+    await deleteWithExportLog({
+      tenantId: ctx!.tenantId,
+      entityType: "activity",
+      recordId: id,
+      summary: `${full.type} · ${full.customer.companyName}`,
+      snapshot: full,
+      deletedById: user!.id,
+      deleteFn: (tx) => tx.exportActivity.delete({ where: { id, tenantId: ctx!.tenantId } }),
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Delete activity error:", e);
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
+  }
 }

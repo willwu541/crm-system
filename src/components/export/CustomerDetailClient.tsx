@@ -20,6 +20,7 @@ import { QuoteFormClient } from "./QuoteFormClient";
 import { TaskFormClient } from "./TaskFormClient";
 import { Drawer } from "./shared/Drawer";
 import { toDisplayString } from "@/lib/export/interested-products";
+import { ExportDeleteButton } from "./ExportDeleteButton";
 
 interface Customer {
   id: string;
@@ -180,6 +181,12 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           >
             编辑客户
           </button>
+          <ExportDeleteButton
+            apiPath={`/api/export/customers/${customerId}`}
+            redirectTo="/export/customers"
+            label="删除客户"
+            className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
+          />
           <Link
             href="/export/customers"
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
@@ -268,12 +275,18 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
               ) : (
                 customer.activities.map((a) => (
                   <div key={a.id} className="border-l-2 border-slate-200 pl-4 py-1">
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
                         {ACTIVITY_LABELS[a.type] ?? a.type}
                       </span>
                       <span className="text-slate-500">{a.owner.name}</span>
                       <span className="text-slate-400">{new Date(a.createdAt).toLocaleString("zh-CN")}</span>
+                      <ExportDeleteButton
+                        apiPath={`/api/export/activities/${a.id}`}
+                        onDeleted={() => fetchCustomer({ silent: true })}
+                        label="删除"
+                        className="ml-auto text-xs text-red-600 hover:underline disabled:opacity-50"
+                      />
                     </div>
                     {a.subject && <p className="mt-1 font-medium text-slate-700">{a.subject}</p>}
                     {a.content && <p className="mt-1 text-sm text-slate-600">{a.content}</p>}
@@ -366,22 +379,31 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                 <p className="text-sm text-slate-500">暂无联系人</p>
               ) : (
                 customer.contacts.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between text-sm">
+                  <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
                     <span>
                       {c.name}
                       {c.isPrimary && (
                         <span className="ml-1 rounded bg-teal-100 px-1 text-xs text-teal-700">主</span>
                       )}
                     </span>
-                    <button
-                      onClick={() => {
-                        setEditingContactId(c.id);
-                        setDrawer("contactEdit");
-                      }}
-                      className="text-teal-600 hover:underline"
-                    >
-                      编辑
-                    </button>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingContactId(c.id);
+                          setDrawer("contactEdit");
+                        }}
+                        className="text-teal-600 hover:underline"
+                      >
+                        编辑
+                      </button>
+                      <ExportDeleteButton
+                        apiPath={`/api/export/contacts/${c.id}`}
+                        onDeleted={() => fetchCustomer({ silent: true })}
+                        label="删除"
+                        className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                      />
+                    </span>
                   </li>
                 ))
               )}

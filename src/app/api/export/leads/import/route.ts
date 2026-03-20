@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { parseInterestedProducts } from "@/lib/export/interested-products";
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.trim().split(/\r?\n/);
@@ -39,8 +38,10 @@ const FIELD_MAP: Record<string, string> = {
   linkedin: "linkedin",
   mainBusiness: "mainBusiness",
   main_business: "mainBusiness",
-  interestedProducts: "interestedProducts",
-  interested_products: "interestedProducts",
+  productInterest: "productInterest",
+  product_interest: "productInterest",
+  interestedProducts: "productInterest",
+  interested_products: "productInterest",
   priority: "priority",
   notes: "notes",
 };
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
           whatsapp: data.whatsapp || undefined,
           linkedin: data.linkedin || undefined,
           mainBusiness: data.mainBusiness || undefined,
-          interestedProducts: parseInterestedProducts(data.interestedProducts),
+          productInterest: data.productInterest || undefined,
           priority: data.priority || undefined,
           notes: data.notes || undefined,
           ownerId: user!.id,

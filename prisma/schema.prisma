@@ -75,6 +75,7 @@ model User {
   exportCustomers   ExportCustomer[]
   exportActivities  ExportActivity[]
   exportTasks       ExportTask[]
+  exportDeletionLogs ExportDeletionLog[]
 
   @@map("users")
 }
@@ -286,7 +287,8 @@ model ExportLead {
   whatsapp               String?
   linkedin               String?
   mainBusiness           String?  @map("main_business")
-  interestedProducts     String[] @map("interested_products")
+  /** 线索：感兴趣产品/需求，自由文本 */
+  productInterest        String?  @map("product_interest")
   priority               String?
   ownerId                String   @map("owner_id")
   status                 String   @default("new")
@@ -535,4 +537,23 @@ model ExportTask {
   @@index([dueDate])
   @@index([createdAt])
   @@map("export_tasks")
+}
+
+/** 外贸数据删除审计（内贸管理员可查看） */
+model ExportDeletionLog {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  entityType   String   @map("entity_type")
+  recordId     String   @map("record_id")
+  summary      String?
+  snapshot     Json
+  deletedById  String   @map("deleted_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  deletedBy User @relation(fields: [deletedById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("export_deletion_logs")
 }

@@ -23,6 +23,7 @@ export function Header({ user }: { user: SessionUser }) {
       ? [
           { href: "/admin/users", label: "用户管理" },
           { href: "/admin/logs", label: "操作日志" },
+          { href: "/admin/export-deletions", label: "外贸删除记录" },
         ]
       : []),
   ];

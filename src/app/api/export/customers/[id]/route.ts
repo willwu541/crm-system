@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { parseInterestedProducts } from "@/lib/export/interested-products";
 import { z } from "zod";
 
@@ -96,12 +97,46 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
   const { error: err } = await getCustomerOrError(id, ctx!.tenantId, ctx!.ownerFilter);
   if (err) return err;
 
-  await prisma.exportCustomer.delete({ where: { id, tenantId: ctx!.tenantId } });
-  return NextResponse.json({ ok: true });
+  const full = await prisma.exportCustomer.findUnique({
+    where: { id, tenantId: ctx!.tenantId },
+    include: {
+      owner: { select: { id: true, name: true, email: true } },
+      contacts: true,
+      activities: { take: 200 },
+      quotes: { include: { items: true } },
+      orders: { include: { items: true } },
+      tasks: true,
+      leads: true,
+    },
+  });
+  if (!full) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
+
+  try {
+    await deleteWithExportLog({
+      tenantId: ctx!.tenantId,
+      entityType: "customer",
+      recordId: id,
+      summary: `${full.companyName} (${full.customerCode})`,
+      snapshot: full,
+      deletedById: user!.id,
+      deleteFn: (tx) => tx.exportCustomer.delete({ where: { id, tenantId: ctx!.tenantId } }),
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Delete customer error:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Foreign key") || msg.includes("violates foreign key")) {
+      return NextResponse.json(
+        { error: "存在关联数据无法删除，请先删除或解除关联的报价/订单等" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
+  }
 }

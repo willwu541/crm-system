@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LeadForm } from "./LeadForm";
+import { ExportDeleteButton } from "./ExportDeleteButton";
 
 export function LeadDetailClient({ leadId }: { leadId: string }) {
   const [lead, setLead] = useState<Record<string, unknown> | null>(null);
@@ -58,6 +59,12 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               查看客户
             </Link>
           ) : null}
+          <ExportDeleteButton
+            apiPath={`/api/export/leads/${leadId}`}
+            redirectTo="/export/leads"
+            label="删除线索"
+            className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
+          />
           <Link
             href="/export/leads"
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"

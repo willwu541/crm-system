@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { OrderFormClient } from "./OrderFormClient";
+import { ExportDeleteButton } from "./ExportDeleteButton";
 
 export function OrderDetailClient({ orderId }: { orderId: string }) {
   const { toast } = useToast();
@@ -72,6 +73,12 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           >
             编辑
           </button>
+          <ExportDeleteButton
+            apiPath={`/api/export/orders/${orderId}`}
+            redirectTo="/export/orders"
+            label="删除订单"
+            className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
+          />
           <Link
             href="/export/orders"
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"

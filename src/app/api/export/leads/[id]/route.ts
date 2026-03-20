@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { parseInterestedProducts } from "@/lib/export/interested-products";
+import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
 
 async function getLeadOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
@@ -42,17 +42,19 @@ const updateSchema = z.object({
   whatsapp: z.string().optional(),
   linkedin: z.string().optional(),
   mainBusiness: z.string().optional(),
-  interestedProducts: z.union([z.string(), z.array(z.string())]).optional(),
+  productInterest: z.string().optional().nullable(),
   priority: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
+  /** 仅管理员：改派负责人 */
+  ownerId: z.string().optional(),
 });
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
   const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
@@ -68,13 +70,25 @@ export async function PATCH(
       );
     }
 
-    const { interestedProducts, ...rest } = parsed.data;
+    const { ownerId: nextOwnerId, ...rest } = parsed.data;
+    const data: Record<string, unknown> = { ...rest };
+
+    if (user!.role === "ADMIN" && nextOwnerId !== undefined) {
+      if (nextOwnerId) {
+        const assignee = await prisma.user.findFirst({
+          where: { id: nextOwnerId, tenant: "export", tenantId: ctx!.tenantId },
+          select: { id: true },
+        });
+        if (!assignee) {
+          return NextResponse.json({ error: "负责人不存在或不属于本租户" }, { status: 400 });
+        }
+        data.ownerId = nextOwnerId;
+      }
+    }
+
     const updated = await prisma.exportLead.update({
       where: { id, tenantId: ctx!.tenantId },
-      data: {
-        ...rest,
-        ...(interestedProducts !== undefined && { interestedProducts: parseInterestedProducts(interestedProducts) }),
-      },
+      data,
       include: { owner: { select: { id: true, name: true } } },
     });
     return NextResponse.json({ data: updated });
@@ -88,12 +102,34 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
-  const { error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
+  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
   if (err) return err;
 
-  await prisma.exportLead.delete({ where: { id, tenantId: ctx!.tenantId } });
-  return NextResponse.json({ ok: true });
+  const full = await prisma.exportLead.findUnique({
+    where: { id, tenantId: ctx!.tenantId },
+    include: {
+      owner: { select: { id: true, name: true, email: true } },
+      customer: { select: { id: true, companyName: true, customerCode: true } },
+    },
+  });
+  if (!full) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+
+  try {
+    await deleteWithExportLog({
+      tenantId: ctx!.tenantId,
+      entityType: "lead",
+      recordId: id,
+      summary: full.companyName,
+      snapshot: full,
+      deletedById: user!.id,
+      deleteFn: (tx) => tx.exportLead.delete({ where: { id, tenantId: ctx!.tenantId } }),
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Delete lead error:", e);
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
+  }
 }

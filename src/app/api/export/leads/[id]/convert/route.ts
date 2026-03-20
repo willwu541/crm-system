@@ -35,7 +35,12 @@ export async function POST(
         city: lead.city,
         address: lead.address,
         customerType: lead.customerType,
-        interestedProducts: lead.interestedProducts,
+        interestedProducts: lead.productInterest
+          ? lead.productInterest
+              .split(/[,，]/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [],
         sourceChannel: lead.sourceChannel,
         ownerId: lead.ownerId,
         status: "to_develop",
