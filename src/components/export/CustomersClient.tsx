@@ -4,23 +4,28 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CUSTOMER_STATUSES } from "@/lib/export-constants";
+import { customerStatusLabel } from "@/lib/export-display-labels";
 import { useToast } from "@/components/ui/Toast";
 import { buildListUrl } from "@/lib/export/url-params";
 import { CustomerForm } from "./CustomerForm";
 import { NextFollowUpModal } from "./NextFollowUpModal";
 import { Drawer } from "./shared/Drawer";
 import { Pagination } from "./shared/Pagination";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 
 interface Customer {
   id: string;
   customerCode: string;
   companyName: string;
+  website: string | null;
   country: string | null;
   status: string;
   owner: { id: string; name: string };
   lastFollowUpAt: string | null;
   nextFollowUpAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 function isCustomerOverdue(c: Customer): boolean {
@@ -51,17 +56,6 @@ interface PaginationData {
   totalPages: number;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  to_develop: "待开发",
-  developing: "开发中",
-  replied: "已回复",
-  quoted: "已报价",
-  negotiating: "谈判中",
-  won: "已成交",
-  paused: "暂停",
-  lost: "已流失",
-};
-
 export function CustomersClient() {
   const { toast } = useToast();
   const pathname = usePathname();
@@ -74,6 +68,8 @@ export function CustomersClient() {
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
   const countryParam = searchParams.get("country") ?? "";
+  const sortBy = searchParams.get("sortBy") ?? "updatedAt";
+  const sortOrder = searchParams.get("sortOrder") ?? "desc";
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,16 +92,23 @@ export function CustomersClient() {
       country: countryParam || undefined,
       ownerId: ownerId || undefined,
       keyword: keyword || undefined,
+      sortBy,
+      sortOrder,
       page,
       ...updates,
     };
     router.replace(buildListUrl(pathname, merged));
   }
 
+  function updateSort(value: string) {
+    const [nextSortBy, nextSortOrder] = value.split(":");
+    updateUrl({ sortBy: nextSortBy, sortOrder: nextSortOrder, page: 1 });
+  }
+
   async function fetchUsers() {
     try {
       const res = await fetch("/api/export/users");
-      const json = await res.json();
+      const json = await parseResponseJson<{ data?: User[] }>(res);
       if (res.ok && json.data) setUsers(json.data);
     } catch {
       // ignore
@@ -125,11 +128,17 @@ export function CustomersClient() {
       if (keywordParam) params.set("keyword", keywordParam);
       if (countryParam) params.set("country", countryParam);
       if (ownerId) params.set("ownerId", ownerId);
+      if (sortBy) params.set("sortBy", sortBy);
+      if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/customers?${params}`);
-      const json = await res.json();
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: Customer[];
+        pagination?: PaginationData;
+      }>(res);
       if (!res.ok) throw new Error(json.error ?? "加载失败");
       setCustomers(json.data || []);
-      setPagination(json.pagination);
+      setPagination(json.pagination ?? null);
     } catch (e) {
       if (!overrides?.silent) {
         setError(e instanceof Error ? e.message : "加载失败");
@@ -146,7 +155,7 @@ export function CustomersClient() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [page, status, filter, countryParam, ownerId, keywordParam]);
+  }, [page, status, filter, countryParam, ownerId, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -188,7 +197,7 @@ export function CustomersClient() {
             <option value="">全部状态</option>
             {CUSTOMER_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABELS[s] ?? s}
+                {customerStatusLabel[s] ?? s}
               </option>
             ))}
           </select>
@@ -203,6 +212,17 @@ export function CustomersClient() {
                 {u.name}
               </option>
             ))}
+          </select>
+          <select
+            value={`${sortBy}:${sortOrder}`}
+            onChange={(e) => updateSort(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="updatedAt:desc">最新更新</option>
+            <option value="createdAt:desc">最新创建</option>
+            <option value="lastFollowUpAt:desc">最近跟进</option>
+            <option value="nextFollowUpAt:asc">最近待跟进</option>
+            <option value="companyName:asc">公司 A-Z</option>
           </select>
           <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
             搜索
@@ -261,10 +281,27 @@ export function CustomersClient() {
                 <tr
                   key={c.id}
                   className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
-                  onClick={() => (window.location.href = `/export/customers/${c.id}`)}
+                  onClick={() => router.push(`/export/customers/${c.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{c.customerCode}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.companyName}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <div className="font-medium text-slate-800">{c.companyName}</div>
+                    <div className="text-xs text-slate-500">
+                      {normalizeWebsiteUrl(c.website) ? (
+                        <a
+                          href={normalizeWebsiteUrl(c.website)!}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-teal-600 hover:underline"
+                        >
+                          {getWebsiteHost(c.website)}
+                        </a>
+                      ) : (
+                        "未填写官网"
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{c.country ?? "-"}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex flex-wrap items-center gap-1">
@@ -277,7 +314,7 @@ export function CustomersClient() {
                               : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {STATUS_LABELS[c.status] ?? c.status}
+                        {customerStatusLabel[c.status] ?? c.status}
                       </span>
                       {isCustomerOverdue(c) && (
                         <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
@@ -308,6 +345,13 @@ export function CustomersClient() {
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <span className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/export/customers/${c.id}`)}
+                        className="text-sm text-slate-500 hover:underline"
+                      >
+                        打开
+                      </button>
                       <button
                         type="button"
                         onClick={() => setFollowUpCustomer(c)}

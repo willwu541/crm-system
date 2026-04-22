@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
+import { getExportDuplicateMessage } from "@/lib/export/dedupe";
+import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
 async function getLeadOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
@@ -60,8 +62,14 @@ export async function PATCH(
   const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
   if (err) return err;
 
+  let body: unknown;
   try {
-    const body = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "请求体无效或为空" }, { status: 400 });
+  }
+
+  try {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -86,6 +94,21 @@ export async function PATCH(
       }
     }
 
+    const duplicateMessage = await getExportDuplicateMessage({
+      tenantId: ctx!.tenantId,
+      companyName: parsed.data.companyName ?? lead.companyName,
+      website: parsed.data.website ?? lead.website,
+      email: parsed.data.email ?? lead.email,
+      phone: parsed.data.phone ?? parsed.data.whatsapp ?? lead.phone ?? lead.whatsapp,
+      exclude: {
+        leadId: id,
+        linkedCustomerId: lead.convertedToCustomerId,
+      },
+    });
+    if (duplicateMessage) {
+      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
+    }
+
     const updated = await prisma.exportLead.update({
       where: { id, tenantId: ctx!.tenantId },
       data,
@@ -94,7 +117,8 @@ export async function PATCH(
     return NextResponse.json({ data: updated });
   } catch (e) {
     console.error("Update lead error:", e);
-    return NextResponse.json({ error: "更新失败" }, { status: 500 });
+    const msg = prismaErrorToUserMessage(e, "更新失败，请稍后重试。");
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { QUOTE_STATUSES } from "@/lib/export-constants";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { quoteStatusLabel } from "@/lib/export-display-labels";
 
 export function QuoteFormClient({
   quoteId,
@@ -39,23 +41,39 @@ export function QuoteFormClient({
   });
 
   useEffect(() => {
-    fetch("/api/export/customers?pageSize=500")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.data) setCustomers(json.data);
-      });
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/export/customers?pageSize=500");
+        const json = await parseResponseJson<{ data?: { id: string; companyName: string }[] }>(r);
+        if (!cancelled && json.data) setCustomers(json.data);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     if (form.customerId) {
-      fetch(`/api/export/contacts?customerId=${form.customerId}`)
-        .then((r) => r.json())
-        .then((json) => {
-          if (json.data) setContacts(json.data);
-        });
+      (async () => {
+        try {
+          const r = await fetch(`/api/export/contacts?customerId=${form.customerId}`);
+          const json = await parseResponseJson<{ data?: { id: string; name: string }[] }>(r);
+          if (!cancelled && json.data) setContacts(json.data);
+        } catch {
+          if (!cancelled) setContacts([]);
+        }
+      })();
     } else {
       setContacts([]);
     }
+    return () => {
+      cancelled = true;
+    };
   }, [form.customerId]);
 
   useEffect(() => {
@@ -79,7 +97,7 @@ export function QuoteFormClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string; data?: { id: string } }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
       if (onSuccess) {
         onSuccess();
@@ -89,7 +107,7 @@ export function QuoteFormClient({
         router.refresh();
         return;
       }
-      router.push(`/export/quotes/${json.data.id}`);
+      if (json.data?.id) router.push(`/export/quotes/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -201,7 +219,7 @@ export function QuoteFormClient({
             >
               {QUOTE_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {quoteStatusLabel[s] ?? s}
                 </option>
               ))}
             </select>

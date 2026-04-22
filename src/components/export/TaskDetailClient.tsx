@@ -5,18 +5,21 @@ import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { TaskFormClient } from "./TaskFormClient";
 import { ExportDeleteButton } from "./ExportDeleteButton";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { displayLabel, taskPriorityLabel, taskStatusLabel } from "@/lib/export-display-labels";
 
 export function TaskDetailClient({ taskId }: { taskId: string }) {
   const { toast } = useToast();
   const [task, setTask] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   async function fetchTask() {
     setLoading(true);
     try {
       const res = await fetch(`/api/export/tasks/${taskId}`);
-      const json = await res.json();
+      const json = await parseResponseJson<{ data?: Record<string, unknown> }>(res);
       if (res.ok && json.data) setTask(json.data);
     } catch (e) {
       console.error(e);
@@ -58,16 +61,45 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
   const customer = task.customer as { id: string; companyName: string } | undefined;
   const contact = task.contact as { id: string; name: string } | undefined;
 
+  async function handleComplete() {
+    setCompleting(true);
+    try {
+      const res = await fetch(`/api/export/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done" }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "更新失败");
+      toast("任务已完成");
+      fetchTask();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "更新失败", "error");
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">{String(task.title)}</h1>
           <p className="text-sm text-slate-500">
-            {String(task.status ?? "")} · {String(task.priority ?? "")}
+            {displayLabel(taskStatusLabel, task.status as string | undefined)} ·{" "}
+            {displayLabel(taskPriorityLabel, task.priority as string | undefined)}
           </p>
         </div>
         <div className="flex gap-2">
+          {task.status !== "done" && (
+            <button
+              onClick={handleComplete}
+              disabled={completing}
+              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            >
+              {completing ? "处理中..." : "标记完成"}
+            </button>
+          )}
           <button
             onClick={() => setEditing(true)}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
@@ -111,13 +143,13 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
           </div>
           <div>
             <dt className="text-slate-500">优先级</dt>
-            <dd>{String(task.priority ?? "-")}</dd>
+            <dd>{displayLabel(taskPriorityLabel, task.priority as string | undefined)}</dd>
           </div>
           <div>
             <dt className="text-slate-500">状态</dt>
             <dd>
               <span className={`rounded px-2 py-0.5 text-xs ${task.status === "overdue" ? "bg-red-100 text-red-700" : "bg-slate-100"}`}>
-                {String(task.status ?? "-")}
+                {displayLabel(taskStatusLabel, task.status as string | undefined)}
               </span>
             </dd>
           </div>

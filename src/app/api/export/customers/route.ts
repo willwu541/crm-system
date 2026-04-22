@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { getExportDuplicateMessage } from "@/lib/export/dedupe";
 import { generateCustomerCode } from "@/lib/export/number-generator";
 import { parseInterestedProducts } from "@/lib/export/interested-products";
 import { z } from "zod";
@@ -17,8 +18,17 @@ export async function GET(request: NextRequest) {
   const country = searchParams.get("country")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const filter = searchParams.get("filter")?.trim();
-  const sortBy = searchParams.get("sortBy") ?? "createdAt";
-  const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
+  const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+  const allowedSort = new Set([
+    "createdAt",
+    "updatedAt",
+    "companyName",
+    "status",
+    "lastFollowUpAt",
+    "nextFollowUpAt",
+  ]);
+  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -107,6 +117,15 @@ export async function POST(request: NextRequest) {
     });
     if (existing) {
       return NextResponse.json({ error: "客户编号已存在" }, { status: 400 });
+    }
+
+    const duplicateMessage = await getExportDuplicateMessage({
+      tenantId: ctx!.tenantId,
+      companyName: parsed.data.companyName,
+      website: parsed.data.website,
+    });
+    if (duplicateMessage) {
+      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
     }
 
     const { interestedProducts, ...rest } = parsed.data;

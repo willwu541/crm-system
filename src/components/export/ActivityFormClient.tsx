@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ACTIVITY_TYPES } from "@/lib/export-constants";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { activityTypeLabel } from "@/lib/export-display-labels";
 
 export function ActivityFormClient({
   customerId,
@@ -30,11 +32,19 @@ export function ActivityFormClient({
   });
 
   useEffect(() => {
-    fetch(`/api/export/contacts?customerId=${customerId}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.data) setContacts(json.data);
-      });
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/export/contacts?customerId=${customerId}`);
+        const json = await parseResponseJson<{ data?: { id: string; name: string }[] }>(r);
+        if (!cancelled && json.data) setContacts(json.data);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [customerId]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -55,7 +65,7 @@ export function ActivityFormClient({
           nextFollowUpAt: form.nextFollowUpAt ? new Date(form.nextFollowUpAt).toISOString() : undefined,
         }),
       });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
       if (onSuccess) {
         onSuccess();
@@ -86,7 +96,7 @@ export function ActivityFormClient({
           >
             {ACTIVITY_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {activityTypeLabel[t] ?? t}
               </option>
             ))}
           </select>

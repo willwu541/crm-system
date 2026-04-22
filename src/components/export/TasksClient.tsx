@@ -5,7 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { TASK_STATUSES } from "@/lib/export-constants";
 import { buildListUrl } from "@/lib/export/url-params";
+import { useToast } from "@/components/ui/Toast";
 import { Pagination } from "./shared/Pagination";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { taskPriorityLabel, taskStatusLabel } from "@/lib/export-display-labels";
 
 interface Task {
   id: string;
@@ -16,6 +19,7 @@ interface Task {
   customer: { id: string; companyName: string } | null;
   owner: { name: string };
   createdAt: string;
+  updatedAt: string;
 }
 
 interface Pagination {
@@ -25,21 +29,8 @@ interface Pagination {
   totalPages: number;
 }
 
-const PRIORITY_LABELS: Record<string, string> = {
-  low: "低",
-  medium: "中",
-  high: "高",
-  urgent: "紧急",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  todo: "待办",
-  in_progress: "进行中",
-  done: "完成",
-  overdue: "超期",
-};
-
 export function TasksClient() {
+  const { toast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,10 +39,13 @@ export function TasksClient() {
   const ownerId = searchParams.get("ownerId") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
+  const sortBy = searchParams.get("sortBy") ?? "dueDate";
+  const sortOrder = searchParams.get("sortOrder") ?? "asc";
   const [tasks, setTasks] = useState<Task[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState(keywordParam);
+  const [completingId, setCompletingId] = useState<string | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
@@ -64,16 +58,23 @@ export function TasksClient() {
       status: status || undefined,
       ownerId: ownerId || undefined,
       keyword: keyword || undefined,
+      sortBy,
+      sortOrder,
       page,
       ...updates,
     };
     router.replace(buildListUrl(pathname, merged));
   }
 
+  function updateSort(value: string) {
+    const [nextSortBy, nextSortOrder] = value.split(":");
+    updateUrl({ sortBy: nextSortBy, sortOrder: nextSortOrder, page: 1 });
+  }
+
   async function fetchUsers() {
     try {
       const res = await fetch("/api/export/users");
-      const json = await res.json();
+      const json = await parseResponseJson<{ data?: { id: string; name: string }[] }>(res);
       if (res.ok && json.data) setUsers(json.data);
     } catch {
       // ignore
@@ -91,13 +92,19 @@ export function TasksClient() {
       params.set("page", String(overrides?.page ?? page));
       if (due) params.set("due", due);
       if (status) params.set("status", status);
-      if (keyword) params.set("keyword", keyword);
+      if (keywordParam) params.set("keyword", keywordParam);
       if (ownerId) params.set("ownerId", ownerId);
+      if (sortBy) params.set("sortBy", sortBy);
+      if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/tasks?${params}`);
-      if (!res.ok) throw new Error("加载失败");
-      const json = await res.json();
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: Task[];
+        pagination?: Pagination;
+      }>(res);
+      if (!res.ok) throw new Error(json.error ?? "加载失败");
       setTasks(json.data || []);
-      setPagination(json.pagination);
+      setPagination(json.pagination ?? null);
     } catch (e) {
       console.error(e);
       setTasks([]);
@@ -108,7 +115,26 @@ export function TasksClient() {
 
   useEffect(() => {
     fetchTasks();
-  }, [page, due, status, keyword, ownerId]);
+  }, [page, due, status, keywordParam, ownerId, sortBy, sortOrder]);
+
+  async function handleComplete(taskId: string) {
+    setCompletingId(taskId);
+    try {
+      const res = await fetch(`/api/export/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done" }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "更新失败");
+      toast("任务已完成");
+      fetchTasks();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "更新失败", "error");
+    } finally {
+      setCompletingId(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -150,7 +176,7 @@ export function TasksClient() {
             <option value="overdue">超期任务</option>
             {TASK_STATUSES.filter((s) => s !== "overdue").map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABELS[s] ?? s}
+                {taskStatusLabel[s] ?? s}
               </option>
             ))}
           </select>
@@ -165,6 +191,16 @@ export function TasksClient() {
                 {u.name}
               </option>
             ))}
+          </select>
+          <select
+            value={`${sortBy}:${sortOrder}`}
+            onChange={(e) => updateSort(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="dueDate:asc">最近到期</option>
+            <option value="dueDate:desc">最晚到期</option>
+            <option value="createdAt:desc">最新创建</option>
+            <option value="updatedAt:desc">最新更新</option>
           </select>
           <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
             搜索
@@ -191,7 +227,7 @@ export function TasksClient() {
                 <th className="px-4 py-3 text-left font-medium text-slate-700">客户</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">优先级</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">状态</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">截止</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">时间</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">负责人</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">操作</th>
               </tr>
@@ -201,7 +237,7 @@ export function TasksClient() {
                 <tr
                   key={t.id}
                   className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
-                  onClick={() => (window.location.href = `/export/tasks/${t.id}`)}
+                  onClick={() => router.push(`/export/tasks/${t.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{t.title}</td>
                   <td className="px-4 py-3 text-slate-600">
@@ -221,7 +257,7 @@ export function TasksClient() {
                             : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {PRIORITY_LABELS[t.priority] ?? t.priority}
+                      {taskPriorityLabel[t.priority] ?? t.priority}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -237,19 +273,36 @@ export function TasksClient() {
                                 : "bg-slate-100 text-slate-600"
                           }`}
                         >
-                          {isOverdue ? "超期" : STATUS_LABELS[t.status] ?? t.status}
+                          {isOverdue ? "超期" : taskStatusLabel[t.status] ?? t.status}
                         </span>
                       );
                     })()}
                   </td>
                   <td className="px-4 py-3 text-slate-500">
-                    {t.dueDate ? new Date(t.dueDate).toLocaleDateString("zh-CN") : "-"}
+                    {sortBy === "createdAt"
+                      ? new Date(t.createdAt).toLocaleDateString("zh-CN")
+                      : sortBy === "updatedAt"
+                        ? new Date(t.updatedAt).toLocaleDateString("zh-CN")
+                      : t.dueDate
+                        ? new Date(t.dueDate).toLocaleDateString("zh-CN")
+                        : "-"}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{t.owner.name}</td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <Link href={`/export/tasks/${t.id}`} className="text-teal-600 hover:underline">
-                      详情
-                    </Link>
+                    <span className="flex gap-3">
+                      <Link href={`/export/tasks/${t.id}`} className="text-teal-600 hover:underline">
+                        详情
+                      </Link>
+                      {t.status !== "done" && (
+                        <button
+                          onClick={() => handleComplete(t.id)}
+                          disabled={completingId === t.id}
+                          className="text-teal-600 hover:underline disabled:opacity-50"
+                        >
+                          {completingId === t.id ? "处理中..." : "完成"}
+                        </button>
+                      )}
+                    </span>
                   </td>
                 </tr>
               ))}

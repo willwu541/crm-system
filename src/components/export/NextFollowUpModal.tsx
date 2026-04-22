@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { parseResponseJson } from "@/lib/parse-response-json";
 
 interface NextFollowUpModalProps {
   open: boolean;
@@ -45,7 +46,7 @@ export function NextFollowUpModal({
           nextFollowUpAt: date ? new Date(date).toISOString() : null,
         }),
       });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error ?? "设置失败");
       onSuccess();
       onClose();

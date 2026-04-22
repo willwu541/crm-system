@@ -6,11 +6,16 @@ export async function GET() {
   const { ctx, error } = await requireExportSession();
   if (error) return error;
 
-  const users = await prisma.user.findMany({
-    where: { tenant: "export", tenantId: ctx!.tenantId },
-    select: { id: true, name: true, email: true },
-    orderBy: { name: "asc" },
-  });
+  try {
+    const users = await prisma.user.findMany({
+      where: { tenant: "export", tenantId: ctx!.tenantId },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    });
 
-  return NextResponse.json({ data: users });
+    return NextResponse.json({ data: users });
+  } catch (e) {
+    console.error("Export users list error:", e);
+    return NextResponse.json({ error: "加载用户列表失败" }, { status: 500 });
+  }
 }

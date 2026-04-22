@@ -5,6 +5,13 @@ import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { OrderFormClient } from "./OrderFormClient";
 import { ExportDeleteButton } from "./ExportDeleteButton";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import {
+  displayLabel,
+  paymentStatusLabel,
+  productionStatusLabel,
+  shippingStatusLabel,
+} from "@/lib/export-display-labels";
 
 export function OrderDetailClient({ orderId }: { orderId: string }) {
   const { toast } = useToast();
@@ -16,7 +23,7 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
     setLoading(true);
     try {
       const res = await fetch(`/api/export/orders/${orderId}`);
-      const json = await res.json();
+      const json = await parseResponseJson<{ data?: Record<string, unknown> }>(res);
       if (res.ok && json.data) setOrder(json.data);
     } catch (e) {
       console.error(e);
@@ -124,15 +131,15 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           </div>
           <div>
             <dt className="text-slate-500">付款状态</dt>
-            <dd>{String(order.paymentStatus ?? "-")}</dd>
+            <dd>{displayLabel(paymentStatusLabel, order.paymentStatus as string | undefined)}</dd>
           </div>
           <div>
             <dt className="text-slate-500">生产状态</dt>
-            <dd>{String(order.productionStatus ?? "-")}</dd>
+            <dd>{displayLabel(productionStatusLabel, order.productionStatus as string | undefined)}</dd>
           </div>
           <div>
             <dt className="text-slate-500">发货状态</dt>
-            <dd>{String(order.shippingStatus ?? "-")}</dd>
+            <dd>{displayLabel(shippingStatusLabel, order.shippingStatus as string | undefined)}</dd>
           </div>
           <div>
             <dt className="text-slate-500">ETA</dt>

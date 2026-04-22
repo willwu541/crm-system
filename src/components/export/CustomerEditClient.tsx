@@ -3,18 +3,28 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CustomerForm } from "./CustomerForm";
+import { parseResponseJson } from "@/lib/parse-response-json";
 
 export function CustomerEditClient({ customerId }: { customerId: string }) {
   const [customer, setCustomer] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/export/customers/${customerId}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.data) setCustomer(json.data);
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/export/customers/${customerId}`);
+        const json = await parseResponseJson<{ data?: Record<string, unknown> }>(res);
+        if (!cancelled && json.data) setCustomer(json.data);
+      } catch {
+        if (!cancelled) setCustomer(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [customerId]);
 
   if (loading) return <div className="p-8 text-center text-slate-500">加载中...</div>;

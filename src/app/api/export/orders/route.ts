@@ -15,8 +15,19 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status")?.trim();
   const customerId = searchParams.get("customerId")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
-  const sortBy = searchParams.get("sortBy") ?? "createdAt";
-  const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const sortByRaw = searchParams.get("sortBy") ?? "orderDate";
+  const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+  const allowedSort = new Set([
+    "createdAt",
+    "updatedAt",
+    "orderDate",
+    "eta",
+    "paymentStatus",
+    "productionStatus",
+    "shippingStatus",
+    "totalAmount",
+  ]);
+  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "orderDate";
 
   const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
   if (customerId) where.customerId = customerId;

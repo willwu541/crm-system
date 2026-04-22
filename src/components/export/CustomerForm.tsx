@@ -10,6 +10,15 @@ import {
   VALUE_LEVEL,
   CUSTOMER_STATUSES,
 } from "@/lib/export-constants";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { normalizeWebsiteUrl } from "@/lib/website";
+import {
+  customerTypeLabel,
+  interestedProductLabel,
+  marketPriorityLabel,
+  valueLevelLabel,
+  customerStatusLabel,
+} from "@/lib/export-display-labels";
 
 interface CustomerFormProps {
   initial?: Record<string, unknown>;
@@ -42,6 +51,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
     status: (initial?.status as string) ?? "to_develop",
     notes: (initial?.notes as string) ?? "",
   });
+  const websitePreviewUrl = normalizeWebsiteUrl(form.website);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,12 +61,13 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
       const url = customerId ? `/api/export/customers/${customerId}` : "/api/export/customers";
       const method = customerId ? "PATCH" : "POST";
       const payload = customerId ? { ...form, customerCode: undefined } : form;
+      payload.website = normalizeWebsiteUrl(payload.website) ?? "";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string; data?: { id: string } }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
       if (onSuccess) {
         onSuccess();
@@ -66,7 +77,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
         router.refresh();
         return;
       }
-      router.push(`/export/customers/${json.data.id}`);
+      if (json.data?.id) router.push(`/export/customers/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -105,11 +116,22 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">网站</label>
           <input
-            type="text"
+            type="url"
             value={form.website}
             onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+            placeholder="https://example.com"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+          {websitePreviewUrl && (
+            <a
+              href={websitePreviewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block text-xs text-teal-600 hover:underline"
+            >
+              打开官网
+            </a>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">国家</label>
@@ -148,7 +170,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
             <option value="">请选择</option>
             {CUSTOMER_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {customerTypeLabel[t] ?? t}
               </option>
             ))}
           </select>
@@ -172,7 +194,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
             <option value="">请选择</option>
             {MARKET_PRIORITY.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {marketPriorityLabel[p] ?? p}
               </option>
             ))}
           </select>
@@ -187,7 +209,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
             <option value="">请选择</option>
             {VALUE_LEVEL.map((v) => (
               <option key={v} value={v}>
-                {v}
+                {valueLevelLabel[v] ?? v}
               </option>
             ))}
           </select>
@@ -202,7 +224,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
             <option value="">请选择</option>
             {INTERESTED_PRODUCTS.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {interestedProductLabel[p] ?? p}
               </option>
             ))}
           </select>
@@ -225,7 +247,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
           >
             {CUSTOMER_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {customerStatusLabel[s] ?? s}
               </option>
             ))}
           </select>

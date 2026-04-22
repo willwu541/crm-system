@@ -5,16 +5,8 @@ import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { QuoteFormClient } from "./QuoteFormClient";
 import { ExportDeleteButton } from "./ExportDeleteButton";
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "草稿",
-  sent: "已发送",
-  replied: "已回复",
-  negotiating: "谈判中",
-  won: "已成交",
-  lost: "已流失",
-  expired: "已过期",
-};
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { quoteStatusLabel } from "@/lib/export-display-labels";
 
 export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
   const { toast } = useToast();
@@ -22,12 +14,13 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   async function fetchQuote() {
     setLoading(true);
     try {
       const res = await fetch(`/api/export/quotes/${quoteId}`);
-      const json = await res.json();
+      const json = await parseResponseJson<{ data?: Record<string, unknown> }>(res);
       if (res.ok && json.data) setQuote(json.data);
     } catch (e) {
       console.error(e);
@@ -44,7 +37,11 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
     setConverting(true);
     try {
       const res = await fetch(`/api/export/quotes/${quoteId}/convert`, { method: "POST" });
-      const json = await res.json();
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: { id?: string };
+        orderId?: string;
+      }>(res);
       if (!res.ok) throw new Error(json.error ?? "转化失败");
       const oid = json.data?.id ?? json.orderId;
       toast("转化成功");
@@ -53,6 +50,25 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
       toast(e instanceof Error ? e.message : "转化失败", "error");
     } finally {
       setConverting(false);
+    }
+  }
+
+  async function handleStatusUpdate(nextStatus: string) {
+    setUpdatingStatus(nextStatus);
+    try {
+      const res = await fetch(`/api/export/quotes/${quoteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "更新失败");
+      toast("状态已更新");
+      fetchQuote();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "更新失败", "error");
+    } finally {
+      setUpdatingStatus(null);
     }
   }
 
@@ -100,6 +116,24 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
           </p>
         </div>
         <div className="flex gap-2">
+          {status === "draft" && (
+            <button
+              onClick={() => handleStatusUpdate("sent")}
+              disabled={updatingStatus === "sent"}
+              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            >
+              {updatingStatus === "sent" ? "处理中..." : "标记已发送"}
+            </button>
+          )}
+          {(status === "sent" || status === "replied") && (
+            <button
+              onClick={() => handleStatusUpdate("negotiating")}
+              disabled={updatingStatus === "negotiating"}
+              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            >
+              {updatingStatus === "negotiating" ? "处理中..." : "标记跟进中"}
+            </button>
+          )}
           <button
             onClick={() => setEditing(true)}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
@@ -136,7 +170,7 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
             <dt className="text-slate-500">状态</dt>
             <dd>
               <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                {STATUS_LABELS[status] ?? status}
+                {quoteStatusLabel[status] ?? status}
               </span>
             </dd>
           </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { parseResponseJson } from "@/lib/parse-response-json";
 
 export function ContactFormClient({
   customerId,
@@ -45,7 +46,7 @@ export function ContactFormClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
       if (onSuccess) {
         onSuccess();

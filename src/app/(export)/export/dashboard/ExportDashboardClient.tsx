@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { customerStatusLabel } from "@/lib/export-display-labels";
 
 interface DashboardData {
   todayFollowUpCount: number;
@@ -17,31 +19,29 @@ interface DashboardData {
   todayDueTasksCount: number;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  to_develop: "待开发",
-  developing: "开发中",
-  replied: "已回复",
-  quoted: "已报价",
-  negotiating: "谈判中",
-  won: "已成交",
-  paused: "暂停",
-  lost: "已流失",
-};
-
 export function ExportDashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/export/dashboard")
-      .then((r) => r.json())
-      .then((json) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/export/dashboard");
+        const json = await parseResponseJson<{ data?: DashboardData; error?: string }>(r);
+        if (cancelled) return;
         if (json.data) setData(json.data);
         else setError(json.error ?? "加载失败");
-      })
-      .catch(() => setError("加载失败"))
-      .finally(() => setLoading(false));
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) return <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-500">加载中...</div>;
@@ -143,7 +143,7 @@ export function ExportDashboardClient() {
         <h2 className="mb-4 font-medium text-slate-700">数据概览</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
-            href="/export/leads?since=week"
+            href="/export/leads?since=week&sortBy=createdAt&sortOrder=desc"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">本周新增 Leads</span>
@@ -151,7 +151,7 @@ export function ExportDashboardClient() {
             <span className="mt-1 text-xs text-teal-600">查看 →</span>
           </Link>
           <Link
-            href="/export/quotes"
+            href="/export/quotes?sortBy=quoteDate&sortOrder=desc"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">本月 Quotes</span>
@@ -159,7 +159,7 @@ export function ExportDashboardClient() {
             <span className="mt-1 text-xs text-teal-600">查看 →</span>
           </Link>
           <Link
-            href="/export/orders"
+            href="/export/orders?sortBy=orderDate&sortOrder=desc"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">本月 Orders</span>
@@ -170,7 +170,7 @@ export function ExportDashboardClient() {
       </div>
 
       {/* 统计 */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-4 font-medium text-slate-700">客户状态分布</h2>
           <div className="space-y-2">
@@ -183,7 +183,7 @@ export function ExportDashboardClient() {
                   href={`/export/customers?status=${encodeURIComponent(s.status)}`}
                   className="flex items-center gap-2 rounded px-2 py-1 transition-colors hover:bg-slate-50"
                 >
-                  <span className="w-24 text-sm text-slate-600">{STATUS_LABELS[s.status] ?? s.status}</span>
+                  <span className="w-24 text-sm text-slate-600">{customerStatusLabel[s.status] ?? s.status}</span>
                   <span className="font-medium">{s.count}</span>
                   <span className="text-xs text-slate-400">→</span>
                 </Link>
@@ -208,6 +208,29 @@ export function ExportDashboardClient() {
                   <span className="text-xs text-slate-400">→</span>
                 </Link>
               ))
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="mb-4 font-medium text-slate-700">负责人客户数</h2>
+          <div className="space-y-2">
+            {data.ownerStats.length === 0 ? (
+              <p className="text-sm text-slate-500">暂无数据</p>
+            ) : (
+              data.ownerStats
+                .slice()
+                .sort((a, b) => b.count - a.count)
+                .map((item) => (
+                  <Link
+                    key={item.ownerId}
+                    href={`/export/customers?ownerId=${encodeURIComponent(item.ownerId)}&sortBy=updatedAt&sortOrder=desc`}
+                    className="flex items-center gap-2 rounded px-2 py-1 transition-colors hover:bg-slate-50"
+                  >
+                    <span className="flex-1 text-sm text-slate-600">{item.ownerName}</span>
+                    <span className="font-medium">{item.count}</span>
+                    <span className="text-xs text-slate-400">→</span>
+                  </Link>
+                ))
             )}
           </div>
         </div>

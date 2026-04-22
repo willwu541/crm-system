@@ -2,16 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  CUSTOMER_STATUSES,
-  ACTIVITY_TYPES,
-  QUOTE_STATUSES,
-  PAYMENT_STATUSES,
-  PRODUCTION_STATUSES,
-  SHIPPING_STATUSES,
-  TASK_PRIORITIES,
-  TASK_STATUSES,
-} from "@/lib/export-constants";
 import { useToast } from "@/components/ui/Toast";
 import { CustomerForm } from "./CustomerForm";
 import { ContactFormClient } from "./ContactFormClient";
@@ -19,8 +9,22 @@ import { ActivityFormClient } from "./ActivityFormClient";
 import { QuoteFormClient } from "./QuoteFormClient";
 import { TaskFormClient } from "./TaskFormClient";
 import { Drawer } from "./shared/Drawer";
-import { toDisplayString } from "@/lib/export/interested-products";
 import { ExportDeleteButton } from "./ExportDeleteButton";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import {
+  activityTypeLabel,
+  customerStatusLabel,
+  customerTypeLabel,
+  displayInterestedProductsList,
+  displayLabel,
+  marketPriorityLabel,
+  paymentStatusLabel,
+  quoteStatusLabel,
+  taskPriorityLabel,
+  taskStatusLabel,
+  valueLevelLabel,
+} from "@/lib/export-display-labels";
+import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 
 interface Customer {
   id: string;
@@ -31,7 +35,11 @@ interface Customer {
   city: string | null;
   address: string | null;
   customerType: string | null;
+  industry: string | null;
+  marketPriority: string | null;
+  valueLevel: string | null;
   interestedProducts: string[];
+  sourceChannel: string | null;
   status: string;
   owner: { name: string };
   lastFollowUpAt: string | null;
@@ -42,41 +50,10 @@ interface Customer {
   createdAt: string;
   contacts: { id: string; name: string; title: string | null; email: string | null; phone?: string | null; whatsapp?: string | null; linkedin?: string | null; language?: string | null; isPrimary: boolean; notes?: string | null }[];
   activities: { id: string; type: string; subject: string | null; content: string | null; createdAt: string; contact: { name: string } | null; owner: { name: string } }[];
-  quotes: { id: string; quoteNo: string; totalAmount: string | null; status: string; quoteDate: string }[];
-  orders: { id: string; orderNo: string; totalAmount: string | null; paymentStatus: string; productionStatus: string; shippingStatus: string; orderDate: string }[];
-  tasks: { id: string; title: string; dueDate: string | null; priority: string; status: string }[];
+  quotes: { id: string; quoteNo: string; totalAmount: string | null; status: string; quoteDate: string; createdAt: string }[];
+  orders: { id: string; orderNo: string; totalAmount: string | null; paymentStatus: string; productionStatus: string; shippingStatus: string; orderDate: string; createdAt: string }[];
+  tasks: { id: string; title: string; dueDate: string | null; priority: string; status: string; createdAt: string }[];
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  to_develop: "待开发",
-  developing: "开发中",
-  replied: "已回复",
-  quoted: "已报价",
-  negotiating: "谈判中",
-  won: "已成交",
-  paused: "暂停",
-  lost: "已流失",
-};
-
-const ACTIVITY_LABELS: Record<string, string> = {
-  email: "邮件",
-  call: "电话",
-  whatsapp: "WhatsApp",
-  linkedin: "LinkedIn",
-  meeting: "会议",
-  quote_followup: "报价跟进",
-  other: "其他",
-};
-
-const QUOTE_STATUS_LABELS: Record<string, string> = {
-  draft: "草稿",
-  sent: "已发送",
-  replied: "已回复",
-  negotiating: "谈判中",
-  won: "已成交",
-  lost: "已流失",
-  expired: "已过期",
-};
 
 export function CustomerDetailClient({ customerId }: { customerId: string }) {
   const { toast } = useToast();
@@ -93,7 +70,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
     }
     try {
       const res = await fetch(`/api/export/customers/${customerId}`);
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string; data?: Customer }>(res);
       if (!res.ok) throw new Error(json.error ?? "加载失败");
       if (json.data) setCustomer(json.data);
     } catch (e) {
@@ -133,6 +110,56 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
     !["won", "lost"].includes(customer.status) && lastRef < sevenDaysAgo;
   const isNextDue =
     customer.nextFollowUpAt && new Date(customer.nextFollowUpAt) <= new Date();
+  const primaryContact = customer.contacts.find((contact) => contact.isPrimary) ?? customer.contacts[0] ?? null;
+  const websiteUrl = normalizeWebsiteUrl(customer.website);
+  const websiteHost = getWebsiteHost(customer.website);
+  const timelineItems = [
+    {
+      id: `customer-${customer.id}`,
+      type: "customer",
+      occurredAt: customer.createdAt,
+      title: "创建客户",
+      description: `${customer.companyName} (${customer.customerCode})`,
+      href: `/export/customers/${customer.id}`,
+      badge: "客户",
+    },
+    ...customer.activities.map((activity) => ({
+      id: `activity-${activity.id}`,
+      type: "activity",
+      occurredAt: activity.createdAt,
+      title: activity.subject || "新增跟进",
+      description: `${activityTypeLabel[activity.type] ?? activity.type} · ${activity.owner.name}${activity.contact ? ` · ${activity.contact.name}` : ""}${activity.content ? ` · ${activity.content}` : ""}`,
+      href: undefined,
+      badge: "跟进",
+    })),
+    ...customer.quotes.map((quote) => ({
+      id: `quote-${quote.id}`,
+      type: "quote",
+      occurredAt: quote.quoteDate || quote.createdAt,
+      title: `报价 ${quote.quoteNo}`,
+      description: `${quoteStatusLabel[quote.status] ?? quote.status}${quote.totalAmount != null ? ` · ${String(quote.totalAmount)}` : ""}`,
+      href: `/export/quotes/${quote.id}`,
+      badge: "报价",
+    })),
+    ...customer.orders.map((order) => ({
+      id: `order-${order.id}`,
+      type: "order",
+      occurredAt: order.orderDate || order.createdAt,
+      title: `订单 ${order.orderNo}`,
+      description: `${paymentStatusLabel[order.paymentStatus] ?? order.paymentStatus}${order.totalAmount != null ? ` · ${String(order.totalAmount)}` : ""}`,
+      href: `/export/orders/${order.id}`,
+      badge: "订单",
+    })),
+    ...customer.tasks.map((task) => ({
+      id: `task-${task.id}`,
+      type: "task",
+      occurredAt: task.createdAt,
+      title: `任务 ${task.title}`,
+      description: `${taskStatusLabel[task.status] ?? task.status}${task.dueDate ? ` · 截止 ${new Date(task.dueDate).toLocaleDateString("zh-CN")}` : ""}`,
+      href: `/export/tasks/${task.id}`,
+      badge: "任务",
+    })),
+  ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 
   return (
     <div className="space-y-6">
@@ -151,6 +178,16 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {websiteUrl && (
+            <a
+              href={websiteUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            >
+              打开官网
+            </a>
+          )}
           <button
             onClick={() => setDrawer("contact")}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
@@ -196,6 +233,34 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
         </div>
       </div>
 
+      <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 text-sm lg:grid-cols-4">
+        <div>
+          <p className="text-slate-500">官网</p>
+          {websiteUrl ? (
+            <a href={websiteUrl} target="_blank" rel="noreferrer" className="font-medium text-teal-600 hover:underline">
+              {websiteHost ?? customer.website}
+            </a>
+          ) : (
+            <p className="font-medium text-slate-700">未填写</p>
+          )}
+        </div>
+        <div>
+          <p className="text-slate-500">主要联系人</p>
+          <p className="font-medium text-slate-800">{primaryContact?.name ?? "-"}</p>
+          <p className="text-slate-500">{primaryContact?.title ?? "未填写职位"}</p>
+        </div>
+        <div>
+          <p className="text-slate-500">电话 / 邮箱</p>
+          <p className="font-medium text-slate-800">{primaryContact?.phone ?? primaryContact?.whatsapp ?? "-"}</p>
+          <p className="text-slate-500">{primaryContact?.email ?? "未填写邮箱"}</p>
+        </div>
+        <div>
+          <p className="text-slate-500">负责人 / 来源</p>
+          <p className="font-medium text-slate-800">{customer.owner.name}</p>
+          <p className="text-slate-500">{customer.sourceChannel ?? "未填写来源"}</p>
+        </div>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -204,8 +269,8 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
               <div>
                 <dt className="text-slate-500">网站</dt>
                 <dd>
-                  {customer.website ? (
-                    <a href={customer.website} target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">
+                  {websiteUrl ? (
+                    <a href={websiteUrl} target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">
                       {customer.website}
                     </a>
                   ) : (
@@ -223,17 +288,33 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
               </div>
               <div>
                 <dt className="text-slate-500">客户类型</dt>
-                <dd>{customer.customerType ?? "-"}</dd>
+                <dd>{displayLabel(customerTypeLabel, customer.customerType)}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">感兴趣产品</dt>
-                <dd>{toDisplayString(customer.interestedProducts) || "-"}</dd>
+                <dd>{displayInterestedProductsList(customer.interestedProducts)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">行业</dt>
+                <dd>{customer.industry ?? "-"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">市场优先级</dt>
+                <dd>{displayLabel(marketPriorityLabel, customer.marketPriority)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">价值等级</dt>
+                <dd>{displayLabel(valueLevelLabel, customer.valueLevel)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">来源渠道</dt>
+                <dd>{customer.sourceChannel ?? "-"}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">状态</dt>
                 <dd>
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                    {STATUS_LABELS[customer.status] ?? customer.status}
+                    {customerStatusLabel[customer.status] ?? customer.status}
                   </span>
                 </dd>
               </div>
@@ -268,6 +349,28 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="mb-4 font-medium text-slate-700">客户时间轴</h2>
+            <div className="space-y-3">
+              {timelineItems.map((item) => (
+                <div key={item.id} className="border-l-2 border-slate-200 pl-4 py-1">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{item.badge}</span>
+                    <span className="text-slate-400">{new Date(item.occurredAt).toLocaleString("zh-CN")}</span>
+                  </div>
+                  {item.href ? (
+                    <Link href={item.href} className="mt-1 block font-medium text-teal-600 hover:underline">
+                      {item.title}
+                    </Link>
+                  ) : (
+                    <p className="mt-1 font-medium text-slate-700">{item.title}</p>
+                  )}
+                  <p className="mt-1 text-sm text-slate-600">{item.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
             <h2 className="mb-4 font-medium text-slate-700">跟进记录</h2>
             <div className="space-y-3">
               {customer.activities.length === 0 ? (
@@ -277,7 +380,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                   <div key={a.id} className="border-l-2 border-slate-200 pl-4 py-1">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                        {ACTIVITY_LABELS[a.type] ?? a.type}
+                        {activityTypeLabel[a.type] ?? a.type}
                       </span>
                       <span className="text-slate-500">{a.owner.name}</span>
                       <span className="text-slate-400">{new Date(a.createdAt).toLocaleString("zh-CN")}</span>
@@ -321,7 +424,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                         q.status === "won" ? "bg-green-50 text-green-700" : q.status === "lost" || q.status === "expired" ? "bg-slate-100 text-slate-500" : "bg-teal-50 text-teal-700"
                       }`}
                     >
-                      {QUOTE_STATUS_LABELS[q.status] ?? q.status}
+                      {quoteStatusLabel[q.status] ?? q.status}
                     </span>
                   </li>
                 ))
@@ -354,7 +457,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                         o.paymentStatus === "paid" ? "bg-green-50 text-green-700" : o.paymentStatus === "partial_paid" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {o.paymentStatus === "paid" ? "已付" : o.paymentStatus === "partial_paid" ? "部分付" : "未付"}
+                      {paymentStatusLabel[o.paymentStatus] ?? o.paymentStatus}
                     </span>
                   </li>
                 ))
@@ -379,13 +482,19 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                 <p className="text-sm text-slate-500">暂无联系人</p>
               ) : (
                 customer.contacts.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span>
-                      {c.name}
-                      {c.isPrimary && (
-                        <span className="ml-1 rounded bg-teal-100 px-1 text-xs text-teal-700">主</span>
-                      )}
-                    </span>
+                  <li key={c.id} className="flex items-start justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-medium text-slate-800">
+                        {c.name}
+                        {c.isPrimary && (
+                          <span className="ml-1 rounded bg-teal-100 px-1 text-xs text-teal-700">主</span>
+                        )}
+                      </div>
+                      <div className="text-slate-500">{c.title ?? "未填写职位"}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {c.email ?? "未填邮箱"} · {c.phone ?? c.whatsapp ?? "未填电话"}
+                      </div>
+                    </div>
                     <span className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
@@ -439,7 +548,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                           isTaskOverdue ? "bg-red-100 text-red-700" : t.status === "done" ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {isTaskOverdue ? "超期" : t.status === "todo" ? "待办" : t.status === "in_progress" ? "进行中" : "完成"}
+                        {isTaskOverdue ? "超期" : taskStatusLabel[t.status] ?? t.status}
                       </span>
                     </li>
                   );

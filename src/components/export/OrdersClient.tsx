@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Pagination } from "./shared/Pagination";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { paymentStatusLabel, productionStatusLabel, shippingStatusLabel } from "@/lib/export-display-labels";
+import { buildListUrl } from "@/lib/export/url-params";
 
 interface Order {
   id: string;
@@ -13,36 +17,60 @@ interface Order {
   productionStatus: string;
   shippingStatus: string;
   orderDate: string;
+  eta: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
-interface Pagination {
+interface PaginationData {
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
 }
 
-const PAYMENT_LABELS: Record<string, string> = {
-  unpaid: "未付",
-  partial_paid: "部分付",
-  paid: "已付",
-};
-
 export function OrdersClient() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const keywordParam = searchParams.get("keyword") ?? "";
+  const status = searchParams.get("status") ?? "";
+  const ownerId = searchParams.get("ownerId") ?? "";
+  const sortBy = searchParams.get("sortBy") ?? "orderDate";
+  const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const [orders, setOrders] = useState<Order[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [keyword, setKeyword] = useState("");
-  const [status, setStatus] = useState("");
-  const [ownerId, setOwnerId] = useState("");
-  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useState(keywordParam);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    setKeyword(keywordParam);
+  }, [keywordParam]);
+
+  function updateUrl(updates: Record<string, string | number | undefined>) {
+    const merged = {
+      keyword: keyword || undefined,
+      status: status || undefined,
+      ownerId: ownerId || undefined,
+      sortBy,
+      sortOrder,
+      page,
+      ...updates,
+    };
+    router.replace(buildListUrl(pathname, merged));
+  }
+
+  function updateSort(value: string) {
+    const [nextSortBy, nextSortOrder] = value.split(":");
+    updateUrl({ sortBy: nextSortBy, sortOrder: nextSortOrder, page: 1 });
+  }
 
   async function fetchUsers() {
     try {
       const res = await fetch("/api/export/users");
-      const json = await res.json();
+      const json = await parseResponseJson<{ data?: { id: string; name: string }[] }>(res);
       if (res.ok && json.data) setUsers(json.data);
     } catch {
       // ignore
@@ -58,14 +86,20 @@ export function OrdersClient() {
     try {
       const params = new URLSearchParams();
       params.set("page", String(overrides?.page ?? page));
-      if (keyword) params.set("keyword", keyword);
+      if (keywordParam) params.set("keyword", keywordParam);
       if (status) params.set("status", status);
       if (ownerId) params.set("ownerId", ownerId);
+      if (sortBy) params.set("sortBy", sortBy);
+      if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/orders?${params}`);
-      if (!res.ok) throw new Error("加载失败");
-      const json = await res.json();
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: Order[];
+        pagination?: PaginationData;
+      }>(res);
+      if (!res.ok) throw new Error(json.error ?? "加载失败");
       setOrders(json.data || []);
-      setPagination(json.pagination);
+      setPagination(json.pagination ?? null);
     } catch (e) {
       console.error(e);
       setOrders([]);
@@ -76,12 +110,18 @@ export function OrdersClient() {
 
   useEffect(() => {
     fetchOrders();
-  }, [page, status, ownerId]);
+  }, [page, status, ownerId, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    setPage(1);
-    fetchOrders({ page: 1 });
+    updateUrl({ keyword: keyword || undefined, page: 1 });
+  }
+
+  function renderTime(order: Order) {
+    if (sortBy === "createdAt") return new Date(order.createdAt).toLocaleDateString("zh-CN");
+    if (sortBy === "updatedAt") return new Date(order.updatedAt).toLocaleDateString("zh-CN");
+    if (sortBy === "eta") return order.eta ? new Date(order.eta).toLocaleDateString("zh-CN") : "-";
+    return new Date(order.orderDate).toLocaleDateString("zh-CN");
   }
 
   return (
@@ -97,10 +137,7 @@ export function OrdersClient() {
           />
           <select
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">全部状态</option>
@@ -110,10 +147,7 @@ export function OrdersClient() {
           </select>
           <select
             value={ownerId}
-            onChange={(e) => {
-              setOwnerId(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">全部负责人</option>
@@ -122,6 +156,17 @@ export function OrdersClient() {
                 {u.name}
               </option>
             ))}
+          </select>
+          <select
+            value={`${sortBy}:${sortOrder}`}
+            onChange={(e) => updateSort(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="orderDate:desc">最新订单日</option>
+            <option value="createdAt:desc">最新创建</option>
+            <option value="updatedAt:desc">最新更新</option>
+            <option value="eta:asc">最近 ETA</option>
+            <option value="totalAmount:desc">金额从高到低</option>
           </select>
           <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
             搜索
@@ -157,7 +202,7 @@ export function OrdersClient() {
                 <th className="px-4 py-3 text-left font-medium text-slate-700">付款</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">生产</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">发货</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">订单日期</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">时间</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">操作</th>
               </tr>
             </thead>
@@ -166,7 +211,7 @@ export function OrdersClient() {
                 <tr
                   key={o.id}
                   className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
-                  onClick={() => (window.location.href = `/export/orders/${o.id}`)}
+                  onClick={() => router.push(`/export/orders/${o.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{o.orderNo}</td>
                   <td className="px-4 py-3 text-slate-600">{o.customer.companyName}</td>
@@ -181,14 +226,12 @@ export function OrdersClient() {
                             : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {PAYMENT_LABELS[o.paymentStatus] ?? o.paymentStatus}
+                      {paymentStatusLabel[o.paymentStatus] ?? o.paymentStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{o.productionStatus}</td>
-                  <td className="px-4 py-3 text-slate-600">{o.shippingStatus}</td>
-                  <td className="px-4 py-3 text-slate-500">
-                    {new Date(o.orderDate).toLocaleDateString("zh-CN")}
-                  </td>
+                  <td className="px-4 py-3 text-slate-600">{productionStatusLabel[o.productionStatus] ?? o.productionStatus}</td>
+                  <td className="px-4 py-3 text-slate-600">{shippingStatusLabel[o.shippingStatus] ?? o.shippingStatus}</td>
+                  <td className="px-4 py-3 text-slate-500">{renderTime(o)}</td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <Link href={`/export/orders/${o.id}`} className="text-teal-600 hover:underline">
                       详情
@@ -206,7 +249,7 @@ export function OrdersClient() {
           page={page}
           totalPages={pagination.totalPages}
           total={pagination.total}
-          onPageChange={(p) => setPage(p)}
+          onPageChange={(p) => updateUrl({ page: p })}
         />
       )}
     </div>

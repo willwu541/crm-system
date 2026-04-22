@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CUSTOMER_TYPES, LEAD_STATUSES } from "@/lib/export-constants";
+import { customerTypeLabel, leadStatusLabel } from "@/lib/export-display-labels";
 import type { SessionUser } from "@/lib/auth";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { normalizeWebsiteUrl } from "@/lib/website";
 
 interface LeadFormProps {
   initial?: Record<string, unknown>;
@@ -52,6 +55,7 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
     notes: (initial?.notes as string) ?? "",
     ownerId: (initial?.owner as { id?: string })?.id ?? (initial?.ownerId as string) ?? "",
   });
+  const websitePreviewUrl = normalizeWebsiteUrl(form.website);
 
   useEffect(() => {
     if (initial?.owner && typeof initial.owner === "object" && "id" in (initial.owner as object)) {
@@ -60,18 +64,24 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
   }, [initial]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((j) => {
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/me");
+        const j = await parseResponseJson<{ user?: SessionUser }>(r);
         if (j.user) setMe(j.user);
-      })
-      .catch(() => {});
-    fetch("/api/export/users")
-      .then((r) => r.json())
-      .then((j) => {
+      } catch {
+        /* ignore */
+      }
+    })();
+    (async () => {
+      try {
+        const r = await fetch("/api/export/users");
+        const j = await parseResponseJson<{ data?: ExportUser[] }>(r);
         if (j.data) setUsers(j.data);
-      })
-      .catch(() => {});
+      } catch {
+        /* ignore */
+      }
+    })();
   }, []);
 
   const isAdmin = me?.role === "ADMIN";
@@ -85,7 +95,7 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
       const method = leadId ? "PATCH" : "POST";
       const body: Record<string, unknown> = {
         companyName: form.companyName,
-        website: form.website || undefined,
+        website: normalizeWebsiteUrl(form.website) || undefined,
         country: form.country || undefined,
         city: form.city || undefined,
         address: form.address || undefined,
@@ -110,7 +120,7 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string; data?: { id: string } }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
       if (onSuccess) {
         onSuccess();
@@ -120,7 +130,7 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
         router.refresh();
         return;
       }
-      router.push(`/export/leads/${json.data.id}`);
+      if (json.data?.id) router.push(`/export/leads/${json.data.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -165,11 +175,22 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">网站</label>
           <input
-            type="text"
+            type="url"
             value={form.website}
             onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+            placeholder="https://example.com"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+          {websitePreviewUrl && (
+            <a
+              href={websitePreviewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block text-xs text-teal-600 hover:underline"
+            >
+              打开官网
+            </a>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">国家</label>
@@ -208,7 +229,7 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
             <option value="">请选择</option>
             {CUSTOMER_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {customerTypeLabel[t] ?? t}
               </option>
             ))}
           </select>
@@ -305,7 +326,7 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
             >
               {LEAD_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {leadStatusLabel[s] ?? s}
                 </option>
               ))}
             </select>

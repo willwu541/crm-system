@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { getExportDuplicateMessage } from "@/lib/export/dedupe";
+import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -15,8 +17,17 @@ export async function GET(request: NextRequest) {
   const country = searchParams.get("country")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const since = searchParams.get("since")?.trim();
-  const sortBy = searchParams.get("sortBy") ?? "createdAt";
-  const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const sortByRaw = searchParams.get("sortBy") ?? "createdAt";
+  const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+  const allowedSort = new Set([
+    "createdAt",
+    "updatedAt",
+    "companyName",
+    "status",
+    "priority",
+    "lastContactAt",
+  ]);
+  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "createdAt";
 
   const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
   if (ownerId) where.ownerId = ownerId;
@@ -36,26 +47,37 @@ export async function GET(request: NextRequest) {
     ];
   }
 
-  const [data, total] = await Promise.all([
-    prisma.exportLead.findMany({
-      where,
-      orderBy: { [sortBy]: sortOrder },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: { owner: { select: { id: true, name: true } } },
-    }),
-    prisma.exportLead.count({ where }),
-  ]);
+  try {
+    const [data, total] = await Promise.all([
+      prisma.exportLead.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { owner: { select: { id: true, name: true } } },
+      }),
+      prisma.exportLead.count({ where }),
+    ]);
 
-  return NextResponse.json({
-    data,
-    pagination: {
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-    },
-  });
+    return NextResponse.json({
+      data,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (e) {
+    console.error("List leads error:", e);
+    return NextResponse.json(
+      {
+        error:
+          "加载线索失败。若刚更新过代码，请在服务器执行：npx prisma migrate deploy（或 npx prisma db push）使数据库与代码一致。",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 const createSchema = z.object({
@@ -84,8 +106,14 @@ export async function POST(request: NextRequest) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
+  let body: unknown;
   try {
-    const body = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "请求体无效或为空，请刷新页面后重试" }, { status: 400 });
+  }
+
+  try {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -104,6 +132,17 @@ export async function POST(request: NextRequest) {
       if (assignee) ownerId = assignee.id;
     }
 
+    const duplicateMessage = await getExportDuplicateMessage({
+      tenantId: ctx!.tenantId,
+      companyName: parsed.data.companyName,
+      website: parsed.data.website,
+      email: parsed.data.email,
+      phone: parsed.data.phone ?? parsed.data.whatsapp,
+    });
+    if (duplicateMessage) {
+      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
+    }
+
     const lead = await prisma.exportLead.create({
       data: {
         ...rest,
@@ -116,6 +155,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: lead });
   } catch (e) {
     console.error("Create lead error:", e);
-    return NextResponse.json({ error: "创建失败" }, { status: 500 });
+    const msg = prismaErrorToUserMessage(e, "创建线索失败，请稍后重试或联系管理员。");
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

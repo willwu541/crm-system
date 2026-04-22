@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { parseResponseJson } from "@/lib/parse-response-json";
 
 type Props = {
   apiPath: string;
@@ -33,7 +34,7 @@ export function ExportDeleteButton({
     setDeleting(true);
     try {
       const res = await fetch(apiPath, { method: "DELETE" });
-      const json = await res.json();
+      const json = await parseResponseJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error ?? "删除失败");
       toast("已删除");
       if (onDeleted) onDeleted();

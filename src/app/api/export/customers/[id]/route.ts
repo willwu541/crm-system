@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
+import { getExportDuplicateMessage } from "@/lib/export/dedupe";
 import { parseInterestedProducts } from "@/lib/export/interested-products";
 import { z } from "zod";
 
@@ -14,7 +15,7 @@ async function getCustomerOrError(id: string, tenantId: string, ownerFilter?: { 
       activities: { orderBy: { createdAt: "desc" }, take: 50, include: { contact: true, owner: { select: { name: true } } } },
       quotes: { orderBy: { createdAt: "desc" } },
       orders: { orderBy: { createdAt: "desc" } },
-      tasks: { where: { status: { in: ["todo", "in_progress", "overdue"] } }, orderBy: { dueDate: "asc" } },
+      tasks: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!customer) return { customer: null, error: NextResponse.json({ error: "客户不存在" }, { status: 404 }) };
@@ -80,6 +81,16 @@ export async function PATCH(
     if (interestedProducts !== undefined) data.interestedProducts = parseInterestedProducts(interestedProducts);
     if (parsed.data.lastFollowUpAt !== undefined) data.lastFollowUpAt = parsed.data.lastFollowUpAt ? new Date(parsed.data.lastFollowUpAt) : null;
     if (parsed.data.nextFollowUpAt !== undefined) data.nextFollowUpAt = parsed.data.nextFollowUpAt ? new Date(parsed.data.nextFollowUpAt) : null;
+
+    const duplicateMessage = await getExportDuplicateMessage({
+      tenantId: ctx!.tenantId,
+      companyName: parsed.data.companyName ?? customer.companyName,
+      website: parsed.data.website ?? customer.website,
+      exclude: { customerId: id },
+    });
+    if (duplicateMessage) {
+      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
+    }
 
     const updated = await prisma.exportCustomer.update({
       where: { id, tenantId: ctx!.tenantId },

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { parseResponseJson } from "@/lib/parse-response-json";
 
 const ENTITY_LABELS: Record<string, string> = {
   lead: "线索",
@@ -39,7 +40,11 @@ export function ExportDeletionsClient() {
       params.set("page", String(p));
       if (entityType) params.set("entityType", entityType);
       const res = await fetch(`/api/admin/export-deletions?${params}`);
-      const json = await res.json();
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: Row[];
+        pagination?: { totalPages?: number; page?: number };
+      }>(res);
       if (!res.ok) throw new Error(json.error ?? "加载失败");
       setRows(json.data ?? []);
       setTotalPages(json.pagination?.totalPages ?? 1);

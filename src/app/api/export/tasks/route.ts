@@ -15,8 +15,17 @@ export async function GET(request: NextRequest) {
   const customerId = searchParams.get("customerId")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const keyword = searchParams.get("keyword")?.trim();
-  const sortBy = searchParams.get("sortBy") ?? "dueDate";
-  const sortOrder = searchParams.get("sortOrder") ?? "asc";
+  const sortByRaw = searchParams.get("sortBy") ?? "dueDate";
+  const sortOrder = searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
+  const allowedSort = new Set([
+    "createdAt",
+    "updatedAt",
+    "dueDate",
+    "priority",
+    "status",
+    "title",
+  ]);
+  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "dueDate";
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -44,7 +53,10 @@ export async function GET(request: NextRequest) {
   const [data, total] = await Promise.all([
     prisma.exportTask.findMany({
       where,
-      orderBy: sortBy === "dueDate" ? [{ dueDate: "asc" }, { createdAt: "desc" }] : { [sortBy]: sortOrder },
+      orderBy:
+        sortBy === "dueDate"
+          ? [{ dueDate: sortOrder }, { createdAt: "desc" }]
+          : { [sortBy]: sortOrder },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {

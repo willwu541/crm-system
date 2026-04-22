@@ -4,20 +4,28 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LEAD_STATUSES } from "@/lib/export-constants";
+import { leadStatusLabel } from "@/lib/export-display-labels";
 import { buildListUrl } from "@/lib/export/url-params";
 import { useToast } from "@/components/ui/Toast";
 import { LeadForm } from "./LeadForm";
 import { Drawer } from "./shared/Drawer";
 import { Pagination } from "./shared/Pagination";
+import { parseResponseJson } from "@/lib/parse-response-json";
+import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 
 interface Lead {
   id: string;
   companyName: string;
+  website: string | null;
   country: string | null;
   email: string | null;
+  phone: string | null;
+  sourceChannel: string | null;
   status: string;
   owner: { id: string; name: string };
   createdAt: string;
+  updatedAt: string;
+  lastContactAt: string | null;
   convertedToCustomerId: string | null;
 }
 
@@ -34,14 +42,6 @@ interface PaginationData {
   totalPages: number;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  new: "新线索",
-  pending_review: "待审核",
-  valid: "有效",
-  invalid: "无效",
-  converted: "已转化",
-};
-
 export function LeadsClient() {
   const { toast } = useToast();
   const pathname = usePathname();
@@ -53,6 +53,8 @@ export function LeadsClient() {
   const ownerId = searchParams.get("ownerId") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
+  const sortBy = searchParams.get("sortBy") ?? "createdAt";
+  const sortOrder = searchParams.get("sortOrder") ?? "desc";
   const [leads, setLeads] = useState<Lead[]>([]);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,8 +70,8 @@ export function LeadsClient() {
   async function fetchUsers() {
     try {
       const res = await fetch("/api/export/users");
-      const json = await res.json();
-      if (res.ok && json.data) setUsers(json.data);
+      const json = await parseResponseJson(res);
+      if (res.ok && json.data) setUsers(json.data as User[]);
     } catch {
       // ignore
     }
@@ -87,8 +89,8 @@ export function LeadsClient() {
         method: "POST",
         body: formData,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "导入失败");
+      const json = await parseResponseJson(res);
+      if (!res.ok) throw new Error(String(json.error ?? "导入失败"));
       setLeads([]);
       fetchLeads({ page: 1 });
     } catch (err) {
@@ -106,15 +108,17 @@ export function LeadsClient() {
       const params = new URLSearchParams();
       params.set("page", String(overrides?.page ?? page));
       if (status) params.set("status", status);
-      if (keyword) params.set("keyword", keyword);
+      if (keywordParam) params.set("keyword", keywordParam);
       if (country) params.set("country", country);
       if (ownerId) params.set("ownerId", ownerId);
       if (since) params.set("since", since);
+      if (sortBy) params.set("sortBy", sortBy);
+      if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/leads?${params}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "加载失败");
-      setLeads(json.data || []);
-      setPagination(json.pagination);
+      const json = await parseResponseJson(res);
+      if (!res.ok) throw new Error(String(json.error ?? "加载失败"));
+      setLeads((json.data as Lead[]) || []);
+      setPagination(json.pagination as PaginationData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
       setLeads([]);
@@ -139,15 +143,22 @@ export function LeadsClient() {
       country: country || undefined,
       ownerId: ownerId || undefined,
       keyword: keyword || undefined,
+      sortBy,
+      sortOrder,
       page,
       ...updates,
     };
     router.replace(buildListUrl(pathname, merged));
   }
 
+  function updateSort(value: string) {
+    const [nextSortBy, nextSortOrder] = value.split(":");
+    updateUrl({ sortBy: nextSortBy, sortOrder: nextSortOrder, page: 1 });
+  }
+
   useEffect(() => {
     fetchLeads();
-  }, [page, status, country, ownerId, since]);
+  }, [page, status, country, ownerId, since, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -159,12 +170,12 @@ export function LeadsClient() {
     setError(null);
     try {
       const res = await fetch(`/api/export/leads/${leadId}/convert`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "转化失败");
-      const cid = json.data?.id ?? json.customerId;
+      const json = await parseResponseJson(res);
+      if (!res.ok) throw new Error(String(json.error ?? "转化失败"));
+      const cid = (json.data as { id?: string } | undefined)?.id ?? json.customerId;
       if (cid) {
         toast("转化成功");
-        window.location.href = `/export/customers/${cid}`;
+        router.push(`/export/customers/${cid}`);
       } else {
         toast("转化成功");
         fetchLeads();
@@ -175,6 +186,16 @@ export function LeadsClient() {
     } finally {
       setConverting(null);
     }
+  }
+
+  function renderTime(lead: Lead) {
+    if (sortBy === "lastContactAt") {
+      return lead.lastContactAt ? new Date(lead.lastContactAt).toLocaleDateString("zh-CN") : "-";
+    }
+    if (sortBy === "updatedAt") {
+      return new Date(lead.updatedAt).toLocaleDateString("zh-CN");
+    }
+    return new Date(lead.createdAt).toLocaleDateString("zh-CN");
   }
 
   return (
@@ -203,7 +224,7 @@ export function LeadsClient() {
             <option value="">全部状态</option>
             {LEAD_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABELS[s] ?? s}
+                {leadStatusLabel[s] ?? s}
               </option>
             ))}
           </select>
@@ -226,6 +247,16 @@ export function LeadsClient() {
                 {u.name}
               </option>
             ))}
+          </select>
+          <select
+            value={`${sortBy}:${sortOrder}`}
+            onChange={(e) => updateSort(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="createdAt:desc">最新创建</option>
+            <option value="updatedAt:desc">最新更新</option>
+            <option value="lastContactAt:desc">最近联系</option>
+            <option value="companyName:asc">公司 A-Z</option>
           </select>
           <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
             搜索
@@ -279,10 +310,10 @@ export function LeadsClient() {
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">公司</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">国家</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">邮箱</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">联系方式</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">状态</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">负责人</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">创建时间</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">时间</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">操作</th>
               </tr>
             </thead>
@@ -291,11 +322,31 @@ export function LeadsClient() {
                 <tr
                   key={l.id}
                   className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
-                  onClick={() => (window.location.href = `/export/leads/${l.id}`)}
+                  onClick={() => router.push(`/export/leads/${l.id}`)}
                 >
-                  <td className="px-4 py-3 font-medium text-slate-800">{l.companyName}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800">
+                    <div>{l.companyName}</div>
+                    <div className="text-xs font-normal text-slate-500">
+                      {normalizeWebsiteUrl(l.website) ? (
+                        <a
+                          href={normalizeWebsiteUrl(l.website)!}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-teal-600 hover:underline"
+                        >
+                          {getWebsiteHost(l.website)}
+                        </a>
+                      ) : (
+                        l.sourceChannel ?? "未填官网"
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{l.country ?? "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">{l.email ?? "-"}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <div>{l.email ?? "-"}</div>
+                    <div className="text-xs text-slate-500">{l.phone ?? "未填电话"}</div>
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-xs ${
@@ -308,13 +359,11 @@ export function LeadsClient() {
                               : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {STATUS_LABELS[l.status] ?? l.status}
+                      {leadStatusLabel[l.status] ?? l.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{l.owner.name}</td>
-                  <td className="px-4 py-3 text-slate-500">
-                    {new Date(l.createdAt).toLocaleDateString("zh-CN")}
-                  </td>
+                  <td className="px-4 py-3 text-slate-500">{renderTime(l)}</td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <span className="flex gap-3">
                       <Link href={`/export/leads/${l.id}`} className="text-teal-600 hover:underline">
@@ -360,6 +409,7 @@ export function LeadsClient() {
           onSuccess={() => {
             setDrawerOpen(false);
             toast("保存成功");
+            updateUrl({ page: 1 });
             fetchLeads({ page: 1 });
           }}
           onCancel={() => setDrawerOpen(false)}
