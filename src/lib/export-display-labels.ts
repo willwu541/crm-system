@@ -113,6 +113,30 @@ export const taskStatusLabel: Record<string, string> = {
   overdue: "超期",
 };
 
+export const emailTemplateCategoryLabel: Record<string, string> = {
+  dev_letter: "首封开发信 (Dev letter)",
+  followup_1: "Follow-up #1（3 天）",
+  followup_2: "Follow-up #2（1 周）",
+  followup_3: "Follow-up #3（2 周）",
+  long_tail: "长尾跟进（1 个月+）",
+  sample_request: "样品询问",
+  quote_followup: "报价后跟进",
+  push_close: "促单 (Push close)",
+  holiday: "节日问候",
+  reactivation: "沉睡客户唤醒",
+  other: "其他 (Other)",
+};
+
+export const emailTemplateLanguageLabel: Record<string, string> = {
+  en: "English",
+  zh: "中文",
+};
+
+export const activityDirectionLabel: Record<string, string> = {
+  outbound: "发出 (Outbound)",
+  inbound: "回复 (Inbound)",
+};
+
 /** 任意 key：有映射则返回中文/中英文案，否则原样返回（兼容旧数据） */
 export function displayLabel(map: Record<string, string>, value: string | null | undefined): string {
   if (value == null || value === "") return "-";

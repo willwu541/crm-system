@@ -44,6 +44,8 @@ export async function POST(
         sourceChannel: lead.sourceChannel,
         ownerId: lead.ownerId,
         status: "to_develop",
+        // 把线索阶段累计的最近联系时间继承下来，便于跟进节奏延续
+        lastFollowUpAt: lead.lastContactAt ?? undefined,
       },
       include: { owner: { select: { id: true, name: true } } },
     });
@@ -51,10 +53,11 @@ export async function POST(
       where: { id: leadId },
       data: { status: "converted", convertedToCustomerId: c.id },
     });
+    let primaryContactId: string | null = null;
     if (lead.email || lead.phone || lead.whatsapp) {
       const contactName =
         lead.email?.split("@")[0] || lead.companyName || "默认联系人";
-      await tx.exportContact.create({
+      const contact = await tx.exportContact.create({
         data: {
           tenantId: ctx!.tenantId,
           customerId: c.id,
@@ -65,8 +68,21 @@ export async function POST(
           isPrimary: true,
         },
       });
+      primaryContactId = contact.id;
     }
-    return c;
+    // 把线索阶段的所有沟通记录搬到新客户名下
+    const moved = await tx.exportActivity.updateMany({
+      where: { leadId, tenantId: ctx!.tenantId },
+      data: { customerId: c.id, leadId: null },
+    });
+    // 没指定联系人的，默认挂到主要联系人上
+    if (primaryContactId) {
+      await tx.exportActivity.updateMany({
+        where: { customerId: c.id, contactId: null, tenantId: ctx!.tenantId },
+        data: { contactId: primaryContactId },
+      });
+    }
+    return { ...c, _movedActivities: moved.count };
   });
 
   return NextResponse.json({ data: customer });

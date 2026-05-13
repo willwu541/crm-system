@@ -107,3 +107,38 @@ export const TASK_STATUSES = [
   "done",
   "overdue",
 ] as const;
+
+/** 邮件 / 沟通模板分类（对应开发客户全链路） */
+export const EMAIL_TEMPLATE_CATEGORIES = [
+  "dev_letter",       // 首封开发信 (D+0)
+  "followup_1",       // Follow-up #1 (D+3)
+  "followup_2",       // Follow-up #2 (D+7)
+  "followup_3",       // Follow-up #3 (D+14 询样/项目需求)
+  "long_tail",        // 长尾问候 (D+30+)
+  "sample_request",   // 样品询问
+  "quote_followup",   // 报价后跟进
+  "push_close",       // 促单
+  "holiday",          // 节日问候
+  "reactivation",     // 沉睡客户唤醒
+  "other",
+] as const;
+
+export const EMAIL_TEMPLATE_LANGUAGES = ["en", "zh"] as const;
+
+/** 沟通方向 */
+export const ACTIVITY_DIRECTIONS = ["outbound", "inbound"] as const;
+
+/** Lead 来源渠道（预设可选；表单仍允许自定义文本） */
+export const LEAD_SOURCE_CHANNELS = [
+  "Alibaba",
+  "Made-in-China",
+  "Google",
+  "LinkedIn",
+  "Trade Show",       // 展会
+  "Customer Referral",// 客户介绍
+  "SEO",
+  "Email Marketing",  // 邮件营销
+  "Cold Outreach",    // 主动开发
+  "Website Inquiry",  // 官网询盘
+  "Other",
+] as const;

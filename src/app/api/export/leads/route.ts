@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "createdAt";
 
+  const pace = searchParams.get("pace")?.trim();
+
   const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
   if (ownerId) where.ownerId = ownerId;
   else if (ctx!.ownerFilter) where.ownerId = ctx!.ownerFilter.ownerId;
@@ -39,12 +41,41 @@ export async function GET(request: NextRequest) {
     weekStart.setDate(weekStart.getDate() - 7);
     where.createdAt = { gte: weekStart };
   }
+
+  // 开发节奏快捷筛选
+  if (pace === "never") {
+    // 从未联系过
+    where.lastContactAt = null;
+    where.status = where.status ?? { notIn: ["converted", "invalid"] };
+  } else if (pace === "due") {
+    // 该跟进了：从未联系 OR 上次联系 >= 3 天前；排除已转化/无效
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    where.AND = [
+      { status: where.status ?? { notIn: ["converted", "invalid"] } },
+      { OR: [{ lastContactAt: null }, { lastContactAt: { lte: threeDaysAgo } }] },
+    ];
+    delete where.status;
+  } else if (pace === "stuck") {
+    // 长期无响应：联系 ≥ 3 次 + 最后联系 ≥ 14 天
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    where.contactCount = { gte: 3 };
+    where.lastContactAt = { lte: fourteenDaysAgo };
+    where.status = where.status ?? { notIn: ["converted", "invalid"] };
+  }
+
   if (keyword) {
-    where.OR = [
+    const orList = [
       { companyName: { contains: keyword, mode: "insensitive" } },
       { email: { contains: keyword, mode: "insensitive" } },
       { phone: { contains: keyword, mode: "insensitive" } },
     ];
+    if (Array.isArray(where.AND)) {
+      (where.AND as unknown[]).push({ OR: orList });
+    } else {
+      where.OR = orList;
+    }
   }
 
   try {

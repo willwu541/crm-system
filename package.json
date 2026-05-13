@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "init-admin": "npx tsx scripts/init-admin.ts"
+    "init-admin": "npx tsx scripts/init-admin.ts",
+    "seed:export-templates": "npx tsx scripts/seed-export-templates.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

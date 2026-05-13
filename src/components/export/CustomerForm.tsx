@@ -9,6 +9,7 @@ import {
   MARKET_PRIORITY,
   VALUE_LEVEL,
   CUSTOMER_STATUSES,
+  LEAD_SOURCE_CHANNELS,
 } from "@/lib/export-constants";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { normalizeWebsiteUrl } from "@/lib/website";
@@ -232,11 +233,18 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">来源渠道</label>
           <input
+            list="customer-source-channel-options"
             type="text"
             value={form.sourceChannel}
             onChange={(e) => setForm((f) => ({ ...f, sourceChannel: e.target.value }))}
+            placeholder="选择或输入"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+          <datalist id="customer-source-channel-options">
+            {LEAD_SOURCE_CHANNELS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">状态</label>

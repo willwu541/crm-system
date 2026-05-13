@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CUSTOMER_TYPES, LEAD_STATUSES } from "@/lib/export-constants";
+import {
+  CUSTOMER_TYPES,
+  LEAD_STATUSES,
+  LEAD_SOURCE_CHANNELS,
+} from "@/lib/export-constants";
 import { customerTypeLabel, leadStatusLabel } from "@/lib/export-display-labels";
 import type { SessionUser } from "@/lib/auth";
 import { parseResponseJson } from "@/lib/parse-response-json";
@@ -237,11 +241,18 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">来源渠道</label>
           <input
+            list="lead-source-channel-options"
             type="text"
             value={form.sourceChannel}
             onChange={(e) => setForm((f) => ({ ...f, sourceChannel: e.target.value }))}
+            placeholder="选择或输入"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+          <datalist id="lead-source-channel-options">
+            {LEAD_SOURCE_CHANNELS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">来源关键词</label>

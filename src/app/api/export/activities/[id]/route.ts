@@ -7,11 +7,14 @@ import { z } from "zod";
 async function getActivityOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
   const activity = await prisma.exportActivity.findUnique({
     where: { id, tenantId },
-    include: { customer: true, contact: true, owner: true },
+    include: { customer: true, lead: true, contact: true, owner: true },
   });
   if (!activity) return { activity: null, error: NextResponse.json({ error: "跟进记录不存在" }, { status: 404 }) };
-  if (ownerFilter && activity.customer.ownerId !== ownerFilter.ownerId) {
-    return { activity: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
+  if (ownerFilter) {
+    const ownerId = activity.customer?.ownerId ?? activity.lead?.ownerId;
+    if (ownerId && ownerId !== ownerFilter.ownerId) {
+      return { activity: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
+    }
   }
   return { activity, error: null };
 }
@@ -87,6 +90,7 @@ export async function DELETE(
     where: { id, tenantId: ctx!.tenantId },
     include: {
       customer: { select: { companyName: true, customerCode: true } },
+      lead: { select: { companyName: true } },
       contact: { select: { name: true } },
       owner: { select: { id: true, name: true } },
     },
@@ -94,11 +98,12 @@ export async function DELETE(
   if (!full) return NextResponse.json({ error: "跟进记录不存在" }, { status: 404 });
 
   try {
+    const targetName = full.customer?.companyName ?? full.lead?.companyName ?? "-";
     await deleteWithExportLog({
       tenantId: ctx!.tenantId,
       entityType: "activity",
       recordId: id,
-      summary: `${full.type} · ${full.customer.companyName}`,
+      summary: `${full.type} · ${targetName}`,
       snapshot: full,
       deletedById: user!.id,
       deleteFn: (tx) => tx.exportActivity.delete({ where: { id, tenantId: ctx!.tenantId } }),

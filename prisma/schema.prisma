@@ -59,23 +59,28 @@ enum Tenant {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  name         String
-  role         UserRole  @default(SALES)
-  tenant       Tenant    @default(domestic)
-  tenantId     String?   @map("tenant_id")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  name           String
+  role           UserRole @default(SALES)
+  tenant         Tenant   @default(domestic)
+  tenantId       String?  @map("tenant_id")
+  /**
+   * 邮件签名（外贸业务员个人签名，用于模板变量 {{user.signature}}）
+   */
+  emailSignature String?  @map("email_signature") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  orders            Order[]
-  exportTenant      ExportTenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  exportLeads       ExportLead[]
-  exportCustomers   ExportCustomer[]
-  exportActivities  ExportActivity[]
-  exportTasks       ExportTask[]
-  exportDeletionLogs ExportDeletionLog[]
+  orders               Order[]
+  exportTenant         ExportTenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  exportLeads          ExportLead[]
+  exportCustomers      ExportCustomer[]
+  exportActivities     ExportActivity[]
+  exportTasks          ExportTask[]
+  exportDeletionLogs   ExportDeletionLog[]
+  exportEmailTemplates ExportEmailTemplate[]
 
   @@map("users")
 }
@@ -94,36 +99,36 @@ model Supplier {
 }
 
 model Order {
-  id                    String         @id @default(cuid())
-  orderNo               String         @unique @map("order_no")
-  customerName          String         @map("customer_name")
-  contactName           String         @map("contact_name")
-  contactPhone          String         @map("contact_phone")
-  projectName           String         @map("project_name")
-  deliveryRegion        String         @map("delivery_region")
-  quoteDeadline         DateTime?      @map("quote_deadline")
+  id                    String          @id @default(cuid())
+  orderNo               String          @unique @map("order_no")
+  customerName          String          @map("customer_name")
+  contactName           String          @map("contact_name")
+  contactPhone          String          @map("contact_phone")
+  projectName           String          @map("project_name")
+  deliveryRegion        String          @map("delivery_region")
+  quoteDeadline         DateTime?       @map("quote_deadline")
   remark                String?
-  status                OrderStatus    @default(DRAFT)
-  mainStatus            MainStatus?    @map("main_status")
-  isQuoted              Boolean        @default(false) @map("is_quoted")
+  status                OrderStatus     @default(DRAFT)
+  mainStatus            MainStatus?     @map("main_status")
+  isQuoted              Boolean         @default(false) @map("is_quoted")
   intentionLevel        IntentionLevel? @map("intention_level")
   productionMode        ProductionMode? @map("production_mode")
-  hasSelectedSupplier   Boolean        @default(false) @map("has_selected_supplier")
-  selectedQuoteId       String?        @unique @map("selected_quote_id")
-  finalPrice            Decimal?       @map("final_price") @db.Decimal(18, 4)
-  isOrderedToSupplier   Boolean        @default(false) @map("is_ordered_to_supplier")
-  customerPaymentStatus PaymentStatus? @map("customer_payment_status")
-  supplierPaymentStatus PaymentStatus? @map("supplier_payment_status")
-  createdById           String         @map("created_by_id")
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
+  hasSelectedSupplier   Boolean         @default(false) @map("has_selected_supplier")
+  selectedQuoteId       String?         @unique @map("selected_quote_id")
+  finalPrice            Decimal?        @map("final_price") @db.Decimal(18, 4)
+  isOrderedToSupplier   Boolean         @default(false) @map("is_ordered_to_supplier")
+  customerPaymentStatus PaymentStatus?  @map("customer_payment_status")
+  supplierPaymentStatus PaymentStatus?  @map("supplier_payment_status")
+  createdById           String          @map("created_by_id")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
 
-  createdBy    User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  items        OrderItem[]
-  attachments  OrderAttachment[]
-  quoteLinks   QuoteLink[]
-  quotes       Quote[]
-  selectedQuote Quote?       @relation("SelectedQuote", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
+  createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items         OrderItem[]
+  attachments   OrderAttachment[]
+  quoteLinks    QuoteLink[]
+  quotes        Quote[]
+  selectedQuote Quote?            @relation("SelectedQuote", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
 
   @@map("orders")
 }
@@ -143,24 +148,24 @@ model OrderItem {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  order        Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  attachments  OrderAttachment[]
-  quoteItems   QuoteItem[]
+  order       Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  attachments OrderAttachment[]
+  quoteItems  QuoteItem[]
 
   @@map("order_items")
 }
 
 model OrderAttachment {
-  id           String   @id @default(cuid())
-  orderId      String   @map("order_id")
-  orderItemId  String?  @map("order_item_id")
-  fileName     String   @map("file_name")
-  filePath     String   @map("file_path")
-  fileSize     Int      @map("file_size")
-  mimeType     String   @map("mime_type")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  orderId     String   @map("order_id")
+  orderItemId String?  @map("order_item_id")
+  fileName    String   @map("file_name")
+  filePath    String   @map("file_path")
+  fileSize    Int      @map("file_size")
+  mimeType    String   @map("mime_type")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   @@map("order_attachments")
@@ -174,7 +179,7 @@ model QuoteLink {
   expiresAt    DateTime? @map("expires_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order  Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   quotes Quote[]
 
   @@map("quote_links")
@@ -195,12 +200,12 @@ model Quote {
   status           QuoteStatus @default(PENDING)
   submittedAt      DateTime    @map("submitted_at")
   createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  quoteLink QuoteLink  @relation(fields: [quoteLinkId], references: [id], onDelete: Restrict)
-  items     QuoteItem[]
-  orderAsSelected Order? @relation("SelectedQuote")
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  quoteLink       QuoteLink   @relation(fields: [quoteLinkId], references: [id], onDelete: Restrict)
+  items           QuoteItem[]
+  orderAsSelected Order?      @relation("SelectedQuote")
 
   @@map("quotes")
 }
@@ -221,15 +226,15 @@ model QuoteItem {
 }
 
 model OperationLog {
-  id          String   @id @default(cuid())
-  action      String   @map("action")
-  targetType  String   @map("target_type")
-  targetId    String   @map("target_id")
-  targetName  String   @map("target_name")
-  userId      String   @map("user_id")
-  userName    String   @map("user_name")
-  details     String?  @map("details")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  action     String   @map("action")
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  targetName String   @map("target_name")
+  userId     String   @map("user_id")
+  userName   String   @map("user_name")
+  details    String?  @map("details")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("operation_logs")
 }
@@ -243,15 +248,16 @@ model ExportTenant {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users      User[]
-  leads      ExportLead[]
-  customers  ExportCustomer[]
-  contacts   ExportContact[]
-  activities ExportActivity[]
-  quotes     ExportQuote[]
-  orders     ExportOrder[]
-  tasks      ExportTask[]
-  sequences  ExportSequence[]
+  users          User[]
+  leads          ExportLead[]
+  customers      ExportCustomer[]
+  contacts       ExportContact[]
+  activities     ExportActivity[]
+  quotes         ExportQuote[]
+  orders         ExportOrder[]
+  tasks          ExportTask[]
+  sequences      ExportSequence[]
+  emailTemplates ExportEmailTemplate[]
 
   @@map("export_tenants")
 }
@@ -259,7 +265,7 @@ model ExportTenant {
 model ExportSequence {
   id        String   @id @default(cuid())
   tenantId  String   @map("tenant_id")
-  prefix    String   // CUS, QUO, ORD
+  prefix    String // CUS, QUO, ORD
   year      Int
   lastSeq   Int      @default(0) @map("last_seq")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -272,79 +278,87 @@ model ExportSequence {
 }
 
 model ExportLead {
-  id                     String   @id @default(cuid())
-  tenantId               String   @map("tenant_id")
-  companyName            String   @map("company_name")
-  website                String?
-  country                String?
-  city                   String?
-  address                String?
-  customerType           String?  @map("customer_type")
-  sourceChannel          String?  @map("source_channel")
-  sourceKeyword          String?  @map("source_keyword")
-  email                  String?
-  phone                  String?
-  whatsapp               String?
-  linkedin               String?
-  mainBusiness           String?  @map("main_business")
-  /** 线索：感兴趣产品/需求，自由文本 */
-  productInterest        String?  @map("product_interest")
-  priority               String?
-  ownerId                String   @map("owner_id")
-  status                 String   @default("new")
-  notes                  String?
-  lastContactAt          DateTime? @map("last_contact_at")
-  isDuplicate            Boolean  @default(false) @map("is_duplicate")
-  duplicateReason        String?  @map("duplicate_reason")
-  convertedToCustomerId  String?  @map("converted_to_customer_id")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  id                    String    @id @default(cuid())
+  tenantId              String    @map("tenant_id")
+  companyName           String    @map("company_name")
+  website               String?
+  country               String?
+  city                  String?
+  address               String?
+  customerType          String?   @map("customer_type")
+  sourceChannel         String?   @map("source_channel")
+  sourceKeyword         String?   @map("source_keyword")
+  email                 String?
+  phone                 String?
+  whatsapp              String?
+  linkedin              String?
+  mainBusiness          String?   @map("main_business")
+  /**
+   * 线索：感兴趣产品/需求，自由文本
+   */
+  productInterest       String?   @map("product_interest")
+  priority              String?
+  ownerId               String    @map("owner_id")
+  status                String    @default("new")
+  notes                 String?
+  lastContactAt         DateTime? @map("last_contact_at")
+  /**
+   * 累计沟通次数（线索阶段 outbound 自增）
+   */
+  contactCount          Int       @default(0) @map("contact_count")
+  isDuplicate           Boolean   @default(false) @map("is_duplicate")
+  duplicateReason       String?   @map("duplicate_reason")
+  convertedToCustomerId String?   @map("converted_to_customer_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  customer ExportCustomer? @relation(fields: [convertedToCustomerId], references: [id], onDelete: SetNull)
+  tenant     ExportTenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  customer   ExportCustomer?  @relation(fields: [convertedToCustomerId], references: [id], onDelete: SetNull)
+  activities ExportActivity[]
 
   @@index([tenantId])
   @@index([ownerId])
   @@index([status])
   @@index([createdAt])
+  @@index([lastContactAt])
   @@map("export_leads")
 }
 
 model ExportCustomer {
-  id                  String    @id @default(cuid())
-  tenantId            String    @map("tenant_id")
-  customerCode        String    @map("customer_code")
-  companyName         String    @map("company_name")
-  website             String?
-  country             String?
-  city                String?
-  address             String?
-  customerType        String?   @map("customer_type")
-  industry            String?
-  marketPriority      String?   @map("market_priority")
-  valueLevel          String?   @map("value_level")
-  interestedProducts  String[]  @map("interested_products")
-  sourceChannel       String?   @map("source_channel")
-  ownerId             String    @map("owner_id")
-  status              String    @default("to_develop")
-  lastFollowUpAt      DateTime? @map("last_follow_up_at")
-  nextFollowUpAt      DateTime? @map("next_follow_up_at")
-  lastStageChangedAt  DateTime? @map("last_stage_changed_at")
-  lostReason          String?   @map("lost_reason")
-  isWon               Boolean   @default(false) @map("is_won")
-  notes               String?
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  customerCode       String    @map("customer_code")
+  companyName        String    @map("company_name")
+  website            String?
+  country            String?
+  city               String?
+  address            String?
+  customerType       String?   @map("customer_type")
+  industry           String?
+  marketPriority     String?   @map("market_priority")
+  valueLevel         String?   @map("value_level")
+  interestedProducts String[]  @map("interested_products")
+  sourceChannel      String?   @map("source_channel")
+  ownerId            String    @map("owner_id")
+  status             String    @default("to_develop")
+  lastFollowUpAt     DateTime? @map("last_follow_up_at")
+  nextFollowUpAt     DateTime? @map("next_follow_up_at")
+  lastStageChangedAt DateTime? @map("last_stage_changed_at")
+  lostReason         String?   @map("lost_reason")
+  isWon              Boolean   @default(false) @map("is_won")
+  notes              String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  tenant    ExportTenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner     User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  contacts  ExportContact[]
+  tenant     ExportTenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contacts   ExportContact[]
   activities ExportActivity[]
-  quotes    ExportQuote[]
-  orders    ExportOrder[]
-  tasks     ExportTask[]
-  leads     ExportLead[]
+  quotes     ExportQuote[]
+  orders     ExportOrder[]
+  tasks      ExportTask[]
+  leads      ExportLead[]
 
   @@unique([tenantId, customerCode])
   @@index([tenantId])
@@ -370,8 +384,8 @@ model ExportContact {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant     ExportTenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer   ExportCustomer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   activities ExportActivity[]
   quotes     ExportQuote[]
   tasks      ExportTask[]
@@ -382,30 +396,49 @@ model ExportContact {
 }
 
 model ExportActivity {
-  id                    String    @id @default(cuid())
-  tenantId              String    @map("tenant_id")
-  customerId            String    @map("customer_id")
-  contactId             String?   @map("contact_id")
-  type                  String
-  subject               String?
-  content               String?
-  customerFeedback      String?   @map("customer_feedback")
-  customerNameSnapshot  String?   @map("customer_name_snapshot")
-  contactNameSnapshot   String?   @map("contact_name_snapshot")
-  contactEmailSnapshot  String?   @map("contact_email_snapshot")
+  id                   String    @id @default(cuid())
+  tenantId             String    @map("tenant_id")
+  /**
+   * 关联客户（线索阶段为 null）
+   */
+  customerId           String?   @map("customer_id")
+  /**
+   * 关联线索（仅线索阶段使用；转客户后置 null 并改填 customerId）
+   */
+  leadId               String?   @map("lead_id")
+  contactId            String?   @map("contact_id")
+  type                 String
+  /**
+   * 沟通方向：outbound 我方发出 / inbound 客户回复
+   */
+  direction            String    @default("outbound")
+  subject              String?
+  content              String?
+  customerFeedback     String?   @map("customer_feedback")
+  customerNameSnapshot String?   @map("customer_name_snapshot")
+  contactNameSnapshot  String?   @map("contact_name_snapshot")
+  contactEmailSnapshot String?   @map("contact_email_snapshot")
+  /**
+   * 来源模板（如本次跟进套用了哪个邮件模板）
+   */
+  templateId           String?   @map("template_id")
   nextFollowUpAt       DateTime? @map("next_follow_up_at")
-  ownerId               String    @map("owner_id")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  ownerId              String    @map("owner_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  contact  ExportContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  tenant   ExportTenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lead     ExportLead?          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contact  ExportContact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner    User                 @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  template ExportEmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([ownerId])
   @@index([customerId])
+  @@index([leadId])
+  @@index([direction])
   @@index([createdAt])
   @@map("export_activities")
 }
@@ -428,9 +461,9 @@ model ExportQuote {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  contact  ExportContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  tenant   ExportTenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contact  ExportContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
   items    ExportQuoteItem[]
   orders   ExportOrder[]
 
@@ -472,7 +505,7 @@ model ExportOrder {
   totalAmount      Decimal?  @map("total_amount") @db.Decimal(18, 4)
   paymentTerm      String?   @map("payment_term")
   paymentStatus    String    @default("unpaid") @map("payment_status")
-  productionStatus String   @default("pending") @map("production_status")
+  productionStatus String    @default("pending") @map("production_status")
   shippingStatus   String    @default("pending") @map("shipping_status")
   eta              DateTime? @map("eta")
   actualShipDate   DateTime? @map("actual_ship_date")
@@ -480,9 +513,9 @@ model ExportOrder {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer ExportCustomer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  quote    ExportQuote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  tenant   ExportTenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer ExportCustomer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  quote    ExportQuote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   items    ExportOrderItem[]
 
   @@unique([tenantId, orderNo])
@@ -526,10 +559,10 @@ model ExportTask {
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  tenant   ExportTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   ExportTenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer ExportCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  contact  ExportContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contact  ExportContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner    User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
   @@index([ownerId])
@@ -539,16 +572,66 @@ model ExportTask {
   @@map("export_tasks")
 }
 
-/** 外贸数据删除审计（内贸管理员可查看） */
+/**
+ * 外贸邮件 / 沟通模板（团队共享）
+ */
+model ExportEmailTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  /**
+   * 模板名称，如「首封开发信 - 工厂自荐 EN」
+   */
+  name        String
+  /**
+   * 分类：dev_letter / followup_1 / followup_2 / followup_3 / sample_request / quote_followup / push_close / holiday / other
+   */
+  category    String
+  /**
+   * 语言：en / zh
+   */
+  language    String   @default("en")
+  /**
+   * 邮件主题，支持变量 {{...}}
+   */
+  subject     String
+  /**
+   * 邮件正文，支持变量 {{...}}
+   */
+  body        String   @db.Text
+  /**
+   * 是否团队共享（false 表示仅创建人可见）
+   */
+  isShared    Boolean  @default(true) @map("is_shared")
+  /**
+   * 内置模板标记（系统种子模板，不可删除）
+   */
+  isBuiltin   Boolean  @default(false) @map("is_builtin")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant     ExportTenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy  User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  activities ExportActivity[]
+
+  @@index([tenantId])
+  @@index([category])
+  @@index([language])
+  @@map("export_email_templates")
+}
+
+/**
+ * 外贸数据删除审计（内贸管理员可查看）
+ */
 model ExportDeletionLog {
-  id           String   @id @default(cuid())
-  tenantId     String   @map("tenant_id")
-  entityType   String   @map("entity_type")
-  recordId     String   @map("record_id")
-  summary      String?
-  snapshot     Json
-  deletedById  String   @map("deleted_by_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  entityType  String   @map("entity_type")
+  recordId    String   @map("record_id")
+  summary     String?
+  snapshot    Json
+  deletedById String   @map("deleted_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   deletedBy User @relation(fields: [deletedById], references: [id], onDelete: Restrict)
 

@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/export/quotes", label: "Quotes 报价" },
   { href: "/export/orders", label: "Orders 订单" },
   { href: "/export/tasks", label: "Tasks 任务" },
+  { href: "/export/templates", label: "邮件模板" },
 ];
 
 export function ExportSidebar() {
