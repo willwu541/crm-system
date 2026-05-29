@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   CUSTOMER_TYPES,
+  INTERESTED_PRODUCTS,
   LEAD_STATUSES,
   LEAD_SOURCE_CHANNELS,
 } from "@/lib/export-constants";
-import { customerTypeLabel, leadStatusLabel } from "@/lib/export-display-labels";
+import {
+  customerTypeLabel,
+  interestedProductLabel,
+  leadStatusLabel,
+} from "@/lib/export-display-labels";
 import type { SessionUser } from "@/lib/auth";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { normalizeWebsiteUrl } from "@/lib/website";
@@ -18,6 +23,10 @@ interface LeadFormProps {
   leadId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
+  /** 备注在详情页左侧单独编辑时使用 */
+  hideNotes?: boolean;
+  notesValue?: string;
+  onNotesValueChange?: (value: string) => void;
 }
 
 interface ExportUser {
@@ -26,7 +35,15 @@ interface ExportUser {
   email: string;
 }
 
-export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps) {
+export function LeadForm({
+  initial,
+  leadId,
+  onSuccess,
+  onCancel,
+  hideNotes,
+  notesValue,
+  onNotesValueChange,
+}: LeadFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -46,6 +63,8 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
     phone: (initial?.phone as string) ?? "",
     whatsapp: (initial?.whatsapp as string) ?? "",
     linkedin: (initial?.linkedin as string) ?? "",
+    facebook: (initial?.facebook as string) ?? "",
+    tiktok: (initial?.tiktok as string) ?? "",
     mainBusiness: (initial?.mainBusiness as string) ?? "",
     productInterest: (() => {
       const v = initial?.productInterest;
@@ -53,6 +72,16 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
       const legacy = initial?.interestedProducts;
       if (Array.isArray(legacy)) return legacy.filter(Boolean).join(", ");
       return "";
+    })(),
+    selectedProducts: (() => {
+      const raw =
+        (typeof initial?.productInterest === "string" ? initial.productInterest : "") ||
+        (Array.isArray(initial?.interestedProducts)
+          ? (initial.interestedProducts as string[]).join(", ")
+          : "");
+      return INTERESTED_PRODUCTS.filter((p) =>
+        raw.split(/[,，]/).some((s) => s.trim() === p),
+      ) as string[];
     })(),
     priority: (initial?.priority as string) ?? "",
     status: (initial?.status as string) ?? "new",
@@ -110,11 +139,22 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
         phone: form.phone || undefined,
         whatsapp: form.whatsapp || undefined,
         linkedin: form.linkedin || undefined,
+        facebook: form.facebook || undefined,
+        tiktok: form.tiktok || undefined,
         mainBusiness: form.mainBusiness || undefined,
-        productInterest: form.productInterest || undefined,
+        productInterest:
+          [
+            ...form.selectedProducts,
+            form.productInterest
+              .split(/[,，]/)
+              .map((s) => s.trim())
+              .filter((s) => s && !form.selectedProducts.includes(s)),
+          ]
+            .filter(Boolean)
+            .join(", ") || undefined,
         priority: form.priority || undefined,
         status: form.status,
-        notes: form.notes || undefined,
+        notes: (hideNotes && notesValue !== undefined ? notesValue : form.notes) || undefined,
       };
       if (isAdmin && form.ownerId) {
         body.ownerId = form.ownerId;
@@ -296,6 +336,27 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
             type="text"
             value={form.linkedin}
             onChange={(e) => setForm((f) => ({ ...f, linkedin: e.target.value }))}
+            placeholder="主页链接或 @用户名"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Facebook</label>
+          <input
+            type="text"
+            value={form.facebook}
+            onChange={(e) => setForm((f) => ({ ...f, facebook: e.target.value }))}
+            placeholder="主页链接或 @用户名"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">TikTok</label>
+          <input
+            type="text"
+            value={form.tiktok}
+            onChange={(e) => setForm((f) => ({ ...f, tiktok: e.target.value }))}
+            placeholder="@用户名 或链接"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
@@ -309,12 +370,32 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-slate-700">感兴趣产品 / 需求说明</label>
+          <label className="mb-2 block text-sm font-medium text-slate-700">感兴趣产品</label>
+          <div className="mb-2 flex flex-wrap gap-2">
+            {INTERESTED_PRODUCTS.map((p) => (
+              <label key={p} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.selectedProducts.includes(p)}
+                  onChange={(e) => {
+                    setForm((f) => ({
+                      ...f,
+                      selectedProducts: e.target.checked
+                        ? [...f.selectedProducts, p]
+                        : f.selectedProducts.filter((x) => x !== p),
+                    }));
+                  }}
+                  className="rounded border-slate-300"
+                />
+                {interestedProductLabel[p] ?? p}
+              </label>
+            ))}
+          </div>
           <textarea
             value={form.productInterest}
             onChange={(e) => setForm((f) => ({ ...f, productInterest: e.target.value }))}
-            rows={3}
-            placeholder="可自由填写，如：钢格板、踏步板等"
+            rows={2}
+            placeholder="其他规格/需求说明（可选）"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
@@ -344,15 +425,17 @@ export function LeadForm({ initial, leadId, onSuccess, onCancel }: LeadFormProps
           </div>
         )}
       </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">备注</label>
-        <textarea
-          value={form.notes}
-          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          rows={3}
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
-        />
-      </div>
+      {!hideNotes && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">备注</label>
+          <textarea
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            rows={3}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           type="submit"

@@ -199,15 +199,20 @@ export async function POST(request: NextRequest) {
 
       // 自动维护 lead / customer 的最后联系时间 + 联系次数
       if (input.leadId) {
-        const update: Record<string, unknown> = {
-          lastContactAt: new Date(),
-        };
+        const leadUpdate: {
+          lastContactAt: Date;
+          contactCount?: { increment: number };
+          nextFollowUpAt?: Date;
+        } = { lastContactAt: new Date() };
         if (input.direction === "outbound") {
-          update.contactCount = { increment: 1 };
+          leadUpdate.contactCount = { increment: 1 };
+        }
+        if (input.nextFollowUpAt) {
+          leadUpdate.nextFollowUpAt = new Date(input.nextFollowUpAt);
         }
         await tx.exportLead.update({
           where: { id: input.leadId },
-          data: update,
+          data: leadUpdate,
         });
       }
 

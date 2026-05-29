@@ -60,6 +60,8 @@ export const ACTIVITY_TYPES = [
   "call",
   "whatsapp",
   "linkedin",
+  "facebook",
+  "tiktok",
   "meeting",
   "quote_followup",
   "other",
@@ -134,6 +136,9 @@ export const LEAD_SOURCE_CHANNELS = [
   "Made-in-China",
   "Google",
   "LinkedIn",
+  "WhatsApp",
+  "Facebook",
+  "TikTok",
   "Trade Show",       // 展会
   "Customer Referral",// 客户介绍
   "SEO",

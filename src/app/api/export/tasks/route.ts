@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status")?.trim();
   const due = searchParams.get("due")?.trim();
   const customerId = searchParams.get("customerId")?.trim();
+  const leadId = searchParams.get("leadId")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const keyword = searchParams.get("keyword")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "dueDate";
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
     where.status = status;
   }
   if (customerId) where.customerId = customerId;
+  if (leadId) where.leadId = leadId;
 
   const [data, total] = await Promise.all([
     prisma.exportTask.findMany({
@@ -62,6 +64,7 @@ export async function GET(request: NextRequest) {
       include: {
         owner: { select: { id: true, name: true } },
         customer: { select: { id: true, companyName: true } },
+        lead: { select: { id: true, companyName: true } },
         contact: { select: { id: true, name: true } },
       },
     }),
@@ -79,15 +82,20 @@ export async function GET(request: NextRequest) {
   });
 }
 
-const createSchema = z.object({
-  title: z.string().min(1),
-  customerId: z.string().optional().nullable(),
-  contactId: z.string().optional().nullable(),
-  dueDate: z.string().optional().nullable(),
-  priority: z.string().optional(),
-  status: z.string().optional(),
-  notes: z.string().optional(),
-});
+const createSchema = z
+  .object({
+    title: z.string().min(1),
+    customerId: z.string().optional().nullable(),
+    leadId: z.string().optional().nullable(),
+    contactId: z.string().optional().nullable(),
+    dueDate: z.string().optional().nullable(),
+    priority: z.string().optional(),
+    status: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .refine((d) => !!d.customerId || !!d.leadId, {
+    message: "请关联客户或线索",
+  });
 
 export async function POST(request: NextRequest) {
   const { user, ctx, error } = await requireExportSession();
@@ -113,9 +121,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (parsed.data.leadId) {
+      const lead = await prisma.exportLead.findUnique({
+        where: { id: parsed.data.leadId, tenantId: ctx!.tenantId },
+      });
+      if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+      if (ctx!.ownerFilter && lead.ownerId !== ctx!.ownerFilter.ownerId) {
+        return NextResponse.json({ error: "无权限" }, { status: 403 });
+      }
+    }
+
     const task = await prisma.exportTask.create({
       data: {
-        ...parsed.data,
+        title: parsed.data.title,
+        customerId: parsed.data.customerId ?? undefined,
+        leadId: parsed.data.leadId ?? undefined,
+        contactId: parsed.data.contactId ?? undefined,
+        notes: parsed.data.notes,
         tenantId: ctx!.tenantId,
         ownerId: user!.id,
         priority: parsed.data.priority ?? "medium",
@@ -125,6 +147,7 @@ export async function POST(request: NextRequest) {
       include: {
         owner: { select: { id: true, name: true } },
         customer: { select: { id: true, companyName: true } },
+        lead: { select: { id: true, companyName: true } },
         contact: { select: { id: true, name: true } },
       },
     });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { getExportDuplicateMessage } from "@/lib/export/dedupe";
 
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.trim().split(/\r?\n/);
@@ -36,6 +37,8 @@ const FIELD_MAP: Record<string, string> = {
   phone: "phone",
   whatsapp: "whatsapp",
   linkedin: "linkedin",
+  facebook: "facebook",
+  tiktok: "tiktok",
   mainBusiness: "mainBusiness",
   main_business: "mainBusiness",
   productInterest: "productInterest",
@@ -64,13 +67,31 @@ export async function POST(request: NextRequest) {
     }
 
     let created = 0;
+    let skipped = 0;
+    let emptyRows = 0;
+
     for (const row of rows) {
       const data: Record<string, string> = {};
       for (const [key, val] of Object.entries(row)) {
         const mapped = FIELD_MAP[key] ?? key;
         if (val && mapped) data[mapped] = val;
       }
-      if (!data.companyName) continue;
+      if (!data.companyName) {
+        emptyRows++;
+        continue;
+      }
+
+      const duplicateMessage = await getExportDuplicateMessage({
+        tenantId: ctx!.tenantId,
+        companyName: data.companyName,
+        website: data.website,
+        email: data.email,
+        phone: data.phone ?? data.whatsapp,
+      });
+      if (duplicateMessage) {
+        skipped++;
+        continue;
+      }
 
       await prisma.exportLead.create({
         data: {
@@ -87,6 +108,8 @@ export async function POST(request: NextRequest) {
           phone: data.phone || undefined,
           whatsapp: data.whatsapp || undefined,
           linkedin: data.linkedin || undefined,
+          facebook: data.facebook || undefined,
+          tiktok: data.tiktok || undefined,
           mainBusiness: data.mainBusiness || undefined,
           productInterest: data.productInterest || undefined,
           priority: data.priority || undefined,
@@ -98,7 +121,9 @@ export async function POST(request: NextRequest) {
       created++;
     }
 
-    return NextResponse.json({ data: { created, total: rows.length } });
+    return NextResponse.json({
+      data: { created, skipped, emptyRows, total: rows.length },
+    });
   } catch (e) {
     console.error("Import leads error:", e);
     return NextResponse.json({ error: "导入失败" }, { status: 500 });

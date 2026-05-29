@@ -13,6 +13,8 @@ import { Pagination } from "./shared/Pagination";
 import { QuickContactModal } from "./QuickContactModal";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
+import { getLeadPaceBadge } from "@/lib/export/lead-pace";
+import { SocialLinksBar } from "./SocialLinksBar";
 
 interface Lead {
   id: string;
@@ -21,7 +23,12 @@ interface Lead {
   country: string | null;
   email: string | null;
   phone: string | null;
+  whatsapp: string | null;
+  linkedin: string | null;
+  facebook: string | null;
+  tiktok: string | null;
   sourceChannel: string | null;
+  notes: string | null;
   status: string;
   owner: { id: string; name: string };
   createdAt: string;
@@ -36,6 +43,8 @@ interface QuickModalState {
   leadId: string;
   contactCount: number;
   defaultDirection: "outbound" | "inbound";
+  contactEmail?: string | null;
+  contactWhatsapp?: string | null;
 }
 
 interface User {
@@ -63,7 +72,7 @@ export function LeadsClient() {
   const pace = searchParams.get("pace") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
-  const sortBy = searchParams.get("sortBy") ?? "createdAt";
+  const sortBy = searchParams.get("sortBy") ?? "lastContactAt";
   const sortOrder = searchParams.get("sortOrder") ?? "desc";
   const [leads, setLeads] = useState<Lead[]>([]);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
@@ -105,8 +114,17 @@ export function LeadsClient() {
         method: "POST",
         body: formData,
       });
-      const json = await parseResponseJson(res);
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: { created: number; skipped: number; emptyRows: number; total: number };
+      }>(res);
       if (!res.ok) throw new Error(String(json.error ?? "导入失败"));
+      const d = json.data;
+      toast(
+        d
+          ? `导入完成：新增 ${d.created} 条，跳过重复 ${d.skipped} 条${d.emptyRows ? `，空行 ${d.emptyRows}` : ""}（共 ${d.total} 行）`
+          : "导入完成",
+      );
       setLeads([]);
       fetchLeads({ page: 1 });
     } catch (err) {
@@ -216,28 +234,6 @@ export function LeadsClient() {
     return new Date(lead.createdAt).toLocaleDateString("zh-CN");
   }
 
-  /** 计算线索健康度 badge：根据 lastContactAt 与 contactCount */
-  function paceBadge(lead: Lead): { label: string; className: string } {
-    if (lead.status === "converted") {
-      return { label: "已转化", className: "bg-green-50 text-green-700" };
-    }
-    if (lead.status === "invalid") {
-      return { label: "无效", className: "bg-slate-100 text-slate-500" };
-    }
-    if (!lead.lastContactAt) {
-      return { label: "未联系", className: "bg-amber-50 text-amber-700" };
-    }
-    const days = Math.floor(
-      (Date.now() - new Date(lead.lastContactAt).getTime()) / (24 * 3600 * 1000),
-    );
-    // 节奏：D+3 / D+7 / D+14 / D+30
-    const expected = lead.contactCount <= 1 ? 3 : lead.contactCount === 2 ? 7 : lead.contactCount === 3 ? 14 : 30;
-    if (days >= expected * 2) return { label: `${days} 天未跟`, className: "bg-red-50 text-red-700" };
-    if (days >= expected) return { label: `该跟进 (${days}天)`, className: "bg-amber-50 text-amber-700" };
-    if (days <= 1) return { label: `今日刚跟`, className: "bg-emerald-50 text-emerald-700" };
-    return { label: `${days} 天前`, className: "bg-slate-100 text-slate-600" };
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -314,7 +310,15 @@ export function LeadsClient() {
             <button
               key={p.key || "all"}
               type="button"
-              onClick={() => updateUrl({ pace: p.key || undefined, page: 1 })}
+              onClick={() =>
+                updateUrl({
+                  pace: p.key || undefined,
+                  page: 1,
+                  ...(p.key === "due" || p.key === "stuck"
+                    ? { sortBy: "lastContactAt", sortOrder: "asc" }
+                    : {}),
+                })
+              }
               className={`rounded-full border px-3 py-1 text-xs ${
                 pace === p.key
                   ? "border-teal-500 bg-teal-50 text-teal-700"
@@ -352,7 +356,7 @@ export function LeadsClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : leads.length === 0 ? (
@@ -371,7 +375,8 @@ export function LeadsClient() {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">公司</th>
+                <th className="min-w-[200px] px-4 py-3 text-left font-medium text-slate-700">公司</th>
+                <th className="min-w-[280px] max-w-md px-4 py-3 text-left font-medium text-slate-700">备注</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">国家</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">联系方式</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">状态</th>
@@ -384,7 +389,7 @@ export function LeadsClient() {
             </thead>
             <tbody>
               {leads.map((l) => {
-                const badge = paceBadge(l);
+                const badge = getLeadPaceBadge(l);
                 return (
                   <tr
                     key={l.id}
@@ -409,10 +414,27 @@ export function LeadsClient() {
                         )}
                       </div>
                     </td>
+                    <td className="max-w-md px-4 py-3 align-top text-slate-600">
+                      {l.notes ? (
+                        <p className="whitespace-pre-wrap text-xs leading-relaxed" title={l.notes}>
+                          {l.notes}
+                        </p>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">{l.country ?? "-"}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      <div>{l.email ?? "-"}</div>
-                      <div className="text-xs text-slate-500">{l.phone ?? "未填电话"}</div>
+                    <td className="px-4 py-3 text-slate-600" onClick={(e) => e.stopPropagation()}>
+                      <div className="text-xs">{l.email ?? "未填邮箱"}</div>
+                      <SocialLinksBar
+                        compact
+                        email={l.email}
+                        phone={l.phone}
+                        whatsapp={l.whatsapp}
+                        linkedin={l.linkedin}
+                        facebook={l.facebook}
+                        tiktok={l.tiktok}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -448,6 +470,8 @@ export function LeadsClient() {
                                 leadId: l.id,
                                 contactCount: l.contactCount,
                                 defaultDirection: "outbound",
+                                contactEmail: l.email,
+                                contactWhatsapp: l.whatsapp ?? l.phone,
                               })
                             }
                             className="text-teal-600 hover:underline"
@@ -465,6 +489,8 @@ export function LeadsClient() {
                                 leadId: l.id,
                                 contactCount: l.contactCount,
                                 defaultDirection: "inbound",
+                                contactEmail: l.email,
+                                contactWhatsapp: l.whatsapp ?? l.phone,
                               })
                             }
                             className="text-slate-500 hover:underline"
@@ -529,6 +555,8 @@ export function LeadsClient() {
         leadId={quickModal.leadId}
         contactCount={quickModal.contactCount}
         defaultDirection={quickModal.defaultDirection}
+        contactEmail={quickModal.contactEmail}
+        contactWhatsapp={quickModal.contactWhatsapp}
         title={quickModal.defaultDirection === "outbound" ? "记录一次主动联系" : "记录客户回复"}
         onSuccess={() => {
           toast("已记录");

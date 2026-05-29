@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { ACTIVITY_TYPES, ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
 import {
@@ -9,6 +10,12 @@ import {
   emailTemplateCategoryLabel,
   emailTemplateLanguageLabel,
 } from "@/lib/export-display-labels";
+import {
+  buildLeadSocialLinks,
+  buildMailtoUrl,
+  defaultActivityTypeForChannel,
+  type SocialChannel,
+} from "@/lib/export/social-links";
 
 interface TemplateOption {
   id: string;
@@ -24,12 +31,6 @@ interface RenderedTemplate {
   body: string;
 }
 
-/**
- * 轻量小弹窗，用于在 Leads / Customers 列表行内快速记录一次沟通。
- * - 自动按当前轮次推荐模板分类（线索阶段：dev_letter/followup_1/followup_2/followup_3/long_tail）
- * - 默认 outbound，可切 inbound
- * - 提交后调用 /api/export/activities POST
- */
 export function QuickContactModal({
   open,
   onClose,
@@ -38,6 +39,9 @@ export function QuickContactModal({
   customerId,
   contactCount = 0,
   defaultDirection = "outbound",
+  defaultActivityType,
+  contactEmail,
+  contactWhatsapp,
   title,
 }: {
   open: boolean;
@@ -45,24 +49,28 @@ export function QuickContactModal({
   onSuccess?: () => void;
   leadId?: string;
   customerId?: string;
-  /** 用于推荐模板分类（轮次） */
   contactCount?: number;
   defaultDirection?: "outbound" | "inbound";
+  defaultActivityType?: string;
+  contactEmail?: string | null;
+  contactWhatsapp?: string | null;
   title?: string;
 }) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [rendering, setRendering] = useState(false);
-  const [type, setType] = useState("email");
+  const [type, setType] = useState(defaultActivityType ?? "email");
   const [direction, setDirection] = useState<"outbound" | "inbound">(defaultDirection);
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
+  const [customerFeedback, setCustomerFeedback] = useState("");
+  const [nextFollowUpAt, setNextFollowUpAt] = useState("");
 
-  // 推荐的分类（依据轮次）
   const recommendedCategory = useMemo(() => {
-    if (direction === "inbound") return null; // 客户回复不套模板
+    if (direction === "inbound") return null;
     if (contactCount === 0) return "dev_letter";
     if (contactCount === 1) return "followup_1";
     if (contactCount === 2) return "followup_2";
@@ -70,19 +78,24 @@ export function QuickContactModal({
     return "long_tail";
   }, [contactCount, direction]);
 
-  // 关闭时清空
+  const socialLinks = useMemo(
+    () => buildLeadSocialLinks({ email: contactEmail, whatsapp: contactWhatsapp }),
+    [contactEmail, contactWhatsapp],
+  );
+
   useEffect(() => {
     if (!open) {
       setError("");
       setSubject("");
       setContent("");
+      setCustomerFeedback("");
+      setNextFollowUpAt("");
       setSelectedTemplateId("");
-      setType("email");
+      setType(defaultActivityType ?? "email");
       setDirection(defaultDirection);
     }
-  }, [open, defaultDirection]);
+  }, [open, defaultDirection, defaultActivityType]);
 
-  // 拉模板
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -93,7 +106,6 @@ export function QuickContactModal({
         if (cancelled) return;
         const list = json.data ?? [];
         setTemplates(list);
-        // 自动选推荐分类下的第一个（优先英文）
         if (recommendedCategory) {
           const match =
             list.find((t) => t.category === recommendedCategory && t.language === "en") ??
@@ -109,7 +121,6 @@ export function QuickContactModal({
     };
   }, [open, recommendedCategory]);
 
-  // 选模板后渲染预览
   useEffect(() => {
     if (!open || !selectedTemplateId) return;
     let cancelled = false;
@@ -120,7 +131,7 @@ export function QuickContactModal({
         if (leadId) params.set("leadId", leadId);
         if (customerId) params.set("customerId", customerId);
         const r = await fetch(
-          `/api/export/templates/${selectedTemplateId}/preview?${params}`
+          `/api/export/templates/${selectedTemplateId}/preview?${params}`,
         );
         const json = await parseResponseJson<{ data?: RenderedTemplate; error?: string }>(r);
         if (cancelled) return;
@@ -139,23 +150,44 @@ export function QuickContactModal({
     };
   }, [selectedTemplateId, leadId, customerId, open]);
 
+  function applyChannel(channel: SocialChannel) {
+    setType(defaultActivityTypeForChannel(channel));
+  }
+
+  async function copyEmail() {
+    const text = subject ? `主题：${subject}\n\n${content}` : content;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("已复制到剪贴板");
+    } catch {
+      toast("复制失败", "error");
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {
+        customerId: customerId || undefined,
+        leadId: leadId || undefined,
+        type,
+        direction,
+        subject: subject || undefined,
+        content: content || undefined,
+        templateId: selectedTemplateId || undefined,
+      };
+      if (direction === "inbound" && customerFeedback) {
+        body.customerFeedback = customerFeedback;
+      }
+      if (nextFollowUpAt) {
+        body.nextFollowUpAt = new Date(nextFollowUpAt).toISOString();
+      }
       const res = await fetch("/api/export/activities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: customerId || undefined,
-          leadId: leadId || undefined,
-          type,
-          direction,
-          subject: subject || undefined,
-          content: content || undefined,
-          templateId: selectedTemplateId || undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const json = await parseResponseJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
@@ -177,12 +209,14 @@ export function QuickContactModal({
     groupedTemplates.set(t.category, list);
   });
 
+  const mailto = buildMailtoUrl(contactEmail, subject, content);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/50" onClick={onClose} aria-hidden />
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl"
+        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-800">
@@ -202,6 +236,26 @@ export function QuickContactModal({
 
         {error && (
           <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+        )}
+
+        {socialLinks.length > 0 && direction === "outbound" && (
+          <div className="mb-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+            <p className="mb-2 text-xs font-medium text-slate-600">快捷打开渠道</p>
+            <div className="flex flex-wrap gap-2">
+              {socialLinks.map((link) => (
+                <a
+                  key={link.channel}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => applyChannel(link.channel)}
+                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -241,7 +295,7 @@ export function QuickContactModal({
               套用模板
               {recommendedCategory && (
                 <span className="ml-2 text-[11px] text-teal-600">
-                  推荐：{emailTemplateCategoryLabel[recommendedCategory] ?? recommendedCategory}（本次第 {contactCount + 1} 轮联系）
+                  推荐：{emailTemplateCategoryLabel[recommendedCategory] ?? recommendedCategory}（第 {contactCount + 1} 轮）
                 </span>
               )}
               {rendering && <span className="ml-2 text-[11px] text-slate-400">渲染中...</span>}
@@ -265,36 +319,73 @@ export function QuickContactModal({
           </div>
         )}
 
-        <div className="mt-3">
-          <label className="mb-1 block text-xs font-medium text-slate-600">主题</label>
-          <input
-            type="text"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
+        {direction === "outbound" && (
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-medium text-slate-600">下次跟进（可选）</label>
+            <input
+              type="datetime-local"
+              value={nextFollowUpAt}
+              onChange={(e) => setNextFollowUpAt(e.target.value)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        )}
+
+        {direction === "outbound" && (
+          <>
+            <div className="mt-3">
+              <label className="mb-1 block text-xs font-medium text-slate-600">主题</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={copyEmail}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50"
+              >
+                复制主题+正文
+              </button>
+              {mailto && (
+                <a
+                  href={mailto}
+                  className="rounded-md border border-teal-300 bg-teal-50 px-3 py-1.5 text-xs text-teal-800 hover:bg-teal-100"
+                >
+                  用邮件客户端打开
+                </a>
+              )}
+            </div>
+          </>
+        )}
+
         <div className="mt-3">
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            内容
-            {direction === "outbound" && (
-              <span className="ml-2 text-[11px] text-slate-400">
-                建议直接复制到邮箱发送
-              </span>
-            )}
-            {direction === "inbound" && (
-              <span className="ml-2 text-[11px] text-slate-400">
-                简要记录客户的关键反馈
-              </span>
-            )}
+            {direction === "inbound" ? "沟通摘要" : "发送内容"}
           </label>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            rows={10}
+            rows={direction === "inbound" ? 4 : 8}
             className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
           />
         </div>
+
+        {direction === "inbound" && (
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-medium text-slate-600">客户反馈（重点）</label>
+            <textarea
+              value={customerFeedback}
+              onChange={(e) => setCustomerFeedback(e.target.value)}
+              rows={4}
+              placeholder="客户说了什么、意向、下次要做什么…"
+              className="w-full rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-sm"
+            />
+          </div>
+        )}
 
         <div className="mt-4 flex justify-end gap-2">
           <button

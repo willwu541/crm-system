@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/export/dashboard", label: "Dashboard" },
-  { href: "/export/leads", label: "Leads 线索" },
-  { href: "/export/customers", label: "Customers 客户" },
-  { href: "/export/quotes", label: "Quotes 报价" },
-  { href: "/export/orders", label: "Orders 订单" },
-  { href: "/export/tasks", label: "Tasks 任务" },
+  { href: "/export/dashboard", label: "工作台" },
+  { href: "/export/leads", label: "线索" },
+  { href: "/export/customers", label: "客户" },
+  { href: "/export/quotes", label: "报价" },
+  { href: "/export/orders", label: "订单" },
+  { href: "/export/tasks", label: "任务" },
   { href: "/export/templates", label: "邮件模板" },
 ];
 

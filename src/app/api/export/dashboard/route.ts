@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { buildLeadPacePrismaWhere } from "@/lib/export/lead-pace";
 
 export async function GET() {
   const { ctx, error } = await requireExportSession();
@@ -21,16 +22,21 @@ export async function GET() {
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
+  const leadBase = { tenantId: ctx!.tenantId, ...(ctx!.ownerFilter ?? {}) };
+
   const [
     todayFollowUpCount,
     overdueFollowUpCount,
+    leadsNeverCount,
+    leadsDueCount,
+    leadsStuckCount,
     leadsThisWeek,
     quotesThisMonth,
     ordersThisMonth,
     customerStatusStats,
     countryStats,
     ownerStats,
-    quoteNoFollowUp3Days,
+    quoteCandidates,
     tasksOverdue,
     todayDueTasksCount,
   ] = await Promise.all([
@@ -51,8 +57,11 @@ export async function GET() {
         ],
       },
     }),
+    prisma.exportLead.count({ where: { ...leadBase, ...buildLeadPacePrismaWhere("never") } }),
+    prisma.exportLead.count({ where: { ...leadBase, ...buildLeadPacePrismaWhere("due") } }),
+    prisma.exportLead.count({ where: { ...leadBase, ...buildLeadPacePrismaWhere("stuck") } }),
     prisma.exportLead.count({
-      where: { ...baseWhere, createdAt: { gte: weekStart } },
+      where: { ...leadBase, createdAt: { gte: weekStart } },
     }),
     prisma.exportQuote.count({
       where: { tenantId: ctx!.tenantId, customer: customerWhere, createdAt: { gte: monthStart } },
@@ -82,8 +91,14 @@ export async function GET() {
         status: "sent",
         createdAt: { lt: threeDaysAgo },
       },
-      select: { id: true, quoteNo: true, customer: { select: { id: true, companyName: true } } },
-      take: 20,
+      select: {
+        id: true,
+        quoteNo: true,
+        createdAt: true,
+        customer: { select: { id: true, companyName: true, lastFollowUpAt: true } },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 50,
     }),
     prisma.exportTask.count({
       where: {
@@ -101,6 +116,19 @@ export async function GET() {
     }),
   ]);
 
+  const quoteNoFollowUp3Days = quoteCandidates
+    .filter((q) => {
+      const follow = q.customer.lastFollowUpAt;
+      return !follow || follow < q.createdAt;
+    })
+    .slice(0, 20)
+    .map((q) => ({
+      id: q.id,
+      quoteNo: q.quoteNo,
+      companyName: q.customer.companyName,
+      customerId: q.customer.id,
+    }));
+
   const owners = await prisma.user.findMany({
     where: { id: { in: ownerStats.map((o) => o.ownerId) }, tenant: "export" },
     select: { id: true, name: true },
@@ -111,6 +139,9 @@ export async function GET() {
     data: {
       todayFollowUpCount,
       overdueFollowUpCount,
+      leadsNeverCount,
+      leadsDueCount,
+      leadsStuckCount,
       leadsThisWeek,
       quotesThisMonth,
       ordersThisMonth,
@@ -125,12 +156,7 @@ export async function GET() {
         ownerName: ownerMap[s.ownerId] ?? "未知",
         count: s._count,
       })),
-      quoteNoFollowUp3Days: quoteNoFollowUp3Days.map((q) => ({
-        id: q.id,
-        quoteNo: q.quoteNo,
-        companyName: q.customer.companyName,
-        customerId: q.customer.id,
-      })),
+      quoteNoFollowUp3Days,
       tasksOverdue,
       todayDueTasksCount,
     },

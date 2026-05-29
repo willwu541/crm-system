@@ -65,9 +65,28 @@ export const activityTypeLabel: Record<string, string> = {
   call: "电话 (Call)",
   whatsapp: "WhatsApp",
   linkedin: "领英 (LinkedIn)",
+  facebook: "Facebook",
+  tiktok: "TikTok",
   meeting: "会议 (Meeting)",
   quote_followup: "报价跟进 (Quote follow-up)",
   other: "其他 (Other)",
+};
+
+export const sourceChannelLabel: Record<string, string> = {
+  Alibaba: "阿里巴巴",
+  "Made-in-China": "中国制造网",
+  Google: "Google",
+  LinkedIn: "领英 LinkedIn",
+  WhatsApp: "WhatsApp",
+  Facebook: "Facebook",
+  TikTok: "TikTok",
+  "Trade Show": "展会",
+  "Customer Referral": "客户介绍",
+  SEO: "SEO",
+  "Email Marketing": "邮件营销",
+  "Cold Outreach": "主动开发",
+  "Website Inquiry": "官网询盘",
+  Other: "其他",
 };
 
 export const quoteStatusLabel: Record<string, string> = {

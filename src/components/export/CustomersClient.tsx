@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { buildListUrl } from "@/lib/export/url-params";
 import { CustomerForm } from "./CustomerForm";
 import { NextFollowUpModal } from "./NextFollowUpModal";
+import { QuickContactModal } from "./QuickContactModal";
 import { Drawer } from "./shared/Drawer";
 import { Pagination } from "./shared/Pagination";
 import { parseResponseJson } from "@/lib/parse-response-json";
@@ -26,6 +27,7 @@ interface Customer {
   nextFollowUpAt: string | null;
   createdAt: string;
   updatedAt: string;
+  contacts?: { email: string | null; whatsapp: string | null; phone: string | null }[];
 }
 
 function isCustomerOverdue(c: Customer): boolean {
@@ -78,6 +80,7 @@ export function CustomersClient() {
   const [countryInput, setCountryInput] = useState(countryParam);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [followUpCustomer, setFollowUpCustomer] = useState<Customer | null>(null);
+  const [quickCustomer, setQuickCustomer] = useState<Customer | null>(null);
   const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
@@ -354,8 +357,15 @@ export function CustomersClient() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFollowUpCustomer(c)}
+                        onClick={() => setQuickCustomer(c)}
                         className="text-sm text-teal-600 hover:underline"
+                      >
+                        快速联系
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFollowUpCustomer(c)}
+                        className="text-sm text-slate-600 hover:underline"
                       >
                         设置下次跟进
                       </button>
@@ -377,6 +387,24 @@ export function CustomersClient() {
           totalPages={pagination.totalPages}
           total={pagination.total}
           onPageChange={(p) => updateUrl({ page: p })}
+        />
+      )}
+
+      {quickCustomer && (
+        <QuickContactModal
+          open={!!quickCustomer}
+          onClose={() => setQuickCustomer(null)}
+          customerId={quickCustomer.id}
+          contactEmail={quickCustomer.contacts?.[0]?.email}
+          contactWhatsapp={
+            quickCustomer.contacts?.[0]?.whatsapp ?? quickCustomer.contacts?.[0]?.phone
+          }
+          title="记录一次客户沟通"
+          onSuccess={() => {
+            toast("已记录");
+            setQuickCustomer(null);
+            fetchCustomers({ silent: true });
+          }}
         />
       )}
 

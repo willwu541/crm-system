@@ -64,7 +64,14 @@ export async function GET(request: NextRequest) {
       orderBy: { [sortBy]: sortOrder },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { owner: { select: { id: true, name: true } } },
+      include: {
+        owner: { select: { id: true, name: true } },
+        contacts: {
+          where: { isPrimary: true },
+          take: 1,
+          select: { email: true, whatsapp: true, phone: true },
+        },
+      },
     }),
     prisma.exportCustomer.count({ where }),
   ]);

@@ -8,6 +8,9 @@ import { customerStatusLabel } from "@/lib/export-display-labels";
 interface DashboardData {
   todayFollowUpCount: number;
   overdueFollowUpCount: number;
+  leadsNeverCount: number;
+  leadsDueCount: number;
+  leadsStuckCount: number;
   leadsThisWeek: number;
   quotesThisMonth: number;
   ordersThisMonth: number;
@@ -48,18 +51,54 @@ export function ExportDashboardClient() {
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center text-red-600">{error}</div>;
   if (!data) return null;
 
-  const hasAlerts =
-    data.todayFollowUpCount > 0 ||
-    data.overdueFollowUpCount > 0 ||
-    data.quoteNoFollowUp3Days.length > 0 ||
-    data.todayDueTasksCount > 0 ||
-    data.tasksOverdue > 0;
-
   return (
     <div className="space-y-6">
+      {/* 线索开发待办 */}
+      <div className="rounded-lg border border-teal-100 bg-teal-50/30 p-4">
+        <h2 className="mb-4 font-medium text-slate-700">线索开发（今日优先）</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Link
+            href="/export/leads?pace=never&sortBy=createdAt&sortOrder=desc"
+            className="flex flex-col rounded-lg border border-white bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <span className="text-sm text-slate-500">未联系过</span>
+            <span
+              className={`mt-1 text-2xl font-semibold ${data.leadsNeverCount > 0 ? "text-amber-600" : "text-slate-400"}`}
+            >
+              {data.leadsNeverCount}
+            </span>
+            <span className="mt-1 text-xs text-teal-600">去开发 →</span>
+          </Link>
+          <Link
+            href="/export/leads?pace=due&sortBy=lastContactAt&sortOrder=asc"
+            className="flex flex-col rounded-lg border border-white bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <span className="text-sm text-slate-500">该跟进了</span>
+            <span
+              className={`mt-1 text-2xl font-semibold ${data.leadsDueCount > 0 ? "text-orange-600" : "text-slate-400"}`}
+            >
+              {data.leadsDueCount}
+            </span>
+            <span className="mt-1 text-xs text-teal-600">按最久未联系排序 →</span>
+          </Link>
+          <Link
+            href="/export/leads?pace=stuck&sortBy=lastContactAt&sortOrder=asc"
+            className="flex flex-col rounded-lg border border-white bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <span className="text-sm text-slate-500">联系 3+ 无响应</span>
+            <span
+              className={`mt-1 text-2xl font-semibold ${data.leadsStuckCount > 0 ? "text-red-600" : "text-slate-400"}`}
+            >
+              {data.leadsStuckCount}
+            </span>
+            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+          </Link>
+        </div>
+      </div>
+
       {/* 待办提醒区 */}
       <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-slate-700">待办提醒</h2>
+        <h2 className="mb-4 font-medium text-slate-700">客户 / 任务 / 报价</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Link
             href="/export/customers?filter=today"

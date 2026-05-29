@@ -11,18 +11,21 @@ export function TaskFormClient({
   taskId,
   initial,
   customerId: customerIdProp,
+  leadId: leadIdProp,
   onSuccess,
   onCancel,
 }: {
   taskId?: string;
   initial?: Record<string, unknown>;
   customerId?: string;
+  leadId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerIdParam = customerIdProp ?? searchParams.get("customerId");
+  const leadIdParam = leadIdProp ?? searchParams.get("leadId");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [customers, setCustomers] = useState<{ id: string; companyName: string }[]>([]);
@@ -30,6 +33,7 @@ export function TaskFormClient({
   const [form, setForm] = useState({
     title: (initial?.title as string) ?? "",
     customerId: (initial?.customerId as string) ?? customerIdParam ?? "",
+    leadId: (initial?.leadId as string) ?? leadIdParam ?? "",
     contactId: (initial?.contactId as string) ?? "",
     dueDate: (initial?.dueDate ? new Date(initial.dueDate as string).toISOString().slice(0, 16) : "") ?? "",
     priority: (initial?.priority as string) ?? "medium",
@@ -77,6 +81,10 @@ export function TaskFormClient({
     if (customerIdParam && !form.customerId) setForm((f) => ({ ...f, customerId: customerIdParam }));
   }, [customerIdParam]);
 
+  useEffect(() => {
+    if (leadIdParam && !form.leadId) setForm((f) => ({ ...f, leadId: leadIdParam }));
+  }, [leadIdParam]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -87,6 +95,7 @@ export function TaskFormClient({
       const payload = {
         ...form,
         customerId: form.customerId || undefined,
+        leadId: form.leadId || undefined,
         contactId: form.contactId || undefined,
         dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
       };

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
+import { recalcLeadContactStats } from "@/lib/export/recalc-lead-stats";
 import { z } from "zod";
 
 async function getActivityOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
@@ -99,6 +100,7 @@ export async function DELETE(
 
   try {
     const targetName = full.customer?.companyName ?? full.lead?.companyName ?? "-";
+    const leadIdForRecalc = full.leadId;
     await deleteWithExportLog({
       tenantId: ctx!.tenantId,
       entityType: "activity",
@@ -106,7 +108,12 @@ export async function DELETE(
       summary: `${full.type} · ${targetName}`,
       snapshot: full,
       deletedById: user!.id,
-      deleteFn: (tx) => tx.exportActivity.delete({ where: { id, tenantId: ctx!.tenantId } }),
+      deleteFn: async (tx) => {
+        await tx.exportActivity.delete({ where: { id, tenantId: ctx!.tenantId } });
+        if (leadIdForRecalc) {
+          await recalcLeadContactStats(tx, leadIdForRecalc, ctx!.tenantId);
+        }
+      },
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

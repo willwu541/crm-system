@@ -292,6 +292,8 @@ model ExportLead {
   phone                 String?
   whatsapp              String?
   linkedin              String?
+  facebook              String?
+  tiktok                String?
   mainBusiness          String?   @map("main_business")
   /**
    * 线索：感兴趣产品/需求，自由文本
@@ -302,6 +304,7 @@ model ExportLead {
   status                String    @default("new")
   notes                 String?
   lastContactAt         DateTime? @map("last_contact_at")
+  nextFollowUpAt        DateTime? @map("next_follow_up_at")
   /**
    * 累计沟通次数（线索阶段 outbound 自增）
    */
@@ -316,12 +319,14 @@ model ExportLead {
   owner      User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   customer   ExportCustomer?  @relation(fields: [convertedToCustomerId], references: [id], onDelete: SetNull)
   activities ExportActivity[]
+  tasks      ExportTask[]
 
   @@index([tenantId])
   @@index([ownerId])
   @@index([status])
   @@index([createdAt])
   @@index([lastContactAt])
+  @@index([nextFollowUpAt])
   @@map("export_leads")
 }
 
@@ -378,6 +383,8 @@ model ExportContact {
   phone      String?
   whatsapp   String?
   linkedin   String?
+  facebook   String?
+  tiktok     String?
   language   String?
   isPrimary  Boolean  @default(false) @map("is_primary")
   notes      String?
@@ -550,6 +557,7 @@ model ExportTask {
   tenantId   String    @map("tenant_id")
   title      String
   customerId String?   @map("customer_id")
+  leadId     String?   @map("lead_id")
   contactId  String?   @map("contact_id")
   dueDate    DateTime? @map("due_date")
   priority   String    @default("medium")
@@ -561,12 +569,14 @@ model ExportTask {
 
   tenant   ExportTenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer ExportCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lead     ExportLead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   contact  ExportContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
   owner    User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
   @@index([ownerId])
   @@index([customerId])
+  @@index([leadId])
   @@index([dueDate])
   @@index([createdAt])
   @@map("export_tasks")

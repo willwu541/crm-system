@@ -36,6 +36,8 @@ const createSchema = z.object({
   phone: z.string().optional(),
   whatsapp: z.string().optional(),
   linkedin: z.string().optional(),
+  facebook: z.string().optional(),
+  tiktok: z.string().optional(),
   language: z.string().optional(),
   isPrimary: z.boolean().optional(),
   notes: z.string().optional(),

@@ -43,8 +43,11 @@ const updateSchema = z.object({
   phone: z.string().optional(),
   whatsapp: z.string().optional(),
   linkedin: z.string().optional(),
+  facebook: z.string().optional(),
+  tiktok: z.string().optional(),
   mainBusiness: z.string().optional(),
   productInterest: z.string().optional().nullable(),
+  nextFollowUpAt: z.string().datetime().optional().nullable(),
   priority: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
@@ -78,8 +81,11 @@ export async function PATCH(
       );
     }
 
-    const { ownerId: nextOwnerId, ...rest } = parsed.data;
+    const { ownerId: nextOwnerId, nextFollowUpAt, ...rest } = parsed.data;
     const data: Record<string, unknown> = { ...rest };
+    if (nextFollowUpAt !== undefined) {
+      data.nextFollowUpAt = nextFollowUpAt ? new Date(nextFollowUpAt) : null;
+    }
 
     if (user!.role === "ADMIN" && nextOwnerId !== undefined) {
       if (nextOwnerId) {

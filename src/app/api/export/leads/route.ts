@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { getExportDuplicateMessage } from "@/lib/export/dedupe";
+import { buildLeadPacePrismaWhere, type LeadPaceFilter } from "@/lib/export/lead-pace";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   const country = searchParams.get("country")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const since = searchParams.get("since")?.trim();
-  const sortByRaw = searchParams.get("sortBy") ?? "createdAt";
+  const sortByRaw = searchParams.get("sortBy") ?? "lastContactAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
     "createdAt",
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     "priority",
     "lastContactAt",
   ]);
-  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "createdAt";
+  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "lastContactAt";
 
   const pace = searchParams.get("pace")?.trim();
 
@@ -42,27 +43,12 @@ export async function GET(request: NextRequest) {
     where.createdAt = { gte: weekStart };
   }
 
-  // 开发节奏快捷筛选
-  if (pace === "never") {
-    // 从未联系过
-    where.lastContactAt = null;
-    where.status = where.status ?? { notIn: ["converted", "invalid"] };
-  } else if (pace === "due") {
-    // 该跟进了：从未联系 OR 上次联系 >= 3 天前；排除已转化/无效
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    where.AND = [
-      { status: where.status ?? { notIn: ["converted", "invalid"] } },
-      { OR: [{ lastContactAt: null }, { lastContactAt: { lte: threeDaysAgo } }] },
-    ];
-    delete where.status;
-  } else if (pace === "stuck") {
-    // 长期无响应：联系 ≥ 3 次 + 最后联系 ≥ 14 天
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    where.contactCount = { gte: 3 };
-    where.lastContactAt = { lte: fourteenDaysAgo };
-    where.status = where.status ?? { notIn: ["converted", "invalid"] };
+  if (pace === "never" || pace === "due" || pace === "stuck") {
+    const paceWhere = buildLeadPacePrismaWhere(pace as LeadPaceFilter, {
+      status: where.status,
+    });
+    Object.assign(where, paceWhere);
+    if ("AND" in paceWhere) delete where.status;
   }
 
   if (keyword) {
@@ -124,6 +110,8 @@ const createSchema = z.object({
   phone: z.string().optional(),
   whatsapp: z.string().optional(),
   linkedin: z.string().optional(),
+  facebook: z.string().optional(),
+  tiktok: z.string().optional(),
   mainBusiness: z.string().optional(),
   productInterest: z.string().optional(),
   priority: z.string().optional(),

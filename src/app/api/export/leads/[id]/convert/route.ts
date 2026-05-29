@@ -7,7 +7,7 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, ctx, error } = await requireExportSession();
+  const { ctx, error } = await requireExportSession();
   if (error) return error;
   const { id: leadId } = await params;
 
@@ -44,8 +44,8 @@ export async function POST(
         sourceChannel: lead.sourceChannel,
         ownerId: lead.ownerId,
         status: "to_develop",
-        // 把线索阶段累计的最近联系时间继承下来，便于跟进节奏延续
         lastFollowUpAt: lead.lastContactAt ?? undefined,
+        nextFollowUpAt: lead.nextFollowUpAt ?? undefined,
       },
       include: { owner: { select: { id: true, name: true } } },
     });
@@ -54,7 +54,7 @@ export async function POST(
       data: { status: "converted", convertedToCustomerId: c.id },
     });
     let primaryContactId: string | null = null;
-    if (lead.email || lead.phone || lead.whatsapp) {
+    if (lead.email || lead.phone || lead.whatsapp || lead.linkedin || lead.facebook || lead.tiktok) {
       const contactName =
         lead.email?.split("@")[0] || lead.companyName || "默认联系人";
       const contact = await tx.exportContact.create({
@@ -65,24 +65,25 @@ export async function POST(
           email: lead.email ?? undefined,
           phone: lead.phone ?? undefined,
           whatsapp: lead.whatsapp ?? undefined,
+          linkedin: lead.linkedin ?? undefined,
+          facebook: lead.facebook ?? undefined,
+          tiktok: lead.tiktok ?? undefined,
           isPrimary: true,
         },
       });
       primaryContactId = contact.id;
     }
-    // 把线索阶段的所有沟通记录搬到新客户名下
     const moved = await tx.exportActivity.updateMany({
       where: { leadId, tenantId: ctx!.tenantId },
       data: { customerId: c.id, leadId: null },
     });
-    // 没指定联系人的，默认挂到主要联系人上
     if (primaryContactId) {
       await tx.exportActivity.updateMany({
         where: { customerId: c.id, contactId: null, tenantId: ctx!.tenantId },
         data: { contactId: primaryContactId },
       });
     }
-    return { ...c, _movedActivities: moved.count };
+    return { ...c, _movedActivities: moved.count, primaryContactId };
   });
 
   return NextResponse.json({ data: customer });

@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { LeadForm } from "./LeadForm";
 import { ExportDeleteButton } from "./ExportDeleteButton";
 import { QuickContactModal } from "./QuickContactModal";
+import { ConvertOnboardModal } from "./ConvertOnboardModal";
+import { LeadTasksPanel } from "./LeadTasksPanel";
+import { NextFollowUpModal } from "./NextFollowUpModal";
+import { SocialLinksBar } from "./SocialLinksBar";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import {
   activityDirectionLabel,
   activityTypeLabel,
   customerTypeLabel,
   emailTemplateCategoryLabel,
+  interestedProductLabel,
   leadStatusLabel,
+  sourceChannelLabel,
 } from "@/lib/export-display-labels";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 
@@ -37,12 +43,18 @@ interface Lead {
   email: string | null;
   phone: string | null;
   whatsapp: string | null;
+  linkedin: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  productInterest: string | null;
   customerType: string | null;
   sourceChannel: string | null;
   status: string;
   contactCount: number;
   lastContactAt: string | null;
+  nextFollowUpAt: string | null;
   convertedToCustomerId: string | null;
+  notes: string | null;
   owner: { id: string; name: string };
 }
 
@@ -54,6 +66,17 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   const [converting, setConverting] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickDirection, setQuickDirection] = useState<"outbound" | "inbound">("outbound");
+  const [notes, setNotes] = useState("");
+  const [onboard, setOnboard] = useState<{ customerId: string; companyName: string } | null>(null);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+
+  const sortedActivities = useMemo(
+    () =>
+      [...activities].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [activities],
+  );
 
   async function fetchAll(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true);
@@ -62,12 +85,17 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         fetch(`/api/export/leads/${leadId}`),
         fetch(`/api/export/activities?leadId=${leadId}`),
       ]);
-      const leadJson = await parseResponseJson<{ data?: Lead }>(leadRes);
+      const leadJson = await parseResponseJson<{ data?: Lead; error?: string }>(leadRes);
       const actJson = await parseResponseJson<{ data?: LeadActivity[] }>(actRes);
+      if (!leadRes.ok) {
+        throw new Error(leadJson.error ?? "加载线索失败");
+      }
       if (leadJson.data) setLead(leadJson.data);
       if (actJson.data) setActivities(actJson.data);
-    } catch {
-      /* ignore */
+    } catch (e) {
+      if (!opts?.silent) {
+        toast(e instanceof Error ? e.message : "加载失败", "error");
+      }
     } finally {
       if (!opts?.silent) setLoading(false);
     }
@@ -76,6 +104,10 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   useEffect(() => {
     fetchAll();
   }, [leadId]);
+
+  useEffect(() => {
+    if (lead) setNotes(lead.notes ?? "");
+  }, [lead?.id, lead?.notes]);
 
   async function handleConvert() {
     setConverting(true);
@@ -89,7 +121,10 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
       if (!res.ok) throw new Error(json.error ?? "转化失败");
       const cid = json.data?.id ?? json.customerId;
       toast("转化成功");
-      if (cid) window.location.href = `/export/customers/${cid}`;
+      if (cid && lead) {
+        setOnboard({ customerId: cid, companyName: lead.companyName });
+        fetchAll({ silent: true });
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : "转化失败", "error");
     } finally {
@@ -124,7 +159,23 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                 </span>
               </>
             )}
+            {lead.nextFollowUpAt && (
+              <>
+                {" · 下次跟进 "}
+                <span className="font-medium text-teal-700">
+                  {new Date(lead.nextFollowUpAt).toLocaleString("zh-CN")}
+                </span>
+              </>
+            )}
           </p>
+          <SocialLinksBar
+            email={lead.email}
+            phone={lead.phone}
+            whatsapp={lead.whatsapp}
+            linkedin={lead.linkedin}
+            facebook={lead.facebook}
+            tiktok={lead.tiktok}
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           {lead.status !== "converted" && (
@@ -193,7 +244,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 text-sm lg:grid-cols-4">
+      <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 text-sm lg:grid-cols-5">
         <div>
           <p className="text-slate-500">官网</p>
           {websiteUrl ? (
@@ -218,25 +269,53 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
         <div>
           <p className="text-slate-500">来源 / 负责人</p>
-          <p className="font-medium text-slate-800">{lead.sourceChannel ?? "未填写来源"}</p>
+          <p className="font-medium text-slate-800">
+            {sourceChannelLabel[lead.sourceChannel ?? ""] ?? lead.sourceChannel ?? "未填写来源"}
+          </p>
           <p className="text-slate-500">{owner}</p>
+        </div>
+        <div>
+          <p className="text-slate-500">产品意向</p>
+          <p className="font-medium text-slate-800">
+            {lead.productInterest
+              ? lead.productInterest
+                  .split(/[,，]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((p) => interestedProductLabel[p] ?? p)
+                  .join("、")
+              : "未填写"}
+          </p>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="mb-2 font-medium text-slate-700">备注</h2>
+            <p className="mb-2 text-xs text-slate-500">与右侧「保存」一并提交；可在此展开查看与编辑。</p>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={10}
+              placeholder="客户背景、沟通要点、下次跟进计划…"
+              className="min-h-[220px] w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed"
+            />
+          </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">沟通时间轴</h2>
-              <span className="text-xs text-slate-400">{activities.length} 条记录</span>
+              <span className="text-xs text-slate-400">
+                {sortedActivities.length} 条 · 时间倒序（最新在上）
+              </span>
             </div>
-            {activities.length === 0 ? (
+            {sortedActivities.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">
                 还没有沟通记录。点击右上「标记一次主动联系」开始。
               </p>
             ) : (
               <ul className="space-y-3">
-                {activities.map((a) => {
+                {sortedActivities.map((a) => {
                   const isInbound = a.direction === "inbound";
                   return (
                     <li
@@ -298,10 +377,18 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               </ul>
             )}
           </div>
+          {lead.status !== "converted" && <LeadTasksPanel leadId={leadId} />}
         </div>
 
         <div className="space-y-6">
-          <LeadForm initial={lead as unknown as Record<string, unknown>} leadId={leadId} />
+          <LeadForm
+            initial={lead as unknown as Record<string, unknown>}
+            leadId={leadId}
+            hideNotes
+            notesValue={notes}
+            onNotesValueChange={setNotes}
+            onSuccess={() => fetchAll({ silent: true })}
+          />
         </div>
       </div>
 
@@ -311,12 +398,44 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         leadId={leadId}
         contactCount={lead.contactCount}
         defaultDirection={quickDirection}
+        contactEmail={lead.email}
+        contactWhatsapp={lead.whatsapp ?? lead.phone}
         title={quickDirection === "outbound" ? "记录一次主动联系" : "记录客户回复"}
         onSuccess={() => {
           toast("已记录");
           fetchAll({ silent: true });
         }}
       />
+
+      {onboard && (
+        <ConvertOnboardModal
+          open={!!onboard}
+          customerId={onboard.customerId}
+          companyName={onboard.companyName}
+          onClose={() => setOnboard(null)}
+          onSetFollowUp={() => {
+            setFollowUpOpen(true);
+          }}
+        />
+      )}
+
+      {onboard && followUpOpen && (
+        <NextFollowUpModal
+          open={followUpOpen}
+          customerId={onboard.customerId}
+          customerName={onboard.companyName}
+          currentNextFollowUpAt={null}
+          onClose={() => {
+            setFollowUpOpen(false);
+            setOnboard(null);
+          }}
+          onSuccess={() => {
+            toast("已设置下次跟进");
+            setFollowUpOpen(false);
+            setOnboard(null);
+          }}
+        />
+      )}
     </div>
   );
 }

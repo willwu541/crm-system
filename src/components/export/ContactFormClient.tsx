@@ -28,6 +28,8 @@ export function ContactFormClient({
     phone: (initial?.phone as string) ?? "",
     whatsapp: (initial?.whatsapp as string) ?? "",
     linkedin: (initial?.linkedin as string) ?? "",
+    facebook: (initial?.facebook as string) ?? "",
+    tiktok: (initial?.tiktok as string) ?? "",
     language: (initial?.language as string) ?? "",
     isPrimary: (initial?.isPrimary as boolean) ?? false,
     notes: (initial?.notes as string) ?? "",
@@ -119,6 +121,24 @@ export function ContactFormClient({
             type="text"
             value={form.linkedin}
             onChange={(e) => setForm((f) => ({ ...f, linkedin: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Facebook</label>
+          <input
+            type="text"
+            value={form.facebook}
+            onChange={(e) => setForm((f) => ({ ...f, facebook: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">TikTok</label>
+          <input
+            type="text"
+            value={form.tiktok}
+            onChange={(e) => setForm((f) => ({ ...f, tiktok: e.target.value }))}
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
