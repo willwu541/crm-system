@@ -7,7 +7,12 @@ import { z } from "zod";
 async function getTaskOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
   const task = await prisma.exportTask.findUnique({
     where: { id, tenantId },
-    include: { customer: true, contact: true, owner: true },
+    include: {
+      customer: { select: { id: true, companyName: true } },
+      lead: { select: { id: true, companyName: true } },
+      contact: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true } },
+    },
   });
   if (!task) return { task: null, error: NextResponse.json({ error: "任务不存在" }, { status: 404 }) };
   if (ownerFilter && task.ownerId !== ownerFilter.ownerId) {
@@ -67,6 +72,7 @@ export async function PATCH(
       include: {
         owner: { select: { id: true, name: true } },
         customer: { select: { id: true, companyName: true } },
+        lead: { select: { id: true, companyName: true } },
         contact: { select: { id: true, name: true } },
       },
     });

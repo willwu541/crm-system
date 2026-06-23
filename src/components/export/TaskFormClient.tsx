@@ -30,6 +30,8 @@ export function TaskFormClient({
   const [error, setError] = useState("");
   const [customers, setCustomers] = useState<{ id: string; companyName: string }[]>([]);
   const [contacts, setContacts] = useState<{ id: string; name: string }[]>([]);
+  const [linkedLead, setLinkedLead] = useState<{ id: string; companyName: string } | null>(null);
+  const [linkedCustomer, setLinkedCustomer] = useState<{ id: string; companyName: string } | null>(null);
   const [form, setForm] = useState({
     title: (initial?.title as string) ?? "",
     customerId: (initial?.customerId as string) ?? customerIdParam ?? "",
@@ -85,6 +87,53 @@ export function TaskFormClient({
     if (leadIdParam && !form.leadId) setForm((f) => ({ ...f, leadId: leadIdParam }));
   }, [leadIdParam]);
 
+  useEffect(() => {
+    const id = form.leadId || leadIdParam;
+    if (!id) {
+      setLinkedLead(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/export/leads/${id}`);
+        const json = await parseResponseJson<{ data?: { id: string; companyName: string } }>(r);
+        if (!cancelled && r.ok && json.data) setLinkedLead(json.data);
+      } catch {
+        if (!cancelled) setLinkedLead(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.leadId, leadIdParam]);
+
+  useEffect(() => {
+    const id = form.customerId || customerIdParam;
+    if (!id) {
+      setLinkedCustomer(null);
+      return;
+    }
+    const fromList = customers.find((c) => c.id === id);
+    if (fromList) {
+      setLinkedCustomer(fromList);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/export/customers/${id}`);
+        const json = await parseResponseJson<{ data?: { id: string; companyName: string } }>(r);
+        if (!cancelled && r.ok && json.data) setLinkedCustomer(json.data);
+      } catch {
+        if (!cancelled) setLinkedCustomer(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.customerId, customerIdParam, customers]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -128,6 +177,20 @@ export function TaskFormClient({
       {error && (
         <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
       )}
+      {(linkedLead || linkedCustomer) && (
+        <div className="rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2 text-sm text-teal-800">
+          关联对象：
+          {linkedCustomer ? (
+            <Link href={`/export/customers/${linkedCustomer.id}`} className="ml-1 font-medium hover:underline">
+              客户 · {linkedCustomer.companyName}
+            </Link>
+          ) : linkedLead ? (
+            <Link href={`/export/leads/${linkedLead.id}`} className="ml-1 font-medium hover:underline">
+              线索 · {linkedLead.companyName}
+            </Link>
+          ) : null}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">标题 *</label>
@@ -143,8 +206,9 @@ export function TaskFormClient({
           <label className="mb-1 block text-sm font-medium text-slate-700">客户</label>
           <select
             value={form.customerId}
-            onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value, contactId: "" }))}
-            className="w-full rounded-md border border-slate-300 px-3 py-2"
+            onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value, contactId: "", leadId: e.target.value ? "" : f.leadId }))}
+            disabled={!!(leadIdParam || form.leadId)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500"
           >
             <option value="">无</option>
             {customers.map((c) => (

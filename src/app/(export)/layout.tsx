@@ -24,7 +24,7 @@ export default async function ExportLayout({
         <ExportSidebar />
         <div className="flex flex-1 flex-col">
           <ExportHeader user={user} />
-          <main className="flex-1 p-6">
+          <main className="flex-1 p-6 pb-20">
             <div className="mx-auto w-full max-w-[1600px]">{children}</div>
           </main>
         </div>

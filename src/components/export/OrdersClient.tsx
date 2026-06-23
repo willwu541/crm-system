@@ -244,7 +244,7 @@ export function OrdersClient() {
         )}
       </div>
 
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && pagination.total > 0 && (
         <Pagination
           page={page}
           totalPages={pagination.totalPages}

@@ -17,6 +17,7 @@ interface Task {
   priority: string;
   status: string;
   customer: { id: string; companyName: string } | null;
+  lead: { id: string; companyName: string } | null;
   owner: { name: string };
   createdAt: string;
   updatedAt: string;
@@ -224,7 +225,7 @@ export function TasksClient() {
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">任务</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">客户</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">关联对象</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">优先级</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">状态</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">时间</th>
@@ -240,12 +241,18 @@ export function TasksClient() {
                   onClick={() => router.push(`/export/tasks/${t.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{t.title}</td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-slate-600" onClick={(e) => e.stopPropagation()}>
                     {t.customer ? (
                       <Link href={`/export/customers/${t.customer.id}`} className="text-teal-600 hover:underline">
-                        {t.customer.companyName}
+                        客户 · {t.customer.companyName}
                       </Link>
-                    ) : "-"}
+                    ) : t.lead ? (
+                      <Link href={`/export/leads/${t.lead.id}`} className="text-teal-600 hover:underline">
+                        线索 · {t.lead.companyName}
+                      </Link>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -311,7 +318,7 @@ export function TasksClient() {
         )}
       </div>
 
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && pagination.total > 0 && (
         <Pagination
           page={page}
           totalPages={pagination.totalPages}

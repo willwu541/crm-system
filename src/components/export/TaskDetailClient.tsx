@@ -59,6 +59,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
   }
 
   const customer = task.customer as { id: string; companyName: string } | undefined;
+  const lead = task.lead as { id: string; companyName: string } | undefined;
   const contact = task.contact as { id: string; name: string } | undefined;
 
   async function handleComplete() {
@@ -124,13 +125,19 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
-            <dt className="text-slate-500">客户</dt>
+            <dt className="text-slate-500">关联对象</dt>
             <dd>
               {customer ? (
                 <Link href={`/export/customers/${customer.id}`} className="text-teal-600 hover:underline">
-                  {customer.companyName}
+                  客户 · {customer.companyName}
                 </Link>
-              ) : "-"}
+              ) : lead ? (
+                <Link href={`/export/leads/${lead.id}`} className="text-teal-600 hover:underline">
+                  线索 · {lead.companyName}
+                </Link>
+              ) : (
+                "-"
+              )}
             </dd>
           </div>
           <div>
