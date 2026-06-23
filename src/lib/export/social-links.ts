@@ -1,6 +1,6 @@
 /** 规范化社媒/通讯链接，供列表「一键打开」 */
 
-export type SocialChannel = "whatsapp" | "linkedin" | "facebook" | "tiktok" | "email";
+export type SocialChannel = "phone" | "whatsapp" | "linkedin" | "facebook" | "tiktok" | "email";
 
 export interface SocialLinkItem {
   channel: SocialChannel;
@@ -72,13 +72,18 @@ export function buildLeadSocialLinks(input: {
     const href = buildMailtoUrl(email);
     if (href) links.push({ channel: "email", label: "邮件", href, raw: email });
   }
-  const wa = normalizeWhatsappUrl(input.whatsapp || input.phone);
+  const phone = trim(input.phone);
+  if (phone) {
+    links.push({ channel: "phone", label: "电话", href: `tel:${phone}`, raw: phone });
+  }
+  // 仅在明确填写了 WhatsApp 时显示 WhatsApp，避免与电话混淆
+  const wa = normalizeWhatsappUrl(input.whatsapp);
   if (wa) {
     links.push({
       channel: "whatsapp",
       label: "WhatsApp",
       href: wa,
-      raw: input.whatsapp || input.phone || "",
+      raw: input.whatsapp || "",
     });
   }
   const li = normalizeLinkedInUrl(input.linkedin);
@@ -92,6 +97,8 @@ export function buildLeadSocialLinks(input: {
 
 export function defaultActivityTypeForChannel(channel: SocialChannel): string {
   switch (channel) {
+    case "phone":
+      return "call";
     case "whatsapp":
       return "whatsapp";
     case "linkedin":

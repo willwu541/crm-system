@@ -27,9 +27,19 @@ export async function login(
 
   const user = await prisma.user.findFirst({
     where: { email: emailNorm },
-    select: { id: true, email: true, name: true, role: true, tenant: true, tenantId: true, passwordHash: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      tenant: true,
+      tenantId: true,
+      isActive: true,
+      passwordHash: true,
+    },
   });
   if (!user) return null;
+  if (!user.isActive) return null;
 
   if (user.tenant !== tenant) return null;
 
@@ -73,9 +83,24 @@ export async function getSession(): Promise<SessionUser | null> {
   try {
     const payload = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
     if (payload.expires && payload.expires < Date.now()) return null;
-    const user = payload as SessionUser;
-    if (!user.tenant) user.tenant = "domestic";
-    return user;
+    const cookieUser = payload as SessionUser;
+    if (!cookieUser.tenant) cookieUser.tenant = "domestic";
+
+    // 每次取会话都校验账号是否仍然可用（防止被停用后仍可访问）
+    const dbUser = await prisma.user.findUnique({
+      where: { id: cookieUser.id },
+      select: { id: true, email: true, name: true, role: true, tenant: true, tenantId: true, isActive: true },
+    });
+    if (!dbUser || !dbUser.isActive) return null;
+
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name,
+      role: dbUser.role,
+      tenant: dbUser.tenant as Tenant,
+      tenantId: dbUser.tenantId ?? undefined,
+    };
   } catch {
     return null;
   }

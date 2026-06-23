@@ -8,6 +8,7 @@ import {
 
 const CHANNEL_STYLE: Record<SocialChannel, string> = {
   email: "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+  phone: "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200",
   whatsapp: "border-green-200 bg-green-50 text-green-800 hover:bg-green-100",
   linkedin: "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100",
   facebook: "border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100",

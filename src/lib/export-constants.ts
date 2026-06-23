@@ -18,6 +18,13 @@ export const INTERESTED_PRODUCTS = [
   "FRP Grating",
   "Accessories",
   "Handrail / Walkway",
+  "Data Center Cable Trench",
+  "Warehouse Mezzanine / Platform",
+  "Solar Plant Walkway",
+  "Offshore / Marine Platform",
+  "Wastewater Plant Grating",
+  "Petrochemical Plant",
+  "Municipal Infrastructure",
 ] as const;
 
 export const MARKET_PRIORITY = [
@@ -135,10 +142,20 @@ export const LEAD_SOURCE_CHANNELS = [
   "Alibaba",
   "Made-in-China",
   "Google",
+  "Google Maps",
+  "Bing",
   "LinkedIn",
   "WhatsApp",
   "Facebook",
   "TikTok",
+  "YouTube",
+  "Instagram",
+  "X (Twitter)",
+  "Reddit",
+  "Industry Directory",
+  "B2B Database",
+  "Tender / Bid Platform",
+  "Cold Calling",
   "Trade Show",       // 展会
   "Customer Referral",// 客户介绍
   "SEO",

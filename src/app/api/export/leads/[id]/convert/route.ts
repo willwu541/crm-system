@@ -2,14 +2,36 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { generateCustomerCode } from "@/lib/export/number-generator";
+import { z } from "zod";
+
+const convertSchema = z.object({
+  customerStatus: z.string().optional(),
+  nextFollowUpAt: z.string().datetime().optional().nullable(),
+  createTaskTitle: z.string().optional(),
+  createTaskDueAt: z.string().datetime().optional().nullable(),
+});
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { ctx, error } = await requireExportSession();
   if (error) return error;
   const { id: leadId } = await params;
+  let payload: z.infer<typeof convertSchema> = {};
+  try {
+    const body = await request.json().catch(() => ({}));
+    const parsed = convertSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "参数错误" },
+        { status: 400 },
+      );
+    }
+    payload = parsed.data;
+  } catch {
+    payload = {};
+  }
 
   const lead = await prisma.exportLead.findUnique({
     where: { id: leadId, tenantId: ctx!.tenantId },
@@ -43,9 +65,11 @@ export async function POST(
           : [],
         sourceChannel: lead.sourceChannel,
         ownerId: lead.ownerId,
-        status: "to_develop",
+        status: payload.customerStatus ?? "to_develop",
         lastFollowUpAt: lead.lastContactAt ?? undefined,
-        nextFollowUpAt: lead.nextFollowUpAt ?? undefined,
+        nextFollowUpAt: payload.nextFollowUpAt
+          ? new Date(payload.nextFollowUpAt)
+          : (lead.nextFollowUpAt ?? undefined),
       },
       include: { owner: { select: { id: true, name: true } } },
     });
@@ -81,6 +105,20 @@ export async function POST(
       await tx.exportActivity.updateMany({
         where: { customerId: c.id, contactId: null, tenantId: ctx!.tenantId },
         data: { contactId: primaryContactId },
+      });
+    }
+    if (payload.createTaskTitle?.trim()) {
+      await tx.exportTask.create({
+        data: {
+          tenantId: ctx!.tenantId,
+          customerId: c.id,
+          title: payload.createTaskTitle.trim(),
+          dueDate: payload.createTaskDueAt ? new Date(payload.createTaskDueAt) : undefined,
+          ownerId: lead.ownerId,
+          status: "todo",
+          priority: "high",
+          notes: `由线索「${lead.companyName}」转化时自动创建`,
+        },
       });
     }
     return { ...c, _movedActivities: moved.count, primaryContactId };

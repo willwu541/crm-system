@@ -7,6 +7,7 @@ import { LeadForm } from "./LeadForm";
 import { ExportDeleteButton } from "./ExportDeleteButton";
 import { QuickContactModal } from "./QuickContactModal";
 import { ConvertOnboardModal } from "./ConvertOnboardModal";
+import { ConvertLeadModal, type ConvertLeadPayload } from "./ConvertLeadModal";
 import { LeadTasksPanel } from "./LeadTasksPanel";
 import { NextFollowUpModal } from "./NextFollowUpModal";
 import { SocialLinksBar } from "./SocialLinksBar";
@@ -64,6 +65,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickDirection, setQuickDirection] = useState<"outbound" | "inbound">("outbound");
   const [notes, setNotes] = useState("");
@@ -109,10 +111,23 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
     if (lead) setNotes(lead.notes ?? "");
   }, [lead?.id, lead?.notes]);
 
-  async function handleConvert() {
+  async function handleConvert(payload?: ConvertLeadPayload) {
     setConverting(true);
     try {
-      const res = await fetch(`/api/export/leads/${leadId}/convert`, { method: "POST" });
+      const res = await fetch(`/api/export/leads/${leadId}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerStatus: payload?.customerStatus,
+          nextFollowUpAt: payload?.nextFollowUpAt
+            ? new Date(payload.nextFollowUpAt).toISOString()
+            : undefined,
+          createTaskTitle: payload?.createTaskTitle,
+          createTaskDueAt: payload?.createTaskDueAt
+            ? new Date(payload.createTaskDueAt).toISOString()
+            : undefined,
+        }),
+      });
       const json = await parseResponseJson<{
         error?: string;
         data?: { id?: string };
@@ -121,6 +136,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
       if (!res.ok) throw new Error(json.error ?? "转化失败");
       const cid = json.data?.id ?? json.customerId;
       toast("转化成功");
+      setConvertOpen(false);
       if (cid && lead) {
         setOnboard({ customerId: cid, companyName: lead.companyName });
         fetchAll({ silent: true });
@@ -214,7 +230,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
           ) : null}
           {lead.status !== "converted" && (
             <button
-              onClick={handleConvert}
+              onClick={() => setConvertOpen(true)}
               disabled={converting}
               className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
             >
@@ -399,13 +415,23 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         contactCount={lead.contactCount}
         defaultDirection={quickDirection}
         contactEmail={lead.email}
-        contactWhatsapp={lead.whatsapp ?? lead.phone}
+        contactWhatsapp={lead.whatsapp}
         title={quickDirection === "outbound" ? "记录一次主动联系" : "记录客户回复"}
         onSuccess={() => {
           toast("已记录");
           fetchAll({ silent: true });
         }}
       />
+
+      {lead.status !== "converted" && (
+        <ConvertLeadModal
+          open={convertOpen}
+          companyName={lead.companyName}
+          loading={converting}
+          onClose={() => setConvertOpen(false)}
+          onSubmit={handleConvert}
+        />
+      )}
 
       {onboard && (
         <ConvertOnboardModal

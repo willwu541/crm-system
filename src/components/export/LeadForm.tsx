@@ -183,7 +183,7 @@ export function LeadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+    <form onSubmit={handleSubmit} className="max-w-3xl space-y-4 rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
       {error && (
         <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
       )}
@@ -285,7 +285,7 @@ export function LeadForm({
             type="text"
             value={form.sourceChannel}
             onChange={(e) => setForm((f) => ({ ...f, sourceChannel: e.target.value }))}
-            placeholder="选择或输入"
+            placeholder="如：LinkedIn / WhatsApp / Google Maps / 展会"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
           <datalist id="lead-source-channel-options">
@@ -293,6 +293,7 @@ export function LeadForm({
               <option key={c} value={c} />
             ))}
           </datalist>
+          <p className="mt-1 text-xs text-slate-500">可选预设渠道，也支持自由输入新的获客来源。</p>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">来源关键词</label>

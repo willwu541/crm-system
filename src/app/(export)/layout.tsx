@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { ExportHeader } from "@/components/layout/ExportHeader";
 import { ExportProviders } from "@/components/layout/ExportProviders";
 import { ExportSidebar } from "@/components/layout/ExportSidebar";
+import { AIQuickDock } from "@/components/layout/AIQuickDock";
 
 export default async function ExportLayout({
   children,
@@ -19,12 +20,15 @@ export default async function ExportLayout({
 
   return (
     <ExportProviders>
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-teal-50/30">
         <ExportSidebar />
         <div className="flex flex-1 flex-col">
           <ExportHeader user={user} />
-          <main className="flex-1 p-6">{children}</main>
+          <main className="flex-1 p-6">
+            <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+          </main>
         </div>
+        <AIQuickDock />
       </div>
     </ExportProviders>
   );

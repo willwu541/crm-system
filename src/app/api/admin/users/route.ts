@@ -17,6 +17,7 @@ export async function GET() {
       email: true,
       name: true,
       role: true,
+      isActive: true,
       tenant: true,
       createdAt: true,
     },
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
         tenant: parsed.data.tenant,
         tenantId,
       },
-      select: { id: true, email: true, name: true, role: true, tenant: true, tenantId: true },
+      select: { id: true, email: true, name: true, role: true, isActive: true, tenant: true, tenantId: true },
     });
 
     return NextResponse.json({ data: newUser });

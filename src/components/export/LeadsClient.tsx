@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LEAD_STATUSES } from "@/lib/export-constants";
-import { leadStatusLabel } from "@/lib/export-display-labels";
+import { leadStatusLabel, sourceChannelLabel } from "@/lib/export-display-labels";
 import { buildListUrl } from "@/lib/export/url-params";
 import { useToast } from "@/components/ui/Toast";
 import { LeadForm } from "./LeadForm";
@@ -236,7 +236,12 @@ export function LeadsClient() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-sm backdrop-blur">
+        <div className="mb-3">
+          <h1 className="text-lg font-semibold text-slate-800">线索开发中心</h1>
+          <p className="text-xs text-slate-500">管理获客渠道、联系节奏、转化进度</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
           <input
             type="text"
@@ -319,9 +324,9 @@ export function LeadsClient() {
                     : {}),
                 })
               }
-              className={`rounded-full border px-3 py-1 text-xs ${
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${
                 pace === p.key
-                  ? "border-teal-500 bg-teal-50 text-teal-700"
+                  ? "border-teal-500 bg-teal-500/10 text-teal-700"
                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -351,12 +356,13 @@ export function LeadsClient() {
           {importing ? "导入中..." : "导入 CSV"}
         </button>
       </div>
+      </div>
 
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-sm">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : leads.length === 0 ? (
@@ -373,7 +379,7 @@ export function LeadsClient() {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-slate-200 bg-slate-50/80">
               <tr>
                 <th className="min-w-[200px] px-4 py-3 text-left font-medium text-slate-700">公司</th>
                 <th className="min-w-[280px] max-w-md px-4 py-3 text-left font-medium text-slate-700">备注</th>
@@ -393,7 +399,7 @@ export function LeadsClient() {
                 return (
                   <tr
                     key={l.id}
-                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+                    className="cursor-pointer border-b border-slate-100 hover:bg-teal-50/30"
                     onClick={() => router.push(`/export/leads/${l.id}`)}
                   >
                     <td className="px-4 py-3 font-medium text-slate-800">
@@ -410,7 +416,7 @@ export function LeadsClient() {
                             {getWebsiteHost(l.website)}
                           </a>
                         ) : (
-                          l.sourceChannel ?? "未填官网"
+                          sourceChannelLabel[l.sourceChannel ?? ""] ?? l.sourceChannel ?? "未填官网"
                         )}
                       </div>
                     </td>
@@ -471,7 +477,7 @@ export function LeadsClient() {
                                 contactCount: l.contactCount,
                                 defaultDirection: "outbound",
                                 contactEmail: l.email,
-                                contactWhatsapp: l.whatsapp ?? l.phone,
+                                contactWhatsapp: l.whatsapp,
                               })
                             }
                             className="text-teal-600 hover:underline"
@@ -490,7 +496,7 @@ export function LeadsClient() {
                                 contactCount: l.contactCount,
                                 defaultDirection: "inbound",
                                 contactEmail: l.email,
-                                contactWhatsapp: l.whatsapp ?? l.phone,
+                                contactWhatsapp: l.whatsapp,
                               })
                             }
                             className="text-slate-500 hover:underline"

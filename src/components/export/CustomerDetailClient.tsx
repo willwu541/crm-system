@@ -11,6 +11,7 @@ import { TaskFormClient } from "./TaskFormClient";
 import { Drawer } from "./shared/Drawer";
 import { ExportDeleteButton } from "./ExportDeleteButton";
 import { parseResponseJson } from "@/lib/parse-response-json";
+import { CUSTOMER_STATUSES } from "@/lib/export-constants";
 import {
   activityTypeLabel,
   customerStatusLabel,
@@ -62,6 +63,8 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<"contact" | "activity" | "quote" | "task" | "edit" | "contactEdit" | null>(null);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [updatingStage, setUpdatingStage] = useState(false);
+  const [quickFollowing, setQuickFollowing] = useState(false);
 
   async function fetchCustomer(opts?: { silent?: boolean }) {
     if (!opts?.silent) {
@@ -93,6 +96,55 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
     closeDrawer();
     toast("保存成功");
     fetchCustomer({ silent: true });
+  }
+
+  async function updateStage(status: string) {
+    if (!customer) return;
+    setUpdatingStage(true);
+    try {
+      const res = await fetch(`/api/export/customers/${customer.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "更新阶段失败");
+      toast("客户阶段已更新");
+      fetchCustomer({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "更新阶段失败", "error");
+    } finally {
+      setUpdatingStage(false);
+    }
+  }
+
+  async function markFollowed(daysFromNow: number) {
+    if (!customer) return;
+    setQuickFollowing(true);
+    try {
+      const next = new Date();
+      next.setDate(next.getDate() + daysFromNow);
+      const res = await fetch("/api/export/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: customer.id,
+          type: "other",
+          direction: "outbound",
+          subject: "客户跟进记录",
+          content: `系统快捷记录：已跟进，计划 ${daysFromNow} 天后再次联系`,
+          nextFollowUpAt: next.toISOString(),
+        }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "记录失败");
+      toast("已记录跟进并安排下次时间");
+      fetchCustomer({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "记录失败", "error");
+    } finally {
+      setQuickFollowing(false);
+    }
   }
 
   if (loading) return <div className="p-12 text-center text-slate-500">加载中...</div>;
@@ -230,6 +282,52 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           >
             返回
           </Link>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 font-medium text-slate-700">跟进流程快捷操作</h2>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {CUSTOMER_STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              disabled={updatingStage}
+              onClick={() => updateStage(s)}
+              className={`rounded-full border px-3 py-1 text-xs ${
+                customer.status === s
+                  ? "border-teal-500 bg-teal-50 text-teal-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {customerStatusLabel[s] ?? s}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={quickFollowing}
+            onClick={() => markFollowed(3)}
+            className="rounded-md border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm text-teal-700 hover:bg-teal-100 disabled:opacity-50"
+          >
+            记录跟进（3天后）
+          </button>
+          <button
+            type="button"
+            disabled={quickFollowing}
+            onClick={() => markFollowed(7)}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+          >
+            记录跟进（7天后）
+          </button>
+          <button
+            type="button"
+            onClick={() => setDrawer("activity")}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            打开完整跟进表单
+          </button>
         </div>
       </div>
 

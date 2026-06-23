@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { customerStatusLabel } from "@/lib/export-display-labels";
+import { getUpcomingHolidays } from "@/lib/export/resources";
 
 interface DashboardData {
   todayFollowUpCount: number;
@@ -22,20 +23,51 @@ interface DashboardData {
   todayDueTasksCount: number;
 }
 
+interface TeamInsightRow {
+  ownerId: string;
+  ownerName: string;
+  leadsDue: number;
+  customersDue: number;
+  tasksToday: number;
+  tasksOverdue: number;
+}
+
+interface SourceRoiRow {
+  source: string;
+  totalLeads: number;
+  validLeads: number;
+  convertedLeads: number;
+  validRate: number;
+  conversionRate: number;
+}
+
 export function ExportDashboardClient() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [teamRows, setTeamRows] = useState<TeamInsightRow[]>([]);
+  const [sourceRows, setSourceRows] = useState<SourceRoiRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [runningSop, setRunningSop] = useState(false);
+  const [sopResult, setSopResult] = useState<string>("");
+  const upcomingHolidays = getUpcomingHolidays(30);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/api/export/dashboard");
+        const [r, tr, sr] = await Promise.all([
+          fetch("/api/export/dashboard"),
+          fetch("/api/export/insights/team"),
+          fetch("/api/export/insights/source-roi"),
+        ]);
         const json = await parseResponseJson<{ data?: DashboardData; error?: string }>(r);
+        const teamJson = await parseResponseJson<{ data?: TeamInsightRow[] }>(tr);
+        const sourceJson = await parseResponseJson<{ data?: SourceRoiRow[] }>(sr);
         if (cancelled) return;
         if (json.data) setData(json.data);
         else setError(json.error ?? "加载失败");
+        setTeamRows(teamJson.data ?? []);
+        setSourceRows(sourceJson.data ?? []);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
       } finally {
@@ -47,19 +79,65 @@ export function ExportDashboardClient() {
     };
   }, []);
 
-  if (loading) return <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-500">加载中...</div>;
-  if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center text-red-600">{error}</div>;
+  if (loading) return <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm">加载中...</div>;
+  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-red-600 shadow-sm">{error}</div>;
   if (!data) return null;
+
+  async function runSop() {
+    setRunningSop(true);
+    setSopResult("");
+    try {
+      const r = await fetch("/api/export/sop/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false, limit: 300 }),
+      });
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: { createdCount: number; suggestCount: number; totalCandidates: number };
+      }>(r);
+      if (!r.ok) throw new Error(json.error ?? "执行失败");
+      const d = json.data;
+      setSopResult(
+        d
+          ? `SOP已运行：扫描 ${d.totalCandidates} 条线索，命中 ${d.suggestCount} 条，创建任务 ${d.createdCount} 条。`
+          : "SOP 已运行",
+      );
+      // refresh dashboard numbers
+      const refresh = await fetch("/api/export/dashboard");
+      const refreshJson = await parseResponseJson<{ data?: DashboardData }>(refresh);
+      if (refreshJson.data) setData(refreshJson.data);
+    } catch (e) {
+      setSopResult(e instanceof Error ? e.message : "SOP执行失败");
+    } finally {
+      setRunningSop(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
       {/* 线索开发待办 */}
-      <div className="rounded-lg border border-teal-100 bg-teal-50/30 p-4">
-        <h2 className="mb-4 font-medium text-slate-700">线索开发（今日优先）</h2>
+      <div className="rounded-xl border border-teal-100 bg-gradient-to-r from-teal-50/80 to-cyan-50/70 p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-slate-700">线索开发（今日优先）</h2>
+          <button
+            type="button"
+            onClick={runSop}
+            disabled={runningSop}
+            className="rounded-md border border-teal-300 bg-white px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-50"
+          >
+            {runningSop ? "SOP执行中..." : "一键运行SOP自动任务"}
+          </button>
+        </div>
+        {sopResult && (
+          <div className="mb-3 rounded-md border border-teal-100 bg-white/70 px-3 py-2 text-xs text-slate-600">
+            {sopResult}
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href="/export/leads?pace=never&sortBy=createdAt&sortOrder=desc"
-            className="flex flex-col rounded-lg border border-white bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+            className="flex flex-col rounded-xl border border-white/80 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">未联系过</span>
             <span
@@ -71,9 +149,9 @@ export function ExportDashboardClient() {
           </Link>
           <Link
             href="/export/leads?pace=due&sortBy=lastContactAt&sortOrder=asc"
-            className="flex flex-col rounded-lg border border-white bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+            className="flex flex-col rounded-xl border border-white/80 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-slate-50"
           >
-            <span className="text-sm text-slate-500">该跟进了</span>
+            <span className="text-sm text-slate-500">二次及以上联系</span>
             <span
               className={`mt-1 text-2xl font-semibold ${data.leadsDueCount > 0 ? "text-orange-600" : "text-slate-400"}`}
             >
@@ -83,7 +161,7 @@ export function ExportDashboardClient() {
           </Link>
           <Link
             href="/export/leads?pace=stuck&sortBy=lastContactAt&sortOrder=asc"
-            className="flex flex-col rounded-lg border border-white bg-white p-4 shadow-sm transition-colors hover:bg-slate-50"
+            className="flex flex-col rounded-xl border border-white/80 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">联系 3+ 无响应</span>
             <span
@@ -97,8 +175,8 @@ export function ExportDashboardClient() {
       </div>
 
       {/* 待办提醒区 */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-slate-700">客户 / 任务 / 报价</h2>
+      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-slate-700">客户 / 任务 / 报价</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Link
             href="/export/customers?filter=today"
@@ -178,8 +256,8 @@ export function ExportDashboardClient() {
       </div>
 
       {/* 数据概览 */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-slate-700">数据概览</h2>
+      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-slate-700">数据概览</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href="/export/leads?since=week&sortBy=createdAt&sortOrder=desc"
@@ -208,10 +286,33 @@ export function ExportDashboardClient() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-700">近期节日提醒（30天）</h2>
+          <Link href="/export/resources" className="text-xs text-teal-700 hover:underline">
+            打开资料库 →
+          </Link>
+        </div>
+        {upcomingHolidays.length === 0 ? (
+          <p className="text-sm text-slate-500">近期无节日提醒</p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {upcomingHolidays.slice(0, 6).map((h) => (
+              <div key={`${h.monthDay}-${h.name}`} className="rounded-lg border border-slate-100 px-3 py-2">
+                <p className="text-sm font-medium text-slate-800">{h.name}</p>
+                <p className="text-xs text-slate-500">
+                  {h.region} · {h.date} · {h.inDays === 0 ? "今天" : `${h.inDays} 天后`}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 统计 */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-4 font-medium text-slate-700">客户状态分布</h2>
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h2 className="mb-4 text-base font-semibold text-slate-700">客户状态分布</h2>
           <div className="space-y-2">
             {data.customerStatusStats.length === 0 ? (
               <p className="text-sm text-slate-500">暂无数据</p>
@@ -230,8 +331,8 @@ export function ExportDashboardClient() {
             )}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-4 font-medium text-slate-700">国家分布</h2>
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h2 className="mb-4 text-base font-semibold text-slate-700">国家分布</h2>
           <div className="space-y-2">
             {data.countryStats.length === 0 ? (
               <p className="text-sm text-slate-500">暂无数据</p>
@@ -250,8 +351,8 @@ export function ExportDashboardClient() {
             )}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-4 font-medium text-slate-700">负责人客户数</h2>
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h2 className="mb-4 text-base font-semibold text-slate-700">负责人客户数</h2>
           <div className="space-y-2">
             {data.ownerStats.length === 0 ? (
               <p className="text-sm text-slate-500">暂无数据</p>
@@ -272,6 +373,47 @@ export function ExportDashboardClient() {
                 ))
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-slate-700">团队执行看板</h2>
+          {teamRows.length === 0 ? (
+            <p className="text-sm text-slate-500">暂无数据</p>
+          ) : (
+            <div className="space-y-2">
+              {teamRows.map((r) => (
+                <div key={r.ownerId} className="rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                  <p className="font-medium text-slate-800">{r.ownerName}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    线索待跟进 {r.leadsDue} · 客户待跟进 {r.customersDue} · 今日任务 {r.tasksToday} · 超期任务 {r.tasksOverdue}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-slate-700">获客渠道 ROI（线索转化）</h2>
+          {sourceRows.length === 0 ? (
+            <p className="text-sm text-slate-500">暂无数据</p>
+          ) : (
+            <div className="space-y-2">
+              {sourceRows.slice(0, 10).map((r) => (
+                <div key={r.source} className="rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-slate-800">{r.source}</p>
+                    <span className="text-xs text-teal-700">转化率 {r.conversionRate}%</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">
+                    线索 {r.totalLeads} · 有效 {r.validLeads} ({r.validRate}%) · 已转化 {r.convertedLeads}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

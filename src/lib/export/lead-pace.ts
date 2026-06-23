@@ -37,8 +37,9 @@ export function matchesLeadPace(lead: LeadPaceInput, pace: LeadPaceFilter): bool
   if (pace === "never") return lead.lastContactAt == null;
 
   if (pace === "due") {
-    if (lead.lastContactAt == null || days == null) return false;
-    return days >= 3;
+    if (lead.lastContactAt == null) return false;
+    // 新规则：联系 1 次不进入「该跟进」，2 次及以上统一进入该筛选
+    return lead.contactCount >= 2;
   }
 
   if (pace === "stuck") {
@@ -59,8 +60,6 @@ export function buildLeadPacePrismaWhere(
     return { status: statusFilter, lastContactAt: null };
   }
 
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
@@ -69,7 +68,7 @@ export function buildLeadPacePrismaWhere(
       AND: [
         { status: statusFilter },
         { lastContactAt: { not: null } },
-        { lastContactAt: { lte: threeDaysAgo } },
+        { contactCount: { gte: 2 } },
       ],
     };
   }
@@ -90,6 +89,9 @@ export function getLeadPaceBadge(lead: LeadPaceInput): { label: string; classNam
   }
   if (!lead.lastContactAt) {
     return { label: "未联系", className: "bg-slate-100 text-slate-600" };
+  }
+  if (lead.contactCount === 1) {
+    return { label: "首轮已联系", className: "bg-blue-50 text-blue-700" };
   }
 
   const days = daysSinceLastContact(lead.lastContactAt) ?? 0;

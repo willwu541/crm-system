@@ -64,6 +64,7 @@ model User {
   passwordHash   String   @map("password_hash")
   name           String
   role           UserRole @default(SALES)
+  isActive       Boolean  @default(true) @map("is_active")
   tenant         Tenant   @default(domestic)
   tenantId       String?  @map("tenant_id")
   /**
