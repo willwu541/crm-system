@@ -12,6 +12,7 @@ import { NextFollowUpModal } from "./NextFollowUpModal";
 import { QuickContactModal } from "./QuickContactModal";
 import { Drawer } from "./shared/Drawer";
 import { Pagination } from "./shared/Pagination";
+import { SocialLinksBar } from "./SocialLinksBar";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 
@@ -27,7 +28,14 @@ interface Customer {
   nextFollowUpAt: string | null;
   createdAt: string;
   updatedAt: string;
-  contacts?: { email: string | null; whatsapp: string | null; phone: string | null }[];
+  contacts?: {
+    email: string | null;
+    whatsapp: string | null;
+    phone: string | null;
+    linkedin: string | null;
+    facebook: string | null;
+    tiktok: string | null;
+  }[];
 }
 
 function isCustomerOverdue(c: Customer): boolean {
@@ -82,6 +90,8 @@ export function CustomersClient() {
   const [followUpCustomer, setFollowUpCustomer] = useState<Customer | null>(null);
   const [quickCustomer, setQuickCustomer] = useState<Customer | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [emailCopyFormat, setEmailCopyFormat] = useState<"newline" | "comma">("newline");
+  const [copyingEmails, setCopyingEmails] = useState(false);
 
   useEffect(() => {
     setKeyword(keywordParam);
@@ -165,6 +175,43 @@ export function CustomersClient() {
     updateUrl({ keyword: keyword || undefined, country: countryInput || undefined, page: 1 });
   }
 
+  function buildListFilterParams(forEmails = false) {
+    const params = new URLSearchParams();
+    if (forEmails) params.set("emails", "1");
+    if (status) params.set("status", status);
+    if (filter) params.set("filter", filter);
+    if (keywordParam) params.set("keyword", keywordParam);
+    if (countryParam) params.set("country", countryParam);
+    if (ownerId) params.set("ownerId", ownerId);
+    return params;
+  }
+
+  async function handleCopyEmails() {
+    setCopyingEmails(true);
+    try {
+      const res = await fetch(`/api/export/customers?${buildListFilterParams(true)}`);
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: string[];
+        total?: number;
+        customerCount?: number;
+      }>(res);
+      if (!res.ok) throw new Error(json.error ?? "获取邮箱失败");
+      const emails = json.data ?? [];
+      if (emails.length === 0) {
+        toast("当前筛选结果中没有可复制的邮箱", "error");
+        return;
+      }
+      const text = emailCopyFormat === "comma" ? emails.join(", ") : emails.join("\n");
+      await navigator.clipboard.writeText(text);
+      toast(`已复制 ${emails.length} 个邮箱（${json.customerCount ?? emails.length} 家客户）`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "复制失败", "error");
+    } finally {
+      setCopyingEmails(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -238,19 +285,38 @@ export function CustomersClient() {
           新建客户
         </button>
         <a
-          href="/api/export/customers/export"
+          href={`/api/export/customers/export?${buildListFilterParams().toString()}`}
           download
           className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
         >
           导出 CSV
         </a>
+        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5">
+          <select
+            value={emailCopyFormat}
+            onChange={(e) => setEmailCopyFormat(e.target.value as "newline" | "comma")}
+            className="rounded border-0 bg-transparent px-2 py-1.5 text-sm text-slate-700 focus:outline-none"
+            aria-label="邮箱复制格式"
+          >
+            <option value="newline">换行分隔</option>
+            <option value="comma">逗号分隔</option>
+          </select>
+          <button
+            type="button"
+            onClick={handleCopyEmails}
+            disabled={copyingEmails || loading}
+            className="rounded-md bg-slate-700 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {copyingEmails ? "复制中..." : "复制全部邮箱"}
+          </button>
+        </div>
       </div>
 
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : customers.length === 0 ? (
@@ -271,6 +337,7 @@ export function CustomersClient() {
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">客户编号</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">公司</th>
+                <th className="px-4 py-3 text-left font-medium text-slate-700">联系方式</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">国家</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">状态</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">负责人</th>
@@ -304,6 +371,17 @@ export function CustomersClient() {
                         "未填写官网"
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <SocialLinksBar
+                      compact
+                      email={c.contacts?.[0]?.email}
+                      phone={c.contacts?.[0]?.phone}
+                      whatsapp={c.contacts?.[0]?.whatsapp}
+                      linkedin={c.contacts?.[0]?.linkedin}
+                      facebook={c.contacts?.[0]?.facebook}
+                      tiktok={c.contacts?.[0]?.tiktok}
+                    />
                   </td>
                   <td className="px-4 py-3 text-slate-600">{c.country ?? "-"}</td>
                   <td className="px-4 py-3">

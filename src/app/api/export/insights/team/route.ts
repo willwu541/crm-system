@@ -9,6 +9,8 @@ export async function GET() {
   const owners = await prisma.user.findMany({
     where: {
       tenant: "export",
+      tenantId: ctx!.tenantId,
+      isActive: true,
       ...(ctx!.ownerFilter ? { id: ctx!.ownerFilter.ownerId } : {}),
     },
     select: { id: true, name: true },

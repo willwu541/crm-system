@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { buildExportOrderListWhere } from "@/lib/export/order-list-where";
 import { generateOrderNo } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status")?.trim();
   const customerId = searchParams.get("customerId")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
+  const since = searchParams.get("since")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "orderDate";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
@@ -29,21 +31,13 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "orderDate";
 
-  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
-  if (customerId) where.customerId = customerId;
-  if (ownerId) where.customer = { ownerId };
-  else if (ctx!.ownerFilter) where.customer = { ownerId: ctx!.ownerFilter.ownerId };
-  if (status) {
-    if (["unpaid", "partial_paid", "paid"].includes(status)) where.paymentStatus = status;
-    else if (["pending", "in_production", "completed"].includes(status)) where.productionStatus = status;
-    else if (["pending", "ready_to_ship", "shipped", "completed"].includes(status)) where.shippingStatus = status;
-  }
-  if (keyword) {
-    where.OR = [
-      { orderNo: { contains: keyword, mode: "insensitive" } },
-      { customer: { companyName: { contains: keyword, mode: "insensitive" } } },
-    ];
-  }
+  const where = buildExportOrderListWhere(ctx!, {
+    keyword,
+    status,
+    customerId,
+    ownerId,
+    since,
+  });
 
   const [data, total] = await Promise.all([
     prisma.exportOrder.findMany({

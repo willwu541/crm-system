@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { buildExportQuoteListWhere } from "@/lib/export/quote-list-where";
 import { generateQuoteNo } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status")?.trim();
   const customerId = searchParams.get("customerId")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
+  const since = searchParams.get("since")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "quoteDate";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
@@ -27,17 +29,13 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "quoteDate";
 
-  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
-  if (customerId) where.customerId = customerId;
-  if (status) where.status = status;
-  if (ownerId) where.customer = { ownerId };
-  else if (ctx!.ownerFilter) where.customer = { ownerId: ctx!.ownerFilter.ownerId };
-  if (keyword) {
-    where.OR = [
-      { quoteNo: { contains: keyword, mode: "insensitive" } },
-      { customer: { companyName: { contains: keyword, mode: "insensitive" } } },
-    ];
-  }
+  const where = buildExportQuoteListWhere(ctx!, {
+    keyword,
+    status,
+    customerId,
+    ownerId,
+    since,
+  });
 
   const [data, total] = await Promise.all([
     prisma.exportQuote.findMany({

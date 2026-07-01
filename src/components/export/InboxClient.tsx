@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { activityDirectionLabel, activityTypeLabel } from "@/lib/export-display-labels";
+import { buildListUrl } from "@/lib/export/url-params";
+import { Pagination } from "./shared/Pagination";
 
 interface InboxItem {
   id: string;
@@ -19,38 +22,81 @@ interface InboxItem {
   lead: { id: string; companyName: string } | null;
 }
 
-export function InboxClient() {
-  const [items, setItems] = useState<InboxItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [direction, setDirection] = useState("");
-  const [type, setType] = useState("");
-  const [keyword, setKeyword] = useState("");
+interface PaginationData {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
 
-  async function fetchInbox() {
+export function InboxClient() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const direction = searchParams.get("direction") ?? "";
+  const type = searchParams.get("type") ?? "";
+  const keywordParam = searchParams.get("keyword") ?? "";
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
+  const [items, setItems] = useState<InboxItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [typeInput, setTypeInput] = useState(type);
+  const [keyword, setKeyword] = useState(keywordParam);
+
+  useEffect(() => {
+    setTypeInput(type);
+    setKeyword(keywordParam);
+  }, [type, keywordParam]);
+
+  function updateUrl(updates: Record<string, string | number | undefined>) {
+    router.replace(
+      buildListUrl(pathname, {
+        direction: direction || undefined,
+        type: type || undefined,
+        keyword: keyword || undefined,
+        page,
+        ...updates,
+      })
+    );
+  }
+
+  async function fetchInbox(overrides?: { page?: number }) {
     setLoading(true);
     const params = new URLSearchParams();
+    params.set("page", String(overrides?.page ?? page));
     if (direction) params.set("direction", direction);
     if (type) params.set("type", type);
-    if (keyword.trim()) params.set("keyword", keyword.trim());
+    if (keywordParam.trim()) params.set("keyword", keywordParam.trim());
     const res = await fetch(`/api/export/inbox?${params}`);
-    const json = await parseResponseJson<{ data?: InboxItem[] }>(res);
+    const json = await parseResponseJson<{ data?: InboxItem[]; pagination?: PaginationData }>(res);
     setItems(json.data ?? []);
+    setPagination(json.pagination ?? null);
     setLoading(false);
   }
 
   useEffect(() => {
     fetchInbox();
-  }, []);
+  }, [page, direction, type, keywordParam]);
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
         <h1 className="text-lg font-semibold text-slate-800">统一收件箱</h1>
         <p className="text-xs text-slate-500">汇总邮件/社媒跟进记录，快速回溯沟通上下文</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateUrl({
+              type: typeInput || undefined,
+              keyword: keyword || undefined,
+              page: 1,
+            });
+          }}
+          className="mt-3 flex flex-wrap gap-2"
+        >
           <select
             value={direction}
-            onChange={(e) => setDirection(e.target.value)}
+            onChange={(e) => updateUrl({ direction: e.target.value || undefined, page: 1 })}
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">全部方向</option>
@@ -58,8 +104,8 @@ export function InboxClient() {
             <option value="outbound">我方发出</option>
           </select>
           <input
-            value={type}
-            onChange={(e) => setType(e.target.value)}
+            value={typeInput}
+            onChange={(e) => setTypeInput(e.target.value)}
             placeholder="类型（email/whatsapp/...）"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
@@ -70,13 +116,12 @@ export function InboxClient() {
             className="min-w-[220px] rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           <button
-            type="button"
-            onClick={fetchInbox}
+            type="submit"
             className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
           >
             筛选
           </button>
-        </div>
+        </form>
       </div>
 
       <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm">
@@ -121,7 +166,15 @@ export function InboxClient() {
           </ul>
         )}
       </div>
+
+      {pagination && pagination.total > 0 && (
+        <Pagination
+          page={page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={(p) => updateUrl({ page: p })}
+        />
+      )}
     </div>
   );
 }
-

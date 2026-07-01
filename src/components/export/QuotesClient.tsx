@@ -37,6 +37,7 @@ export function QuotesClient() {
   const keywordParam = searchParams.get("keyword") ?? "";
   const status = searchParams.get("status") ?? "";
   const ownerId = searchParams.get("ownerId") ?? "";
+  const since = searchParams.get("since") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "quoteDate";
   const sortOrder = searchParams.get("sortOrder") ?? "desc";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -57,6 +58,7 @@ export function QuotesClient() {
       keyword: keyword || undefined,
       status: status || undefined,
       ownerId: ownerId || undefined,
+      since: since || undefined,
       sortBy,
       sortOrder,
       page,
@@ -92,6 +94,7 @@ export function QuotesClient() {
       if (status) params.set("status", status);
       if (keywordParam) params.set("keyword", keywordParam);
       if (ownerId) params.set("ownerId", ownerId);
+      if (since) params.set("since", since);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/quotes?${params}`);
@@ -113,7 +116,7 @@ export function QuotesClient() {
 
   useEffect(() => {
     fetchQuotes();
-  }, [page, status, ownerId, keywordParam, sortBy, sortOrder]);
+  }, [page, status, ownerId, since, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -222,7 +225,12 @@ export function QuotesClient() {
           新建报价
         </Link>
         <a
-          href="/api/export/quotes/export"
+          href={`/api/export/quotes/export?${new URLSearchParams({
+            ...(keywordParam ? { keyword: keywordParam } : {}),
+            ...(status ? { status } : {}),
+            ...(ownerId ? { ownerId } : {}),
+            ...(since ? { since } : {}),
+          }).toString()}`}
           download
           className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
         >
@@ -230,7 +238,7 @@ export function QuotesClient() {
         </a>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : quotes.length === 0 ? (

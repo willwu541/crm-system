@@ -215,7 +215,7 @@ export function TasksClient() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : tasks.length === 0 ? (

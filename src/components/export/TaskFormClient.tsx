@@ -29,6 +29,7 @@ export function TaskFormClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [customers, setCustomers] = useState<{ id: string; companyName: string }[]>([]);
+  const [leads, setLeads] = useState<{ id: string; companyName: string }[]>([]);
   const [contacts, setContacts] = useState<{ id: string; name: string }[]>([]);
   const [linkedLead, setLinkedLead] = useState<{ id: string; companyName: string } | null>(null);
   const [linkedCustomer, setLinkedCustomer] = useState<{ id: string; companyName: string } | null>(null);
@@ -47,9 +48,16 @@ export function TaskFormClient({
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/api/export/customers?pageSize=500");
-        const json = await parseResponseJson<{ data?: { id: string; companyName: string }[] }>(r);
-        if (!cancelled && json.data) setCustomers(json.data);
+        const [cr, lr] = await Promise.all([
+          fetch("/api/export/customers?pageSize=500"),
+          fetch("/api/export/leads?pageSize=500"),
+        ]);
+        const cjson = await parseResponseJson<{ data?: { id: string; companyName: string }[] }>(cr);
+        if (!cancelled && cjson.data) setCustomers(cjson.data);
+        const ljson = await parseResponseJson<{ data?: { id: string; companyName: string; status: string }[] }>(lr);
+        if (!cancelled && ljson.data) {
+          setLeads(ljson.data.filter((l) => l.status !== "converted" && l.status !== "invalid"));
+        }
       } catch {
         /* ignore */
       }
@@ -206,14 +214,44 @@ export function TaskFormClient({
           <label className="mb-1 block text-sm font-medium text-slate-700">客户</label>
           <select
             value={form.customerId}
-            onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value, contactId: "", leadId: e.target.value ? "" : f.leadId }))}
-            disabled={!!(leadIdParam || form.leadId)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                customerId: e.target.value,
+                contactId: "",
+                leadId: e.target.value ? "" : f.leadId,
+              }))
+            }
+            disabled={!!leadIdParam}
             className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500"
           >
             <option value="">无</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.companyName}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">线索</label>
+          <select
+            value={form.leadId}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                leadId: e.target.value,
+                customerId: e.target.value ? "" : f.customerId,
+                contactId: e.target.value ? "" : f.contactId,
+              }))
+            }
+            disabled={!!customerIdParam}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500"
+          >
+            <option value="">无</option>
+            {leads.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.companyName}
               </option>
             ))}
           </select>

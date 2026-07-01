@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { getExportDuplicateMessage } from "@/lib/export/dedupe";
-import { buildLeadPacePrismaWhere, type LeadPaceFilter } from "@/lib/export/lead-pace";
+import {
+  buildExportLeadListWhere,
+  collectLeadEmails,
+} from "@/lib/export/lead-list-where";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
@@ -12,12 +15,13 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-  const pageSize = Math.min(50, Math.max(10, parseInt(searchParams.get("pageSize") ?? "20")));
+  const pageSize = Math.min(500, Math.max(10, parseInt(searchParams.get("pageSize") ?? "20")));
   const keyword = searchParams.get("keyword")?.trim();
   const status = searchParams.get("status")?.trim();
   const country = searchParams.get("country")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const since = searchParams.get("since")?.trim();
+  const sourceChannel = searchParams.get("sourceChannel")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "lastContactAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
@@ -32,36 +36,29 @@ export async function GET(request: NextRequest) {
 
   const pace = searchParams.get("pace")?.trim();
 
-  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
-  if (ownerId) where.ownerId = ownerId;
-  else if (ctx!.ownerFilter) where.ownerId = ctx!.ownerFilter.ownerId;
-  if (status) where.status = status;
-  if (country) where.country = { contains: country, mode: "insensitive" };
-  if (since === "week") {
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - 7);
-    where.createdAt = { gte: weekStart };
-  }
+  const where = buildExportLeadListWhere(ctx!, {
+    keyword,
+    status,
+    country,
+    ownerId,
+    since,
+    pace,
+    sourceChannel,
+  });
 
-  if (pace === "never" || pace === "due" || pace === "stuck") {
-    const paceWhere = buildLeadPacePrismaWhere(pace as LeadPaceFilter, {
-      status: where.status,
+  if (searchParams.get("emails") === "1") {
+    const leads = await prisma.exportLead.findMany({
+      where,
+      orderBy: { companyName: "asc" },
+      take: 5000,
+      select: { email: true },
     });
-    Object.assign(where, paceWhere);
-    if ("AND" in paceWhere) delete where.status;
-  }
-
-  if (keyword) {
-    const orList = [
-      { companyName: { contains: keyword, mode: "insensitive" } },
-      { email: { contains: keyword, mode: "insensitive" } },
-      { phone: { contains: keyword, mode: "insensitive" } },
-    ];
-    if (Array.isArray(where.AND)) {
-      (where.AND as unknown[]).push({ OR: orList });
-    } else {
-      where.OR = orList;
-    }
+    const emails = collectLeadEmails(leads);
+    return NextResponse.json({
+      data: emails,
+      total: emails.length,
+      leadCount: leads.length,
+    });
   }
 
   try {

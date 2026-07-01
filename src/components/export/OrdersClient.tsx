@@ -36,6 +36,7 @@ export function OrdersClient() {
   const keywordParam = searchParams.get("keyword") ?? "";
   const status = searchParams.get("status") ?? "";
   const ownerId = searchParams.get("ownerId") ?? "";
+  const since = searchParams.get("since") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "orderDate";
   const sortOrder = searchParams.get("sortOrder") ?? "desc";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -54,6 +55,7 @@ export function OrdersClient() {
       keyword: keyword || undefined,
       status: status || undefined,
       ownerId: ownerId || undefined,
+      since: since || undefined,
       sortBy,
       sortOrder,
       page,
@@ -89,6 +91,7 @@ export function OrdersClient() {
       if (keywordParam) params.set("keyword", keywordParam);
       if (status) params.set("status", status);
       if (ownerId) params.set("ownerId", ownerId);
+      if (since) params.set("since", since);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/orders?${params}`);
@@ -110,7 +113,7 @@ export function OrdersClient() {
 
   useEffect(() => {
     fetchOrders();
-  }, [page, status, ownerId, keywordParam, sortBy, sortOrder]);
+  }, [page, status, ownerId, since, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -179,7 +182,12 @@ export function OrdersClient() {
           新建订单
         </Link>
         <a
-          href="/api/export/orders/export"
+          href={`/api/export/orders/export?${new URLSearchParams({
+            ...(keywordParam ? { keyword: keywordParam } : {}),
+            ...(status ? { status } : {}),
+            ...(ownerId ? { ownerId } : {}),
+            ...(since ? { since } : {}),
+          }).toString()}`}
           download
           className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
         >
@@ -187,7 +195,7 @@ export function OrdersClient() {
         </a>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : orders.length === 0 ? (

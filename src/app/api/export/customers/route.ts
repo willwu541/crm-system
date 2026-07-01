@@ -4,6 +4,10 @@ import { requireExportSession } from "@/lib/export/auth";
 import { getExportDuplicateMessage } from "@/lib/export/dedupe";
 import { generateCustomerCode } from "@/lib/export/number-generator";
 import { parseInterestedProducts } from "@/lib/export/interested-products";
+import {
+  buildExportCustomerListWhere,
+  collectUniqueEmails,
+} from "@/lib/export/customer-list-where";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -30,32 +34,33 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const where = buildExportCustomerListWhere(ctx!, {
+    keyword,
+    status,
+    country,
+    ownerId,
+    filter,
+  });
 
-  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
-  if (ownerId) where.ownerId = ownerId;
-  else if (ctx!.ownerFilter) where.ownerId = ctx!.ownerFilter.ownerId;
-  if (status) where.status = status;
-  if (filter === "today") {
-    where.nextFollowUpAt = { gte: todayStart, lt: todayEnd };
-    where.status = { notIn: ["won", "lost"] };
-  }
-  if (filter === "overdue") {
-    where.status = { notIn: ["won", "lost"] };
-    where.OR = [
-      { lastFollowUpAt: { lt: sevenDaysAgo } },
-      { lastFollowUpAt: null, createdAt: { lt: sevenDaysAgo } },
-    ];
-  }
-  if (country) where.country = { contains: country, mode: "insensitive" };
-  if (keyword) {
-    where.OR = [
-      { companyName: { contains: keyword, mode: "insensitive" } },
-      { customerCode: { contains: keyword, mode: "insensitive" } },
-    ];
+  if (searchParams.get("emails") === "1") {
+    const customers = await prisma.exportCustomer.findMany({
+      where,
+      orderBy: { companyName: "asc" },
+      take: 5000,
+      select: {
+        contacts: {
+          where: { email: { not: null } },
+          select: { email: true },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        },
+      },
+    });
+    const emails = collectUniqueEmails(customers.map((c) => c.contacts));
+    return NextResponse.json({
+      data: emails,
+      total: emails.length,
+      customerCount: customers.length,
+    });
   }
 
   const [data, total] = await Promise.all([
@@ -69,7 +74,14 @@ export async function GET(request: NextRequest) {
         contacts: {
           where: { isPrimary: true },
           take: 1,
-          select: { email: true, whatsapp: true, phone: true },
+          select: {
+            email: true,
+            whatsapp: true,
+            phone: true,
+            linkedin: true,
+            facebook: true,
+            tiktok: true,
+          },
         },
       },
     }),

@@ -15,6 +15,7 @@ import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 import { getLeadPaceBadge } from "@/lib/export/lead-pace";
 import { SocialLinksBar } from "./SocialLinksBar";
+import { ConvertLeadModal, type ConvertLeadPayload } from "./ConvertLeadModal";
 
 interface Lead {
   id: string;
@@ -70,6 +71,7 @@ export function LeadsClient() {
   const country = searchParams.get("country") ?? "";
   const ownerId = searchParams.get("ownerId") ?? "";
   const pace = searchParams.get("pace") ?? "";
+  const sourceChannel = searchParams.get("sourceChannel") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "lastContactAt";
@@ -81,7 +83,10 @@ export function LeadsClient() {
   const [keyword, setKeyword] = useState(keywordParam);
   const [countryInput, setCountryInput] = useState(country);
   const [converting, setConverting] = useState<string | null>(null);
+  const [convertLead, setConvertLead] = useState<Lead | null>(null);
   const [importing, setImporting] = useState(false);
+  const [emailCopyFormat, setEmailCopyFormat] = useState<"newline" | "comma">("newline");
+  const [copyingEmails, setCopyingEmails] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [quickModal, setQuickModal] = useState<QuickModalState>({
@@ -147,6 +152,7 @@ export function LeadsClient() {
       if (ownerId) params.set("ownerId", ownerId);
       if (since) params.set("since", since);
       if (pace) params.set("pace", pace);
+      if (sourceChannel) params.set("sourceChannel", sourceChannel);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/leads?${params}`);
@@ -178,6 +184,7 @@ export function LeadsClient() {
       country: country || undefined,
       ownerId: ownerId || undefined,
       pace: pace || undefined,
+      sourceChannel: sourceChannel || undefined,
       keyword: keyword || undefined,
       sortBy,
       sortOrder,
@@ -194,21 +201,74 @@ export function LeadsClient() {
 
   useEffect(() => {
     fetchLeads();
-  }, [page, status, country, ownerId, since, pace, keywordParam, sortBy, sortOrder]);
+  }, [page, status, country, ownerId, since, pace, sourceChannel, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     updateUrl({ keyword: keyword || undefined, country: countryInput || undefined, page: 1 });
   }
 
-  async function handleConvert(leadId: string) {
+  function buildListFilterParams(forEmails = false) {
+    const params = new URLSearchParams();
+    if (forEmails) params.set("emails", "1");
+    if (status) params.set("status", status);
+    if (keywordParam) params.set("keyword", keywordParam);
+    if (country) params.set("country", country);
+    if (ownerId) params.set("ownerId", ownerId);
+    if (since) params.set("since", since);
+    if (pace) params.set("pace", pace);
+    if (sourceChannel) params.set("sourceChannel", sourceChannel);
+    return params;
+  }
+
+  async function handleCopyEmails() {
+    setCopyingEmails(true);
+    try {
+      const res = await fetch(`/api/export/leads?${buildListFilterParams(true)}`);
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: string[];
+        total?: number;
+        leadCount?: number;
+      }>(res);
+      if (!res.ok) throw new Error(String(json.error ?? "获取邮箱失败"));
+      const emails = json.data ?? [];
+      if (emails.length === 0) {
+        toast("当前筛选结果中没有可复制的邮箱", "error");
+        return;
+      }
+      const text = emailCopyFormat === "comma" ? emails.join(", ") : emails.join("\n");
+      await navigator.clipboard.writeText(text);
+      toast(`已复制 ${emails.length} 个邮箱（${json.leadCount ?? emails.length} 条线索）`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "复制失败", "error");
+    } finally {
+      setCopyingEmails(false);
+    }
+  }
+
+  async function handleConvert(leadId: string, payload?: ConvertLeadPayload) {
     setConverting(leadId);
     setError(null);
     try {
-      const res = await fetch(`/api/export/leads/${leadId}/convert`, { method: "POST" });
+      const res = await fetch(`/api/export/leads/${leadId}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerStatus: payload?.customerStatus,
+          nextFollowUpAt: payload?.nextFollowUpAt
+            ? new Date(payload.nextFollowUpAt).toISOString()
+            : undefined,
+          createTaskTitle: payload?.createTaskTitle,
+          createTaskDueAt: payload?.createTaskDueAt
+            ? new Date(payload.createTaskDueAt).toISOString()
+            : undefined,
+        }),
+      });
       const json = await parseResponseJson(res);
       if (!res.ok) throw new Error(String(json.error ?? "转化失败"));
       const cid = (json.data as { id?: string } | undefined)?.id ?? json.customerId;
+      setConvertLead(null);
       if (cid) {
         toast("转化成功");
         router.push(`/export/customers/${cid}`);
@@ -355,8 +415,50 @@ export function LeadsClient() {
         >
           {importing ? "导入中..." : "导入 CSV"}
         </button>
+        <a
+          href={`/api/export/leads/export?${buildListFilterParams().toString()}`}
+          download
+          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+        >
+          导出 CSV
+        </a>
+        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5">
+          <select
+            value={emailCopyFormat}
+            onChange={(e) => setEmailCopyFormat(e.target.value as "newline" | "comma")}
+            className="rounded border-0 bg-transparent px-2 py-1.5 text-sm text-slate-700 focus:outline-none"
+            aria-label="邮箱复制格式"
+          >
+            <option value="newline">换行分隔</option>
+            <option value="comma">逗号分隔</option>
+          </select>
+          <button
+            type="button"
+            onClick={handleCopyEmails}
+            disabled={copyingEmails || loading}
+            className="rounded-md bg-slate-700 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {copyingEmails ? "复制中..." : "复制全部邮箱"}
+          </button>
+        </div>
       </div>
       </div>
+
+      {sourceChannel && (
+        <div className="flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800">
+          <span>
+            来源渠道：
+            {sourceChannel === "__empty__" ? "未标注来源" : sourceChannel}
+          </span>
+          <button
+            type="button"
+            onClick={() => updateUrl({ sourceChannel: undefined, page: 1 })}
+            className="text-teal-700 hover:underline"
+          >
+            清除
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
@@ -509,7 +611,7 @@ export function LeadsClient() {
                         </Link>
                         {l.status !== "converted" && (
                           <button
-                            onClick={() => handleConvert(l.id)}
+                            onClick={() => setConvertLead(l)}
                             disabled={!!converting}
                             className="text-teal-600 hover:underline disabled:opacity-50"
                           >
@@ -567,6 +669,16 @@ export function LeadsClient() {
         onSuccess={() => {
           toast("已记录");
           fetchLeads({ silent: true });
+        }}
+      />
+
+      <ConvertLeadModal
+        open={!!convertLead}
+        companyName={convertLead?.companyName ?? ""}
+        loading={!!convertLead && converting === convertLead.id}
+        onClose={() => setConvertLead(null)}
+        onSubmit={async (payload) => {
+          if (convertLead) await handleConvert(convertLead.id, payload);
         }}
       />
     </div>

@@ -268,7 +268,7 @@ export function ExportDashboardClient() {
             <span className="mt-1 text-xs text-teal-600">查看 →</span>
           </Link>
           <Link
-            href="/export/quotes?sortBy=quoteDate&sortOrder=desc"
+            href="/export/quotes?since=month&sortBy=quoteDate&sortOrder=desc"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">本月 Quotes</span>
@@ -276,7 +276,7 @@ export function ExportDashboardClient() {
             <span className="mt-1 text-xs text-teal-600">查看 →</span>
           </Link>
           <Link
-            href="/export/orders?sortBy=orderDate&sortOrder=desc"
+            href="/export/orders?since=month&sortBy=orderDate&sortOrder=desc"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
           >
             <span className="text-sm text-slate-500">本月 Orders</span>
@@ -386,8 +386,19 @@ export function ExportDashboardClient() {
               {teamRows.map((r) => (
                 <div key={r.ownerId} className="rounded-lg border border-slate-100 px-3 py-2 text-sm">
                   <p className="font-medium text-slate-800">{r.ownerName}</p>
-                  <p className="mt-1 text-xs text-slate-600">
-                    线索待跟进 {r.leadsDue} · 客户待跟进 {r.customersDue} · 今日任务 {r.tasksToday} · 超期任务 {r.tasksOverdue}
+                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+                    <Link href={`/export/leads?ownerId=${r.ownerId}&pace=due`} className="hover:text-teal-700 hover:underline">
+                      线索待跟进 {r.leadsDue}
+                    </Link>
+                    <Link href={`/export/customers?ownerId=${r.ownerId}&filter=overdue`} className="hover:text-teal-700 hover:underline">
+                      客户待跟进 {r.customersDue}
+                    </Link>
+                    <Link href={`/export/tasks?ownerId=${r.ownerId}&due=today`} className="hover:text-teal-700 hover:underline">
+                      今日任务 {r.tasksToday}
+                    </Link>
+                    <Link href={`/export/tasks?ownerId=${r.ownerId}&status=overdue`} className="hover:text-teal-700 hover:underline">
+                      超期任务 {r.tasksOverdue}
+                    </Link>
                   </p>
                 </div>
               ))}
@@ -402,7 +413,11 @@ export function ExportDashboardClient() {
           ) : (
             <div className="space-y-2">
               {sourceRows.slice(0, 10).map((r) => (
-                <div key={r.source} className="rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                <Link
+                  key={r.source}
+                  href={`/export/leads?sourceChannel=${encodeURIComponent(r.source === "未标注来源" ? "__empty__" : r.source)}`}
+                  className="block rounded-lg border border-slate-100 px-3 py-2 text-sm transition-colors hover:bg-slate-50"
+                >
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-slate-800">{r.source}</p>
                     <span className="text-xs text-teal-700">转化率 {r.conversionRate}%</span>
@@ -410,7 +425,7 @@ export function ExportDashboardClient() {
                   <p className="mt-1 text-xs text-slate-600">
                     线索 {r.totalLeads} · 有效 {r.validLeads} ({r.validRate}%) · 已转化 {r.convertedLeads}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           )}

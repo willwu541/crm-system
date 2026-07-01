@@ -19,13 +19,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await login(parsed.data.email, parsed.data.password, parsed.data.tenant);
-    if (!user) {
-      return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
+    const result = await login(parsed.data.email, parsed.data.password, parsed.data.tenant);
+    if (!result.ok) {
+      const message =
+        result.reason === "disabled" ? "账号已停用，请联系管理员" : "邮箱或密码错误";
+      return NextResponse.json({ error: message }, { status: 401 });
     }
 
-    await setSession(user);
-    return NextResponse.json({ user });
+    await setSession(result.user);
+    return NextResponse.json({ user: result.user });
   } catch (e) {
     console.error("Login error:", e);
     const msg =

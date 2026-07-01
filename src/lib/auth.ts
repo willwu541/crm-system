@@ -17,13 +17,17 @@ export interface SessionUser {
   tenantId?: string;
 }
 
+export type LoginResult =
+  | { ok: true; user: SessionUser }
+  | { ok: false; reason: "invalid" | "disabled" };
+
 export async function login(
   email: string,
   password: string,
   tenant: Tenant
-): Promise<SessionUser | null> {
+): Promise<LoginResult> {
   const emailNorm = email?.trim()?.toLowerCase();
-  if (!emailNorm) return null;
+  if (!emailNorm) return { ok: false, reason: "invalid" };
 
   const user = await prisma.user.findFirst({
     where: { email: emailNorm },
@@ -38,25 +42,27 @@ export async function login(
       passwordHash: true,
     },
   });
-  if (!user) return null;
-  if (!user.isActive) return null;
-
-  if (user.tenant !== tenant) return null;
+  if (!user || user.tenant !== tenant) return { ok: false, reason: "invalid" };
 
   try {
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return null;
+    if (!ok) return { ok: false, reason: "invalid" };
   } catch {
-    return null;
+    return { ok: false, reason: "invalid" };
   }
 
+  if (!user.isActive) return { ok: false, reason: "disabled" };
+
   return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    tenant: user.tenant as Tenant,
-    tenantId: user.tenantId ?? undefined,
+    ok: true,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      tenant: user.tenant as Tenant,
+      tenantId: user.tenantId ?? undefined,
+    },
   };
 }
 
