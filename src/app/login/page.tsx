@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Building2, Globe } from "lucide-react";
 
 type Tenant = "domestic" | "export";
 
@@ -48,82 +49,106 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-md">
-        <h1 className="mb-6 text-center text-xl font-semibold text-teal-800">
-          客户报价系统
-        </h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">登录入口</label>
-            <div className="flex gap-2">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-teal-50/30 px-4">
+      <div className="w-full max-w-[400px]">
+        {/* Logo / 品牌区 */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 shadow-lg shadow-teal-500/20">
+            <span className="text-2xl font-bold text-white">格</span>
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-800">钢格板客户报价系统</h1>
+          <p className="mt-1.5 text-sm text-slate-500">内贸 / 外贸 · 一站式管理</p>
+        </div>
+
+        {/* 登录卡片 */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-8 shadow-sm">
+          {/* 入口切换 */}
+          <div className="mb-6">
+            <label className="mb-2.5 block text-sm font-medium text-slate-600">
+              选择登录入口
+            </label>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setTenant("domestic")}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all ${
                   tenant === "domestic"
-                    ? "border-teal-500 bg-teal-50 text-teal-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    ? "border-teal-500 bg-teal-50 text-teal-700 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
                 }`}
               >
+                <Building2 className="h-4 w-4" />
                 内贸
               </button>
               <button
                 type="button"
                 onClick={() => setTenant("export")}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all ${
                   tenant === "export"
-                    ? "border-teal-500 bg-teal-50 text-teal-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    ? "border-teal-500 bg-teal-50 text-teal-700 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
                 }`}
               >
+                <Globe className="h-4 w-4" />
                 外贸
               </button>
             </div>
           </div>
-          {error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-              {error}
+
+          {/* 表单 */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-600">
+                邮箱
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
+                placeholder="请输入邮箱"
+                required
+                autoComplete="email"
+              />
             </div>
-          )}
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-              邮箱
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              placeholder="admin@example.com"
-              required
-              autoComplete="email"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
-              密码
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full min-h-[44px] rounded-lg bg-teal-600 px-4 py-3 font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "登录中..." : "登录"}
-          </button>
-        </form>
+
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-600">
+                密码
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
+                placeholder="请输入密码"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-gradient-to-r from-teal-600 to-teal-500 px-4 py-3.5 text-sm font-semibold text-white shadow-sm shadow-teal-500/25 hover:from-teal-700 hover:to-teal-600 disabled:opacity-50 transition-all active:scale-[0.98]"
+            >
+              {loading ? "登录中..." : `进入${tenant === "domestic" ? "内贸" : "外贸"}系统`}
+            </button>
+          </form>
+        </div>
+
+        {/* 底部 */}
+        <p className="mt-6 text-center text-xs text-slate-400">
+          &copy; {new Date().getFullYear()} 钢格板CRM · 客户报价管理系统
+        </p>
       </div>
     </div>
   );
@@ -131,7 +156,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">加载中...</div>}>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-teal-50/30">
+        <div className="animate-pulse text-slate-400">加载中...</div>
+      </div>
+    }>
       <LoginForm />
     </Suspense>
   );
