@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
     const orderId = formData.get("orderId") as string | null;
     const orderItemId = formData.get("orderItemId") as string | null;
+    // 通用附件：entityType=lead|customer, entityId=具体id
+    const entityType = formData.get("entityType") as string | null;
+    const entityId = formData.get("entityId") as string | null;
 
     if (!file || file.size === 0) {
       return NextResponse.json({ error: "请选择文件" }, { status: 400 });
@@ -47,20 +51,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "文件大小不能超过 50MB" }, { status: 400 });
     }
 
-    const dir = orderItemId
-      ? path.join(process.cwd(), "public", "uploads", orderId, "items", orderItemId)
-      : path.join(process.cwd(), "public", "uploads", orderId);
+    // 构建目录：优先订单→通用实体
+    let dir: string;
+    let relativePath: string;
+    
+    if (orderId) {
+      dir = orderItemId
+        ? path.join(process.cwd(), "public", "uploads", orderId, "items", orderItemId)
+        : path.join(process.cwd(), "public", "uploads", orderId);
+    } else if (entityType && entityId) {
+      dir = path.join(process.cwd(), "public", "uploads", entityType, entityId);
+    } else {
+      dir = path.join(process.cwd(), "public", "uploads", "general");
+    }
     await mkdir(dir, { recursive: true });
 
     const ext = path.extname(file.name) || "";
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
     const filePath = path.join(dir, safeName);
-    const relativePath = orderItemId
-      ? `uploads/${orderId}/items/${orderItemId}/${safeName}`
-      : `uploads/${orderId}/${safeName}`;
+    
+    if (orderId) {
+      relativePath = orderItemId
+        ? `uploads/${orderId}/items/${orderItemId}/${safeName}`
+        : `uploads/${orderId}/${safeName}`;
+    } else if (entityType && entityId) {
+      relativePath = `uploads/${entityType}/${entityId}/${safeName}`;
+    } else {
+      relativePath = `uploads/general/${safeName}`;
+    }
 
     const bytes = await file.arrayBuffer();
     await writeFile(filePath, Buffer.from(bytes));
+
+    // 通用附件：写入数据库记录
+    if (entityType && entityId) {
+      await prisma.fileAttachment.create({
+        data: {
+          entityType,
+          entityId,
+          fileName: file.name,
+          filePath: `/${relativePath}`,
+          fileSize: file.size,
+          mimeType: file.type || "application/octet-stream",
+          uploadedById: user.id,
+        },
+      });
+    }
 
     return NextResponse.json({
       fileName: file.name,

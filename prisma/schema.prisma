@@ -11,6 +11,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  MANAGER
   SALES
 }
 
@@ -58,6 +59,42 @@ enum Tenant {
   export
 }
 
+enum CustomerStatus {
+  ACTIVE
+  DORMANT
+  AWAKENING
+  LOST
+}
+
+enum RecordingAnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum CustomerQuoteStatus {
+  DRAFT
+  SENT
+  NEGOTIATING
+  WON
+  LOST
+}
+
+enum TaskPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -75,6 +112,19 @@ model User {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   orders               Order[]
+  customers            Customer[]              @relation("CustomerOwner")
+  customersCreated     Customer[]              @relation("CustomerCreatedBy")
+  customersClaimed     Customer[]              @relation("CustomerPoolClaimedBy")
+  callRecordings       CallRecording[]
+  leads                Lead[]                  @relation("LeadOwner")
+  leadsCreated         Lead[]                  @relation("LeadCreatedBy")
+  customerQuotesCreated CustomerQuote[]        @relation("CustomerQuoteCreatedBy")
+  customerQuotesApproved CustomerQuote[]        @relation("CustomerQuoteApprovedBy")
+  tasks                Task[]
+  moments              Moment[]
+  followUps            FollowUp[]             @relation("FollowUpCreatedBy")
+  fileAttachments      FileAttachment[]
+  orderPayments        OrderPayment[]             @relation("OrderPaymentRecorder")
   exportTenant         ExportTenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   exportLeads          ExportLead[]
   exportCustomers      ExportCustomer[]
@@ -84,6 +134,91 @@ model User {
   exportEmailTemplates ExportEmailTemplate[]
 
   @@map("users")
+}
+
+model Customer {
+  id             String         @id @default(cuid())
+  name           String
+  contactName    String         @map("contact_name")
+  contactPhone   String         @map("contact_phone")
+  wechat         String?
+  region         String?
+  source         String?
+  industry       String?
+  status         CustomerStatus @default(ACTIVE)
+  // 公海相关字段
+  isDealLost     Boolean        @default(false) @map("is_deal_lost")
+  dealLostReason String?        @map("deal_lost_reason")
+  dealLostAt     DateTime?      @map("deal_lost_at")
+  isInPool       Boolean        @default(false) @map("is_in_pool")
+  poolClaimedById String?       @map("pool_claimed_by_id")
+  poolClaimedAt  DateTime?      @map("pool_claimed_at")
+  poolReleasedAt DateTime?      @map("pool_released_at")
+  poolEnteredAt  DateTime?      @map("pool_entered_at")
+  poolAutoDays   Int?           @map("pool_auto_days")
+  // 跟进时间
+  lastContactAt  DateTime?      @map("last_contact_at")
+  lastFollowUpAt DateTime?      @map("last_follow_up_at")
+  nextFollowUpAt DateTime?      @map("next_follow_up_at")
+  lastWakeUpAt   DateTime?      @map("last_wake_up_at")
+  wakeUpCount    Int            @default(0) @map("wake_up_count")
+  tier           String         @default("NORMAL") // VIP / NORMAL / LOW
+  remark         String?
+  ownerId        String         @map("owner_id")
+  createdById    String         @map("created_by_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  owner         User             @relation("CustomerOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdBy     User             @relation("CustomerCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  poolClaimedBy User?            @relation("CustomerPoolClaimedBy", fields: [poolClaimedById], references: [id], onDelete: SetNull)
+  orders        Order[]
+  recordings    CallRecording[]
+  leads         Lead[]
+  quotes        CustomerQuote[]
+  tasks         Task[]
+  followUps     FollowUp[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([isInPool])
+  @@index([lastContactAt])
+  @@index([nextFollowUpAt])
+  @@index([dealLostAt])
+  @@map("customers")
+}
+
+model CallRecording {
+  id                String                  @id @default(cuid())
+  customerId        String                  @map("customer_id")
+  orderId           String?                 @map("order_id")
+  title             String?
+  fileName          String                  @map("file_name")
+  filePath          String                  @map("file_path")
+  fileSize          Int                     @map("file_size")
+  mimeType          String                  @map("mime_type")
+  duration          Int?
+  transcript        String?                 @db.Text
+  summary           String?                 @db.Text
+  customerIntent    String?                 @map("customer_intent")
+  keyPoints         String[]                @map("key_points")
+  suggestedFollowUp String?                 @map("suggested_follow_up") @db.Text
+  sentiment         String?
+  analysisStatus    RecordingAnalysisStatus @default(PENDING) @map("analysis_status")
+  analysisError     String?                 @map("analysis_error")
+  uploadedById      String                  @map("uploaded_by_id")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order      Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  uploadedBy User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([orderId])
+  @@index([analysisStatus])
+  @@index([createdAt])
+  @@map("call_recordings")
 }
 
 model Supplier {
@@ -102,6 +237,7 @@ model Supplier {
 model Order {
   id                    String          @id @default(cuid())
   orderNo               String          @unique @map("order_no")
+  customerId            String?         @map("customer_id")
   customerName          String          @map("customer_name")
   contactName           String          @map("contact_name")
   contactPhone          String          @map("contact_phone")
@@ -120,17 +256,24 @@ model Order {
   isOrderedToSupplier   Boolean         @default(false) @map("is_ordered_to_supplier")
   customerPaymentStatus PaymentStatus?  @map("customer_payment_status")
   supplierPaymentStatus PaymentStatus?  @map("supplier_payment_status")
+  paidAmount            Decimal         @default(0) @map("paid_amount") @db.Decimal(18, 4)
+  totalAmount           Decimal?        @map("total_amount") @db.Decimal(18, 4)
   createdById           String          @map("created_by_id")
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
 
   createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  customer      Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   attachments   OrderAttachment[]
   quoteLinks    QuoteLink[]
   quotes        Quote[]
+  recordings    CallRecording[]
+  payments      OrderPayment[]
   selectedQuote Quote?            @relation("SelectedQuote", fields: [selectedQuoteId], references: [id], onDelete: SetNull)
+  customerQuote CustomerQuote?
 
+  @@index([customerId])
   @@map("orders")
 }
 
@@ -154,6 +297,25 @@ model OrderItem {
   quoteItems  QuoteItem[]
 
   @@map("order_items")
+}
+
+/// 订单回款记录
+model OrderPayment {
+  id            String   @id @default(cuid())
+  orderId       String   @map("order_id")
+  amount        Decimal  @db.Decimal(18, 4)
+  paymentDate   DateTime @map("payment_date")
+  method        String   @default("BANK") // BANK / CASH / WECHAT / ALIPAY / OTHER
+  remark        String?
+  recordedById  String   @map("recorded_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recordedBy User  @relation("OrderPaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([paymentDate])
+  @@map("order_payments")
 }
 
 model OrderAttachment {
@@ -224,6 +386,184 @@ model QuoteItem {
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   @@map("quote_items")
+}
+
+// ========== 内贸 CRM 新增模型 ==========
+
+/// 内贸线索（电销用）
+model Lead {
+  id           String     @id @default(cuid())
+  companyName  String     @map("company_name")
+  contactName  String     @map("contact_name")
+  contactPhone String     @map("contact_phone")
+  wechat       String?
+  region       String?
+  source       String?
+  industry     String?
+  productNeed  String?    @map("product_need")
+  intention    String? // 意向程度：高/中/低
+  status       LeadStatus @default(NEW)
+  remark       String?
+  ownerId      String     @map("owner_id")
+  createdById  String     @map("created_by_id")
+  customerId   String?    @map("customer_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  owner     User      @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdBy User      @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  customer  Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  tasks     Task[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+/// 内贸客户报价（面向客户，含明细行）
+model CustomerQuote {
+  id              String              @id @default(cuid())
+  customerId      String              @map("customer_id")
+  quoteNo         String              @unique @map("quote_no")
+  contactName     String              @map("contact_name")
+  contactPhone    String              @map("contact_phone")
+  projectName     String?             @map("project_name")
+  deliveryRegion  String?             @map("delivery_region")
+  includeTax      Boolean             @default(true) @map("include_tax")
+  includeShipping Boolean             @default(false) @map("include_shipping")
+  paymentTerm     String?             @map("payment_term")
+  validUntil      DateTime?           @map("valid_until")
+  totalAmount     Decimal?            @map("total_amount") @db.Decimal(18, 4)
+  status          CustomerQuoteStatus @default(DRAFT)
+  wonOrderId      String?             @unique @map("won_order_id")
+  remark          String?
+  createdById     String              @map("created_by_id")
+  approvedById    String?             @map("approved_by_id")
+  approvedAt      DateTime?           @map("approved_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  customer   Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy  User                @relation("CustomerQuoteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy User?               @relation("CustomerQuoteApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  wonOrder   Order?              @relation(fields: [wonOrderId], references: [id], onDelete: SetNull)
+  items      CustomerQuoteItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("customer_quotes")
+}
+
+/// 内贸客户报价明细行
+model CustomerQuoteItem {
+  id          String   @id @default(cuid())
+  quoteId     String   @map("quote_id")
+  sortOrder   Int      @default(0) @map("sort_order")
+  productType String   @map("product_type")
+  specModel   String   @map("spec_model")
+  material    String?
+  dimensions  String?
+  quantity    Decimal  @db.Decimal(18, 4)
+  unit        String
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
+  amount      Decimal  @db.Decimal(18, 4)
+  theoryWeight Decimal? @map("theory_weight") @db.Decimal(18, 4)
+  actualWeight Decimal? @map("actual_weight") @db.Decimal(18, 4)
+  remark      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quote CustomerQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("customer_quote_items")
+}
+
+/// 内贸每日待办任务
+model Task {
+  id         String       @id @default(cuid())
+  title      String
+  type       String       @default("general") // follow_up / quote / moment / general
+  customerId String?      @map("customer_id")
+  leadId     String?      @map("lead_id")
+  dueDate    DateTime?    @map("due_date")
+  priority   TaskPriority @default(MEDIUM)
+  status     String       @default("todo") // todo / done
+  ownerId    String       @map("owner_id")
+  notes      String?
+  doneAt     DateTime?    @map("done_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lead     Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([dueDate])
+  @@index([status])
+  @@index([createdAt])
+  @@map("tasks")
+}
+
+/// 朋友圈文案库
+model Moment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  mediaUrls String[] @map("media_urls")
+  category  String? // 产品展示 / 案例分享 / 行业资讯 / 促销活动
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdById String @map("created_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([isActive])
+  @@index([category])
+  @@map("moments")
+}
+
+/// 跟进记录（文字沟通记录）
+model FollowUp {
+  id          String   @id @default(cuid())
+  customerId  String   @map("customer_id")
+  content     String   @db.Text
+  type        String   @default("call") // call / visit / wechat / note / email
+  outcome     String?  // 跟进结果：有意向 / 待考虑 / 拒绝 / 已成交
+  nextPlan    String?  @map("next_plan") @db.Text // 下一步计划
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("follow_ups")
+}
+
+/// 通用文件附件（照片、图纸等）
+model FileAttachment {
+  id           String   @id @default(cuid())
+  entityType   String   @map("entity_type") // lead / customer / order
+  entityId     String   @map("entity_id")
+  fileName     String   @map("file_name")
+  filePath     String   @map("file_path")
+  fileSize     Int      @map("file_size")
+  mimeType     String   @map("mime_type")
+  category     String?  // photo / drawing / other
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("file_attachments")
 }
 
 model OperationLog {

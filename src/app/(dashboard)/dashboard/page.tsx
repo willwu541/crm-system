@@ -2,6 +2,11 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { customerOwnerFilter } from "@/lib/domestic/customer-access";
+import { REACTIVATION_STATUSES } from "@/lib/domestic/constants";
+import { DEFAULT_DORMANT_DAYS, getDormantThresholdDate } from "@/lib/domestic/reactivation";
+import { TodayFollowUps } from "@/components/dashboard/TodayFollowUps";
+import { serializeForClient } from "@/lib/utils";
 
 const STATUS_MAP: Record<string, string> = {
   DRAFT: "草稿",
@@ -22,6 +27,8 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   const where = user.role === "SALES" ? { createdById: user.id } : {};
+  const customerWhere = customerOwnerFilter(user);
+  const dormantThreshold = getDormantThresholdDate(DEFAULT_DORMANT_DAYS);
 
   const [
     totalOrders,
@@ -31,6 +38,19 @@ export default async function DashboardPage() {
     withQuotes,
     hasSelectedSupplier,
     recentOrders,
+    totalCustomers,
+    dormantCustomers,
+    pendingAnalysis,
+    totalLeads,
+    poolCustomers,
+    activeQuotes,
+    myTasks,
+    todayFollowUps,
+    todayFollowUpCount,
+    inProduction,
+    pendingShipments,
+    monthPerformance,
+    yearPerformance,
   ] = await Promise.all([
     prisma.order.count({ where }),
     prisma.order.groupBy({
@@ -77,6 +97,82 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 15,
     }),
+    prisma.customer.count({ where: customerWhere }),
+    prisma.customer.count({
+      where: {
+        ...customerWhere,
+        status: { in: REACTIVATION_STATUSES },
+        OR: [
+          { lastContactAt: { lt: dormantThreshold } },
+          { lastContactAt: null, createdAt: { lt: dormantThreshold } },
+        ],
+      },
+    }),
+    prisma.callRecording.count({
+      where: {
+        analysisStatus: { in: ["PENDING", "FAILED"] },
+        customer: customerWhere,
+      },
+    }),
+    // 新增统计
+    prisma.lead.count({
+      where: { ...(user.role === "SALES" ? { ownerId: user.id } : {}) },
+    }),
+    prisma.customer.count({
+      where: { isInPool: true },
+    }),
+    prisma.customerQuote.count({
+      where: {
+        ...(user.role === "SALES" ? { createdById: user.id } : {}),
+        status: { notIn: ["WON", "LOST"] },
+      },
+    }),
+    prisma.task.count({
+      where: {
+        ownerId: user.id,
+        status: "todo",
+      },
+    }),
+    prisma.customer.findMany({
+      where: {
+        ...customerWhere,
+        nextFollowUpAt: { lte: new Date() },
+      },
+      select: { id: true, name: true, contactName: true, contactPhone: true, nextFollowUpAt: true, lastContactAt: true, isInPool: true },
+      orderBy: { nextFollowUpAt: "asc" },
+      take: 20,
+    }),
+    prisma.customer.count({
+      where: {
+        ...customerWhere,
+        nextFollowUpAt: { lte: new Date() },
+      },
+    }),
+    prisma.order.count({
+      where: { ...where, mainStatus: "IN_PRODUCTION" },
+    }),
+    prisma.order.count({
+      where: { ...where, mainStatus: "PENDING_SHIPMENT" },
+    }),
+    // 我的业绩：本月成交
+    prisma.order.aggregate({
+      where: {
+        ...where,
+        createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+        mainStatus: { in: ["CONVERTED", "IN_PRODUCTION", "PENDING_SHIPMENT", "COMPLETED"] },
+      },
+      _sum: { finalPrice: true },
+      _count: true,
+    }),
+    // 本年累计
+    prisma.order.aggregate({
+      where: {
+        ...where,
+        createdAt: { gte: new Date(new Date().getFullYear(), 0, 1) },
+        mainStatus: { in: ["CONVERTED", "IN_PRODUCTION", "PENDING_SHIPMENT", "COMPLETED"] },
+      },
+      _sum: { finalPrice: true },
+    }),
   ]);
 
   const statusCounts: Record<string, number> = {};
@@ -92,6 +188,110 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-slate-800">后台概览</h1>
+
+      {/* 快捷卡片 */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Link href="/leads" className="rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 p-5 hover:shadow-md transition-shadow">
+          <div className="text-3xl font-bold text-blue-700">{totalLeads}</div>
+          <div className="text-sm text-slate-600 mt-1">线索总数</div>
+          <div className="text-xs text-blue-600 mt-2">查看管理 →</div>
+        </Link>
+        <Link href="/quotes" className="rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 p-5 hover:shadow-md transition-shadow">
+          <div className="text-3xl font-bold text-purple-700">{activeQuotes}</div>
+          <div className="text-sm text-slate-600 mt-1">进行中的报价</div>
+          <div className="text-xs text-purple-600 mt-2">查看管理 →</div>
+        </Link>
+        <Link href="/seapool" className="rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 p-5 hover:shadow-md transition-shadow">
+          <div className="text-3xl font-bold text-amber-700">{poolCustomers}</div>
+          <div className="text-sm text-slate-600 mt-1">公海客户</div>
+          <div className="text-xs text-amber-600 mt-2">去认领 →</div>
+        </Link>
+        <Link href="/orders" className="rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 p-5 hover:shadow-md transition-shadow">
+          <div className="text-3xl font-bold text-emerald-700">{inProduction}</div>
+          <div className="text-sm text-slate-600 mt-1">生产中</div>
+          <div className="text-xs text-emerald-600 mt-2">查看订单 →</div>
+        </Link>
+        <Link href="/orders" className="rounded-lg bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-200 p-5 hover:shadow-md transition-shadow">
+          <div className="text-3xl font-bold text-sky-700">{pendingShipments}</div>
+          <div className="text-sm text-slate-600 mt-1">待发货</div>
+          <div className="text-xs text-sky-600 mt-2">准备物流 →</div>
+        </Link>
+        <Link href="/tasks" className="rounded-lg bg-gradient-to-br from-rose-50 to-rose-100 border border-rose-200 p-5 hover:shadow-md transition-shadow">
+          <div className="text-3xl font-bold text-rose-700">{myTasks}</div>
+          <div className="text-sm text-slate-600 mt-1">我的待办</div>
+          <div className="text-xs text-rose-600 mt-2">去处理 →</div>
+        </Link>
+      </div>
+
+      {/* 我的业绩 */}
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-4 font-medium text-slate-800">
+          {user.role === "SALES" ? "我的业绩" : "全员业绩"}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 p-5">
+            <div className="text-3xl font-bold text-emerald-700">
+              ¥{Number(monthPerformance._sum.finalPrice || 0).toLocaleString()}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">本月成交额</div>
+            <div className="text-xs text-emerald-600 mt-2">{monthPerformance._count} 个订单</div>
+          </div>
+          <div className="rounded-lg bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 p-5">
+            <div className="text-3xl font-bold text-orange-700">
+              ¥{Number(yearPerformance._sum.finalPrice || 0).toLocaleString()}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">本年累计</div>
+            <div className="text-xs text-orange-600 mt-2">{new Date().getFullYear()} 年</div>
+          </div>
+          <div className="rounded-lg bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 p-5">
+            <div className="text-3xl font-bold text-indigo-700">{inProduction}</div>
+            <div className="text-sm text-slate-600 mt-1">生产中订单</div>
+            <div className="text-xs text-indigo-600 mt-2">{pendingShipments} 待发货</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 今日待跟进 */}
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-medium text-slate-800">今日待跟进 <span className="text-sm font-normal text-slate-500">({todayFollowUpCount}个客户)</span></h2>
+        </div>
+        {todayFollowUps.length === 0 && todayFollowUpCount === 0 ? (
+          <p className="text-sm text-slate-400">今天没有需要跟进的客户，干得漂亮！</p>
+        ) : (
+          <TodayFollowUps data={serializeForClient(todayFollowUps) as any} />
+        )}
+      </div>
+
+      {/* 客户与私域 */}
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-medium text-slate-800">客户与私域</h2>
+          <Link href="/customers/reactivation" className="text-sm text-teal-600 hover:underline">
+            进入私域唤醒 →
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg bg-teal-50 p-4">
+            <div className="text-2xl font-semibold text-teal-700">{totalCustomers}</div>
+            <div className="text-sm text-slate-500">客户总数</div>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-4">
+            <div className="text-2xl font-semibold text-amber-700">{dormantCustomers}</div>
+            <div className="text-sm text-slate-500">待唤醒客户（≥{DEFAULT_DORMANT_DAYS}天未联系）</div>
+          </div>
+          <div className="rounded-lg bg-blue-50 p-4">
+            <div className="text-2xl font-semibold text-blue-700">{pendingAnalysis}</div>
+            <div className="text-sm text-slate-500">待分析录音</div>
+          </div>
+          <Link
+            href="/customers/new"
+            className="flex items-center justify-center rounded-lg border border-dashed border-teal-300 bg-teal-50/50 p-4 text-sm text-teal-700 hover:bg-teal-50"
+          >
+            + 新建客户
+          </Link>
+        </div>
+      </div>
 
       {/* 订单概况 */}
       <div className="rounded-lg border border-slate-200 bg-white p-6">

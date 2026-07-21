@@ -22,7 +22,7 @@ export function UserList() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"ADMIN" | "SALES">("SALES");
+  const [role, setRole] = useState<"ADMIN" | "MANAGER" | "SALES">("SALES");
   const [tenant, setTenant] = useState<"domestic" | "export">("domestic");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -30,7 +30,7 @@ export function UserList() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState<"ADMIN" | "SALES">("SALES");
+  const [editRole, setEditRole] = useState<"ADMIN" | "MANAGER" | "SALES">("SALES");
   const [editTenant, setEditTenant] = useState<"domestic" | "export">("domestic");
   const [editIsActive, setEditIsActive] = useState(true);
   const [editPassword, setEditPassword] = useState("");
@@ -80,7 +80,7 @@ export function UserList() {
   function openEdit(user: User) {
     setEditing(user);
     setEditName(user.name);
-    setEditRole(user.role as "ADMIN" | "SALES");
+    setEditRole(user.role as "ADMIN" | "MANAGER" | "SALES");
     setEditTenant(user.tenant as "domestic" | "export");
     setEditIsActive(user.isActive);
     setEditPassword("");
@@ -187,10 +187,11 @@ export function UserList() {
               <label className="mb-1 block text-sm font-medium">角色</label>
               <select
                 value={role}
-                onChange={(e) => setRole(e.target.value as "ADMIN" | "SALES")}
+                onChange={(e) => setRole(e.target.value as "ADMIN" | "MANAGER" | "SALES")}
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
               >
                 <option value="SALES">业务员</option>
+                <option value="MANAGER">经理</option>
                 <option value="ADMIN">管理员</option>
               </select>
             </div>
@@ -248,7 +249,7 @@ export function UserList() {
                   <td className="px-4 py-3">{u.name}</td>
                   <td className="px-4 py-3">
                     <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                      {u.role === "ADMIN" ? "管理员" : "业务员"}
+                      {u.role === "ADMIN" ? "管理员" : u.role === "MANAGER" ? "经理" : "业务员"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -326,10 +327,11 @@ export function UserList() {
                 <label className="mb-1 block text-sm font-medium">角色</label>
                 <select
                   value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as "ADMIN" | "SALES")}
+                  onChange={(e) => setEditRole(e.target.value as "ADMIN" | "MANAGER" | "SALES")}
                   className="w-full rounded-md border border-slate-300 px-3 py-2"
                 >
                   <option value="SALES">业务员</option>
+                  <option value="MANAGER">经理</option>
                   <option value="ADMIN">管理员</option>
                 </select>
               </div>

@@ -4,9 +4,9 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-async function requireAdmin() {
+async function requireAdminOrManager() {
   const me = await getSession();
-  if (!me || me.role !== "ADMIN") {
+  if (!me || (me.role !== "ADMIN" && me.role !== "MANAGER")) {
     return { me: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { me, error: null };
@@ -14,7 +14,7 @@ async function requireAdmin() {
 
 const updateSchema = z.object({
   name: z.string().min(1, "姓名必填").optional(),
-  role: z.enum(["ADMIN", "SALES"]).optional(),
+  role: z.enum(["ADMIN", "MANAGER", "SALES"]).optional(),
   tenant: z.enum(["domestic", "export"]).optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(6, "密码至少6位").optional(),
@@ -24,7 +24,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { me, error } = await requireAdmin();
+  const { me, error } = await requireAdminOrManager();
   if (error) return error;
 
   const { id } = await params;
@@ -118,7 +118,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { me, error } = await requireAdmin();
+  const { me, error } = await requireAdminOrManager();
   if (error) return error;
 
   const { id } = await params;

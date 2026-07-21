@@ -6,7 +6,7 @@ import { z } from "zod";
 
 export async function GET() {
   const user = await getSession();
-  if (!user || user.role !== "ADMIN") {
+  if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
@@ -30,13 +30,13 @@ const createSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6, "密码至少6位"),
   name: z.string().min(1, "姓名必填"),
-  role: z.enum(["ADMIN", "SALES"]),
+  role: z.enum(["ADMIN", "MANAGER", "SALES"]),
   tenant: z.enum(["domestic", "export"]),
 });
 
 export async function POST(request: NextRequest) {
   const user = await getSession();
-  if (!user || user.role !== "ADMIN") {
+  if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

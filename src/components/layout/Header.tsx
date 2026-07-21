@@ -17,9 +17,16 @@ export function Header({ user }: { user: SessionUser }) {
 
   const navLinks = [
     { href: "/dashboard", label: "后台概览" },
+    { href: "/customers", label: "客户管理" },
+    { href: "/leads", label: "线索管理" },
+    { href: "/seapool", label: "公海池" },
+    { href: "/customers/reactivation", label: "私域唤醒" },
     { href: "/orders", label: "订单管理" },
+    { href: "/quotes", label: "客户报价" },
     { href: "/suppliers", label: "加工户管理" },
-    ...(user.role === "ADMIN"
+    { href: "/tasks", label: "待办任务" },
+    { href: "/moments", label: "朋友圈" },
+    ...(user.role === "ADMIN" || user.role === "MANAGER"
       ? [
           { href: "/admin/users", label: "用户管理" },
           { href: "/admin/logs", label: "操作日志" },
@@ -49,7 +56,7 @@ export function Header({ user }: { user: SessionUser }) {
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           <span className="hidden text-sm text-slate-600 sm:inline">
-            {user.name} ({user.role === "ADMIN" ? "管理员" : "业务员"})
+            {user.name} ({user.role === "ADMIN" ? "管理员" : user.role === "MANAGER" ? "经理" : "业务员"})
           </span>
           <button
             onClick={handleLogout}
@@ -86,7 +93,7 @@ export function Header({ user }: { user: SessionUser }) {
             </Link>
           ))}
           <div className="pt-2 mt-2 border-t border-slate-200 text-sm text-slate-500">
-            {user.name} · {user.role === "ADMIN" ? "管理员" : "业务员"}
+            {user.name} · {user.role === "ADMIN" ? "管理员" : user.role === "MANAGER" ? "经理" : "业务员"}
           </div>
         </nav>
       )}

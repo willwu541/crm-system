@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   const user = await getSession();
-  if (!user || user.role !== "ADMIN" || user.tenant !== "domestic") {
+  if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER") || user.tenant !== "domestic") {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

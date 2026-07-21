@@ -8,6 +8,7 @@ import { OrderStatusSelect } from "@/components/orders/OrderStatusSelect";
 import { OrderProductionSelect } from "@/components/orders/OrderProductionSelect";
 import { OrderPaymentSelect } from "@/components/orders/OrderPaymentSelect";
 import { OrderDeleteButton } from "@/components/orders/OrderDeleteButton";
+import { PaymentPanel } from "@/components/orders/PaymentPanel";
 import { OrderFinalResult } from "@/components/orders/OrderFinalResult";
 
 const STATUS_MAP: Record<string, string> = {
@@ -182,6 +183,8 @@ export default async function OrderDetailPage({
           </table>
         </div>
       </div>
+
+      <PaymentPanel orderId={id} />
 
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium text-slate-800">图纸文件</h2>

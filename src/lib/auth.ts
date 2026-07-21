@@ -11,7 +11,7 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "SALES";
+  role: "ADMIN" | "MANAGER" | "SALES";
   tenant: Tenant;
   /** 当 tenant=export 时必填，指向 ExportTenant */
   tenantId?: string;
