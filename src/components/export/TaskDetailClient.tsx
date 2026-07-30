@@ -85,7 +85,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">{String(task.title)}</h1>
+          <h1 className="export-page-title text-xl font-semibold">{String(task.title)}</h1>
           <p className="text-sm text-slate-500">
             {displayLabel(taskStatusLabel, task.status as string | undefined)} ·{" "}
             {displayLabel(taskPriorityLabel, task.priority as string | undefined)}
@@ -96,14 +96,14 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
             <button
               onClick={handleComplete}
               disabled={completing}
-              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {completing ? "处理中..." : "标记完成"}
             </button>
           )}
           <button
             onClick={() => setEditing(true)}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             编辑
           </button>
@@ -115,14 +115,14 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
           />
           <Link
             href="/export/tasks"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             返回
           </Link>
         </div>
       </div>
 
-      <div className="export-card p-6">
+      <div className="export-card export-detail-group p-6">
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">关联对象</dt>

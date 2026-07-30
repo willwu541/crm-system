@@ -284,7 +284,7 @@ export function CustomersClient() {
             <option value="nextFollowUpAt:asc">最近待跟进</option>
             <option value="companyName:asc">公司 A-Z</option>
           </select>
-          <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
+          <button type="submit" className="export-btn-primary rounded-md px-4 py-2 text-sm">
             搜索
           </button>
         </form>
@@ -297,7 +297,7 @@ export function CustomersClient() {
         <a
           href={`/api/export/customers/export?${buildListFilterParams().toString()}`}
           download
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+          className="export-btn-secondary rounded-md px-4 py-2 text-sm"
         >
           导出 CSV
         </a>
@@ -315,7 +315,7 @@ export function CustomersClient() {
             type="button"
             onClick={handleCopyEmails}
             disabled={copyingEmails || loading}
-            className="rounded-md bg-slate-700 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="export-btn-primary rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
           >
             {copyingEmails ? "复制中..." : "复制全部邮箱"}
           </button>
@@ -342,8 +342,8 @@ export function CustomersClient() {
             </div>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+          <table className="export-table w-full text-sm">
+            <thead className="border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">客户编号</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">公司</th>
@@ -360,7 +360,7 @@ export function CustomersClient() {
               {customers.map((c) => (
                 <tr
                   key={c.id}
-                  className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+                  className="cursor-pointer border-b border-slate-100"
                   onClick={() => router.push(`/export/customers/${c.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{c.customerCode}</td>

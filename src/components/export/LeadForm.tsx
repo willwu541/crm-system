@@ -198,7 +198,7 @@ export function LeadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="export-card max-w-3xl space-y-4 p-6">
+    <form onSubmit={handleSubmit} className="export-card export-detail-group max-w-3xl space-y-5 p-7">
       {error && (
         <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
       )}

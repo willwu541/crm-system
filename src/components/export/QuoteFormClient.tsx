@@ -131,7 +131,7 @@ export function QuoteFormClient({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="export-card max-w-2xl space-y-4 p-6">
+    <form onSubmit={handleSubmit} className="export-card export-detail-group max-w-2xl space-y-5 p-7">
       <h1 className="text-xl font-semibold text-slate-800">{quoteId ? "编辑报价" : "新建报价"}</h1>
       {error && (
         <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>

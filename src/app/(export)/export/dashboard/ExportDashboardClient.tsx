@@ -79,8 +79,8 @@ export function ExportDashboardClient() {
     };
   }, []);
 
-  if (loading) return <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm">加载中...</div>;
-  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-red-600 shadow-sm">{error}</div>;
+  if (loading) return <div className="export-card p-12 text-center text-slate-500">加载中...</div>;
+  if (error) return <div className="export-card border-red-200 bg-red-50 p-8 text-center text-red-600">{error}</div>;
   if (!data) return null;
 
   async function runSop() {
@@ -117,14 +117,14 @@ export function ExportDashboardClient() {
   return (
     <div className="space-y-6">
       {/* 线索开发待办 */}
-      <div className="export-card bg-gradient-to-r from-sky-50/90 to-cyan-50/70 p-5">
+      <div className="export-card bg-gradient-to-r from-blue-50 to-slate-50 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-slate-700">线索开发（今日优先）</h2>
           <button
             type="button"
             onClick={runSop}
             disabled={runningSop}
-            className="export-btn-secondary rounded-md px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-xs font-medium text-blue-700 disabled:opacity-50"
           >
             {runningSop ? "SOP执行中..." : "一键运行SOP自动任务"}
           </button>
@@ -137,7 +137,7 @@ export function ExportDashboardClient() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href="/export/leads?pace=never&sortBy=createdAt&sortOrder=desc"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-sky-50/50"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <span className="text-sm text-slate-500">未联系过</span>
             <span
@@ -145,11 +145,11 @@ export function ExportDashboardClient() {
             >
               {data.leadsNeverCount}
             </span>
-            <span className="mt-1 text-xs text-sky-700">去开发 →</span>
+            <span className="export-soft-link mt-1 text-xs">去开发 →</span>
           </Link>
           <Link
             href="/export/leads?pace=due&sortBy=lastContactAt&sortOrder=asc"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-sky-50/50"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <span className="text-sm text-slate-500">二次及以上联系</span>
             <span
@@ -157,11 +157,11 @@ export function ExportDashboardClient() {
             >
               {data.leadsDueCount}
             </span>
-            <span className="mt-1 text-xs text-sky-700">按最久未联系排序 →</span>
+            <span className="export-soft-link mt-1 text-xs">按最久未联系排序 →</span>
           </Link>
           <Link
             href="/export/leads?pace=stuck&sortBy=lastContactAt&sortOrder=asc"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-sky-50/50"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <span className="text-sm text-slate-500">联系 3+ 无响应</span>
             <span
@@ -169,7 +169,7 @@ export function ExportDashboardClient() {
             >
               {data.leadsStuckCount}
             </span>
-            <span className="mt-1 text-xs text-sky-700">查看 →</span>
+            <span className="export-soft-link mt-1 text-xs">查看 →</span>
           </Link>
         </div>
       </div>

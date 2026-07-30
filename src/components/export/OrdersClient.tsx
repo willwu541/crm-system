@@ -201,8 +201,8 @@ export function OrdersClient() {
         ) : orders.length === 0 ? (
           <div className="p-8 text-center text-slate-500">暂无订单</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+          <table className="export-table w-full text-sm">
+            <thead className="border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">订单号</th>
                 <th className="px-4 py-3 text-left font-medium text-slate-700">客户</th>
@@ -218,7 +218,7 @@ export function OrdersClient() {
               {orders.map((o) => (
                 <tr
                   key={o.id}
-                  className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+                  className="cursor-pointer border-b border-slate-100"
                   onClick={() => router.push(`/export/orders/${o.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{o.orderNo}</td>

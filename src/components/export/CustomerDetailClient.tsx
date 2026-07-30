@@ -227,7 +227,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-slate-800">{customer.companyName}</h1>
+            <h1 className="export-page-title text-xl font-semibold">{customer.companyName}</h1>
             {isOverdue && (
               <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
                 超7天未跟进
@@ -244,32 +244,32 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
               href={websiteUrl}
               target="_blank"
               rel="noreferrer"
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
             >
               打开官网
             </a>
           )}
           <button
             onClick={() => setDrawer("contact")}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新增联系人
           </button>
           <button
             onClick={() => setDrawer("activity")}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新增跟进
           </button>
           <button
             onClick={() => setDrawer("quote")}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新建报价
           </button>
           <button
             onClick={() => setDrawer("task")}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新建任务
           </button>
@@ -287,14 +287,14 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           />
           <Link
             href="/export/customers"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             返回
           </Link>
         </div>
       </div>
 
-      <div className="export-card p-4">
+      <div className="export-card export-detail-group p-4">
         <h2 className="mb-3 font-medium text-slate-700">跟进流程快捷操作</h2>
         <div className="mb-3 flex flex-wrap gap-2">
           {CUSTOMER_STATUSES.map((s) => (
@@ -340,7 +340,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
         </div>
       </div>
 
-      <div className="export-card grid gap-4 p-4 text-sm lg:grid-cols-4">
+      <div className="export-card export-detail-group grid gap-4 p-4 text-sm lg:grid-cols-4">
         <div>
           <p className="text-slate-500">官网</p>
           {websiteUrl ? (
@@ -370,7 +370,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <div className="export-card p-4">
+          <div className="export-card export-detail-group p-4">
             <h2 className="mb-4 font-medium text-slate-700">基本信息</h2>
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
@@ -455,11 +455,11 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             )}
           </div>
 
-          <div className="export-card p-4">
+          <div className="export-card export-timeline-group p-4">
             <h2 className="mb-4 font-medium text-slate-700">客户时间轴</h2>
             <div className="space-y-3">
               {timelineItems.map((item) => (
-                <div key={item.id} className="border-l-2 border-slate-200 pl-4 py-1">
+                <div key={item.id} className="export-timeline-item py-1">
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{item.badge}</span>
                     <span className="text-slate-400">{new Date(item.occurredAt).toLocaleString("zh-CN")}</span>

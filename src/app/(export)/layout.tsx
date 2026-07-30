@@ -20,11 +20,11 @@ export default async function ExportLayout({
 
   return (
     <ExportProviders>
-      <div className="export-crm flex min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-sky-50/50">
+      <div className="export-crm flex min-h-screen bg-gradient-to-br from-slate-200 via-slate-100 to-blue-50">
         <ExportSidebar />
         <div className="flex flex-1 flex-col">
           <ExportHeader user={user} />
-          <main className="flex-1 p-6 pb-20">
+          <main className="flex-1 p-7 pb-20">
             <div className="mx-auto w-full max-w-[1600px]">{children}</div>
           </main>
         </div>

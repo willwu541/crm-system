@@ -14,15 +14,15 @@ export function ExportHeader({ user }: { user: SessionUser }) {
   }
 
   return (
-    <header className="border-b border-slate-200/80 bg-white/95 backdrop-blur">
+    <header className="border-b border-slate-200 bg-white/95 shadow-[0_6px_20px_rgba(15,23,42,0.06)] backdrop-blur">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-4">
-          <Link href="/export/dashboard" className="text-base font-bold text-sky-800 tracking-tight">
+          <Link href="/export/dashboard" className="text-base font-bold tracking-tight text-slate-900">
             外贸 CRM
           </Link>
         </div>
         <div className="flex items-center gap-4">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700 shadow-sm">
             {user.name} ({user.role === "ADMIN" ? "Admin" : "Sales"})
           </span>
           <button

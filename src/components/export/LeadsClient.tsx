@@ -296,7 +296,7 @@ export function LeadsClient() {
 
   return (
     <div className="space-y-4">
-      <div className="export-card p-4">
+      <div className="export-filter-shell">
         <div className="mb-3">
           <h1 className="text-lg font-semibold text-slate-800">线索开发中心</h1>
           <p className="text-xs text-slate-500">管理获客渠道、联系节奏、转化进度</p>
@@ -384,10 +384,10 @@ export function LeadsClient() {
                     : {}),
                 })
               }
-              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+              className={`export-chip px-3 py-1 ${
                 pace === p.key
-                  ? "border-sky-500 bg-sky-500/10 text-sky-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  ? "export-chip-active"
+                  : "hover:bg-slate-50"
               }`}
             >
               {p.label}
@@ -411,18 +411,18 @@ export function LeadsClient() {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={importing}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+          className="export-btn-secondary rounded-md px-4 py-2 text-sm disabled:opacity-50"
         >
           {importing ? "导入中..." : "导入 CSV"}
         </button>
         <a
           href={`/api/export/leads/export?${buildListFilterParams().toString()}`}
           download
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+          className="export-btn-secondary rounded-md px-4 py-2 text-sm"
         >
           导出 CSV
         </a>
-        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5">
+        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5 shadow-sm">
           <select
             value={emailCopyFormat}
             onChange={(e) => setEmailCopyFormat(e.target.value as "newline" | "comma")}
@@ -464,7 +464,7 @@ export function LeadsClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="export-card overflow-x-auto">
+      <div className="export-card overflow-hidden overflow-x-auto">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : leads.length === 0 ? (
@@ -480,8 +480,8 @@ export function LeadsClient() {
             </div>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50/80">
+          <table className="export-table w-full text-sm">
+            <thead className="border-b border-slate-200">
               <tr>
                 <th className="min-w-[200px] px-4 py-3 text-left font-medium text-slate-700">公司</th>
                 <th className="min-w-[280px] max-w-md px-4 py-3 text-left font-medium text-slate-700">备注</th>
@@ -501,7 +501,7 @@ export function LeadsClient() {
                 return (
                   <tr
                     key={l.id}
-                    className="cursor-pointer border-b border-slate-100 hover:bg-teal-50/30"
+                    className="cursor-pointer border-b border-slate-100"
                     onClick={() => router.push(`/export/leads/${l.id}`)}
                   >
                     <td className="px-4 py-3 font-medium text-slate-800">

@@ -164,7 +164,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
     <div className="space-y-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">{lead.companyName}</h1>
+          <h1 className="export-page-title text-xl font-semibold">{lead.companyName}</h1>
           <p className="text-sm text-slate-500">
             {leadStatusLabel[lead.status] ?? lead.status} · {owner} ·
             {" 已联系 "}<span className="font-medium text-slate-700">{lead.contactCount}</span> 次
@@ -203,7 +203,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                   setQuickDirection("outbound");
                   setQuickOpen(true);
                 }}
-                className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
               >
                 标记一次主动联系
               </button>
@@ -213,7 +213,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                   setQuickDirection("inbound");
                   setQuickOpen(true);
                 }}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                className="export-btn-secondary rounded-md px-4 py-2 text-sm"
               >
                 记录客户回复
               </button>
@@ -224,7 +224,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               href={websiteUrl}
               target="_blank"
               rel="noreferrer"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+              className="export-btn-secondary rounded-md px-4 py-2 text-sm"
             >
               打开官网
             </a>
@@ -233,7 +233,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
             <button
               onClick={() => setConvertOpen(true)}
               disabled={converting}
-              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {converting ? "转化中..." : "转客户"}
             </button>
@@ -241,7 +241,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
           {lead.convertedToCustomerId ? (
             <Link
               href={`/export/customers/${lead.convertedToCustomerId}`}
-              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
             >
               查看客户
             </Link>
@@ -254,14 +254,14 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
           />
           <Link
             href="/export/leads"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             返回
           </Link>
         </div>
       </div>
 
-      <div className="export-card grid gap-4 p-4 text-sm lg:grid-cols-5">
+      <div className="export-card export-detail-group grid gap-4 p-4 text-sm lg:grid-cols-5">
         <div>
           <p className="text-slate-500">官网</p>
           {websiteUrl ? (
@@ -308,7 +308,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <div className="export-card p-4">
+          <div className="export-card export-detail-group p-4">
             <h2 className="mb-2 font-medium text-slate-700">备注</h2>
             <p className="mb-2 text-xs text-slate-500">与右侧「保存」一并提交；可在此展开查看与编辑。</p>
             <textarea
@@ -319,7 +319,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               className="min-h-[220px] w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed"
             />
           </div>
-          <div className="export-card p-4">
+          <div className="export-card export-timeline-group p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">沟通时间轴</h2>
               <span className="text-xs text-slate-400">
@@ -342,8 +342,8 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                       <div
                         className={`max-w-[80%] rounded-lg border p-3 text-sm ${
                           isInbound
-                            ? "border-slate-200 bg-slate-50"
-                            : "border-teal-200 bg-teal-50"
+                            ? "border-slate-200 bg-white"
+                            : "border-blue-200 bg-blue-50"
                         }`}
                       >
                         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">

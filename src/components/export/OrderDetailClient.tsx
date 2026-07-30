@@ -70,13 +70,13 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">{String(order.orderNo)}</h1>
+          <h1 className="export-page-title text-xl font-semibold">{String(order.orderNo)}</h1>
           <p className="text-sm text-slate-500">{customer?.companyName ?? ""}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setEditing(true)}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             编辑
           </button>
@@ -88,14 +88,14 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           />
           <Link
             href="/export/orders"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             返回
           </Link>
         </div>
       </div>
 
-      <div className="export-card p-6">
+      <div className="export-card export-detail-group p-6">
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">客户</dt>
@@ -153,7 +153,7 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
             <div className="sm:col-span-2">
               <dt className="mb-2 text-slate-500">明细</dt>
               <dd>
-                <table className="w-full text-sm">
+                <table className="export-table w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="py-2 text-left font-medium">产品类型</th>

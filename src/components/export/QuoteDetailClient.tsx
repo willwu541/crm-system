@@ -108,7 +108,7 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">{String(quote.quoteNo)}</h1>
+          <h1 className="export-page-title text-xl font-semibold">{String(quote.quoteNo)}</h1>
           <p className="text-sm text-slate-500">
             {quote.customer && typeof quote.customer === "object" && "companyName" in quote.customer
               ? String((quote.customer as { companyName: string }).companyName)
@@ -120,7 +120,7 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
             <button
               onClick={() => handleStatusUpdate("sent")}
               disabled={updatingStatus === "sent"}
-              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {updatingStatus === "sent" ? "处理中..." : "标记已发送"}
             </button>
@@ -129,14 +129,14 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
             <button
               onClick={() => handleStatusUpdate("negotiating")}
               disabled={updatingStatus === "negotiating"}
-              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {updatingStatus === "negotiating" ? "处理中..." : "标记跟进中"}
             </button>
           )}
           <button
             onClick={() => setEditing(true)}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             编辑
           </button>
@@ -144,7 +144,7 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
             <button
               onClick={handleConvert}
               disabled={converting}
-              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {converting ? "转化中..." : "转订单"}
             </button>
@@ -157,14 +157,14 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
           />
           <Link
             href="/export/quotes"
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             返回
           </Link>
         </div>
       </div>
 
-      <div className="export-card p-6">
+      <div className="export-card export-detail-group p-6">
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">状态</dt>
@@ -202,7 +202,7 @@ export function QuoteDetailClient({ quoteId }: { quoteId: string }) {
             <div className="sm:col-span-2">
               <dt className="mb-2 text-slate-500">明细</dt>
               <dd>
-                <table className="w-full text-sm">
+                <table className="export-table w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="py-2 text-left font-medium">产品类型</th>
