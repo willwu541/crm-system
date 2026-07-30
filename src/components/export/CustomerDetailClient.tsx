@@ -50,7 +50,16 @@ interface Customer {
   notes: string | null;
   createdAt: string;
   contacts: { id: string; name: string; title: string | null; email: string | null; phone?: string | null; whatsapp?: string | null; linkedin?: string | null; language?: string | null; isPrimary: boolean; notes?: string | null }[];
-  activities: { id: string; type: string; subject: string | null; content: string | null; createdAt: string; contact: { name: string } | null; owner: { name: string } }[];
+  activities: {
+    id: string;
+    type: string;
+    subject: string | null;
+    content: string | null;
+    createdAt: string;
+    contact: { name: string } | null;
+    owner: { name: string };
+    attachments?: { id: string; fileName: string; filePath: string }[];
+  }[];
   quotes: { id: string; quoteNo: string; totalAmount: string | null; status: string; quoteDate: string; createdAt: string }[];
   orders: { id: string; orderNo: string; totalAmount: string | null; paymentStatus: string; productionStatus: string; shippingStatus: string; orderDate: string; createdAt: string }[];
   tasks: { id: string; title: string; dueDate: string | null; priority: string; status: string; createdAt: string }[];
@@ -491,6 +500,21 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                     </div>
                     {a.subject && <p className="mt-1 font-medium text-slate-700">{a.subject}</p>}
                     {a.content && <p className="mt-1 text-sm text-slate-600">{a.content}</p>}
+                    {!!a.attachments?.length && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {a.attachments.map((file) => (
+                          <a
+                            key={file.id}
+                            href={file.filePath}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                          >
+                            {file.fileName}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}

@@ -33,6 +33,7 @@ interface LeadActivity {
   createdAt: string;
   owner: { id: string; name: string };
   template: { id: string; name: string; category: string; language: string } | null;
+  attachments?: { id: string; fileName: string; filePath: string }[];
 }
 
 interface Lead {
@@ -384,6 +385,21 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                           <div className="mt-2 rounded bg-white p-2 text-xs">
                             <span className="font-medium">客户反馈：</span>
                             {a.customerFeedback}
+                          </div>
+                        )}
+                        {!!a.attachments?.length && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {a.attachments.map((file) => (
+                              <a
+                                key={file.id}
+                                href={file.filePath}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                              >
+                                {file.fileName}
+                              </a>
+                            ))}
                           </div>
                         )}
                       </div>

@@ -50,7 +50,29 @@ export async function GET(request: NextRequest) {
       template: { select: { id: true, name: true, category: true, language: true } },
     },
   });
-  return NextResponse.json({ data });
+  const activityIds = data.map((item) => item.id);
+  const attachments = activityIds.length
+    ? await prisma.fileAttachment.findMany({
+        where: {
+          entityType: "export_activity",
+          entityId: { in: activityIds },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const attachmentMap = new Map<string, typeof attachments>();
+  for (const item of attachments) {
+    const list = attachmentMap.get(item.entityId) ?? [];
+    list.push(item);
+    attachmentMap.set(item.entityId, list);
+  }
+
+  return NextResponse.json({
+    data: data.map((item) => ({
+      ...item,
+      attachments: attachmentMap.get(item.id) ?? [],
+    })),
+  });
 }
 
 const createSchema = z
@@ -121,7 +143,7 @@ export async function POST(request: NextRequest) {
     // 可选：根据 templateId 渲染 subject / body
     let subject = input.subject;
     let content = input.content;
-    let templateId: string | null = input.templateId ?? null;
+    const templateId: string | null = input.templateId ?? null;
     if (templateId) {
       const template = await prisma.exportEmailTemplate.findUnique({
         where: { id: templateId, tenantId: ctx!.tenantId },

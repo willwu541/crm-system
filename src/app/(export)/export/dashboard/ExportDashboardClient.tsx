@@ -182,7 +182,7 @@ export function ExportDashboardClient() {
             href="/export/customers?filter=today"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
           >
-            <span className="text-sm text-slate-500">今日待跟进客户</span>
+            <span className="text-sm text-slate-500">待跟进客户（含逾期）</span>
             <span className={`mt-1 text-2xl font-semibold ${data.todayFollowUpCount > 0 ? "text-teal-600" : "text-slate-400"}`}>
               {data.todayFollowUpCount}
             </span>

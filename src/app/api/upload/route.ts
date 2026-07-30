@@ -6,6 +6,12 @@ import path from "path";
 
 const ALLOWED_TYPES = [
   "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "image/jpeg",
   "image/jpg",
   "image/pjpeg",
@@ -14,7 +20,7 @@ const ALLOWED_TYPES = [
   "image/gif",
   "application/zip",
 ];
-const ALLOWED_EXT = /\.(pdf|jpg|jpeg|png|gif|zip)$/i;
+const ALLOWED_EXT = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png|gif|zip)$/i;
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
 export async function POST(request: NextRequest) {
@@ -35,15 +41,15 @@ export async function POST(request: NextRequest) {
     if (!file || file.size === 0) {
       return NextResponse.json({ error: "请选择文件" }, { status: 400 });
     }
-    if (!orderId) {
-      return NextResponse.json({ error: "缺少 orderId" }, { status: 400 });
+    if (!orderId && !(entityType && entityId)) {
+      return NextResponse.json({ error: "缺少上传目标" }, { status: 400 });
     }
 
     const extOk = ALLOWED_EXT.test(file.name);
     const typeOk = !file.type || ALLOWED_TYPES.includes(file.type);
     if (!extOk && !typeOk) {
       return NextResponse.json(
-        { error: "仅支持 pdf、jpg、png、gif、zip 格式" },
+        { error: "仅支持 pdf/doc/docx/xls/xlsx/ppt/pptx/jpg/png/gif/zip 格式" },
         { status: 400 }
       );
     }

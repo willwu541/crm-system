@@ -58,6 +58,7 @@ export function ActivityFormClient({
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [previewing, setPreviewing] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
   const [form, setForm] = useState({
     contactId: contactId ?? "",
@@ -173,8 +174,23 @@ export function ActivityFormClient({
             : undefined,
         }),
       });
-      const json = await parseResponseJson<{ error?: string }>(res);
+      const json = await parseResponseJson<{ error?: string; data?: { id?: string } }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
+
+      const activityId = json.data?.id;
+      if (activityId && files.length > 0) {
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("entityType", "export_activity");
+          fd.append("entityId", activityId);
+          const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+          if (!uploadRes.ok) {
+            const uploadJson = await parseResponseJson<{ error?: string }>(uploadRes);
+            throw new Error(uploadJson.error ?? "附件上传失败");
+          }
+        }
+      }
       if (onSuccess) {
         onSuccess();
         return;
@@ -335,6 +351,19 @@ export function ActivityFormClient({
             onChange={(e) => setForm((f) => ({ ...f, nextFollowUpAt: e.target.value }))}
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">附件（可选）</label>
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,image/*"
+            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+          {files.length > 0 && (
+            <p className="mt-1 text-xs text-slate-500">已选择 {files.length} 个文件，保存后将自动上传并关联本次跟进。</p>
+          )}
         </div>
       </div>
 

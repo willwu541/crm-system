@@ -22,7 +22,33 @@ async function getCustomerOrError(id: string, tenantId: string, ownerFilter?: { 
   if (ownerFilter && customer.ownerId !== ownerFilter.ownerId) {
     return { customer: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
-  return { customer, error: null };
+  const activityIds = customer.activities.map((item) => item.id);
+  const attachments = activityIds.length
+    ? await prisma.fileAttachment.findMany({
+        where: {
+          entityType: "export_activity",
+          entityId: { in: activityIds },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const attachmentMap = new Map<string, typeof attachments>();
+  for (const item of attachments) {
+    const list = attachmentMap.get(item.entityId) ?? [];
+    list.push(item);
+    attachmentMap.set(item.entityId, list);
+  }
+
+  return {
+    customer: {
+      ...customer,
+      activities: customer.activities.map((item) => ({
+        ...item,
+        attachments: attachmentMap.get(item.id) ?? [],
+      })),
+    },
+    error: null,
+  };
 }
 
 export async function GET(

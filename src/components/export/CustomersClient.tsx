@@ -53,6 +53,17 @@ function isNextFollowUpDue(nextFollowUpAt: string | null): boolean {
   return d.toDateString() <= today.toDateString();
 }
 
+function getFollowUpBucket(nextFollowUpAt: string | null): "overdue" | "today" | "future" | "none" {
+  if (!nextFollowUpAt) return "none";
+  const target = new Date(nextFollowUpAt);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  if (target < todayStart) return "overdue";
+  if (target < tomorrowStart) return "today";
+  return "future";
+}
+
 interface User {
   id: string;
   name: string;
@@ -73,7 +84,6 @@ export function CustomersClient() {
   const searchParams = useSearchParams();
   const filter = searchParams.get("filter") ?? "";
   const status = searchParams.get("status") ?? "";
-  const country = searchParams.get("country") ?? "";
   const ownerId = searchParams.get("ownerId") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
@@ -416,9 +426,19 @@ export function CustomersClient() {
                     {c.nextFollowUpAt ? (
                       <>
                         {new Date(c.nextFollowUpAt).toLocaleDateString("zh-CN")}
-                        {isNextFollowUpDue(c.nextFollowUpAt) && (
-                          <span className="ml-1 text-xs">(待跟进)</span>
-                        )}
+                        {(() => {
+                          const bucket = getFollowUpBucket(c.nextFollowUpAt);
+                          if (bucket === "overdue") {
+                            return <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">逾期</span>;
+                          }
+                          if (bucket === "today") {
+                            return <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">今天</span>;
+                          }
+                          if (bucket === "future") {
+                            return <span className="ml-1 rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-700">未来</span>;
+                          }
+                          return null;
+                        })()}
                       </>
                     ) : (
                       "-"

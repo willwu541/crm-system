@@ -25,7 +25,8 @@ export function buildExportCustomerListWhere(
   else if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
   if (params.status) where.status = params.status;
   if (params.filter === "today") {
-    where.nextFollowUpAt = { gte: todayStart, lt: todayEnd };
+    // 今日待跟进同时包含已逾期未跟进，避免需要手动翻找
+    where.nextFollowUpAt = { lt: todayEnd };
     where.status = { notIn: ["won", "lost"] };
   }
   if (params.filter === "overdue") {

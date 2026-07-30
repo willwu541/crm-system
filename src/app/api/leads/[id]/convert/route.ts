@@ -65,6 +65,30 @@ export async function POST(
         data: { status: "CONVERTED", customerId: customer.id },
       });
 
+      // 迁移线索阶段的通用附件到客户，避免转化后在客户页看不到
+      await tx.fileAttachment.updateMany({
+        where: {
+          entityType: "lead",
+          entityId: lead.id,
+        },
+        data: {
+          entityType: "customer",
+          entityId: customer.id,
+        },
+      });
+
+      // 迁移未完成的线索任务到客户，保持后续跟进连续
+      await tx.task.updateMany({
+        where: {
+          leadId: lead.id,
+          status: "todo",
+        },
+        data: {
+          customerId: customer.id,
+          leadId: null,
+        },
+      });
+
       return customer;
     });
 

@@ -43,7 +43,7 @@ export async function GET() {
     prisma.exportCustomer.count({
       where: {
         ...baseWhere,
-        nextFollowUpAt: { gte: todayStart, lt: todayEnd },
+        nextFollowUpAt: { lt: todayEnd },
         status: { notIn: ["won", "lost"] },
       },
     }),
