@@ -294,7 +294,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="export-card p-4">
         <h2 className="mb-3 font-medium text-slate-700">跟进流程快捷操作</h2>
         <div className="mb-3 flex flex-wrap gap-2">
           {CUSTOMER_STATUSES.map((s) => (
@@ -340,7 +340,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 text-sm lg:grid-cols-4">
+      <div className="export-card grid gap-4 p-4 text-sm lg:grid-cols-4">
         <div>
           <p className="text-slate-500">官网</p>
           {websiteUrl ? (
@@ -370,7 +370,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <h2 className="mb-4 font-medium text-slate-700">基本信息</h2>
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
@@ -455,7 +455,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <h2 className="mb-4 font-medium text-slate-700">客户时间轴</h2>
             <div className="space-y-3">
               {timelineItems.map((item) => (
@@ -477,7 +477,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <h2 className="mb-4 font-medium text-slate-700">跟进记录</h2>
             <div className="space-y-3">
               {customer.activities.length === 0 ? (
@@ -521,7 +521,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">报价</h2>
               <button
@@ -554,7 +554,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             </ul>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">订单</h2>
               <Link
@@ -589,7 +589,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">联系人</h2>
               <button
@@ -641,7 +641,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             </ul>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="export-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">任务</h2>
               <button

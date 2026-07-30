@@ -14,20 +14,20 @@ export function ExportHeader({ user }: { user: SessionUser }) {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white shadow-sm">
-      <div className="flex h-14 items-center justify-between px-6">
+    <header className="border-b border-slate-200/80 bg-white/95 backdrop-blur">
+      <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-4">
-          <Link href="/export/dashboard" className="font-semibold text-teal-700">
+          <Link href="/export/dashboard" className="text-base font-bold text-sky-800 tracking-tight">
             外贸 CRM
           </Link>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-600">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700">
             {user.name} ({user.role === "ADMIN" ? "Admin" : "Sales"})
           </span>
           <button
             onClick={handleLogout}
-            className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm transition-colors"
           >
             退出
           </button>

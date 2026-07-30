@@ -224,26 +224,26 @@ export function CustomersClient() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="export-filter-shell flex flex-wrap items-center gap-3 p-3">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="公司名/客户编号"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           />
           <input
             type="text"
             value={countryInput}
             onChange={(e) => setCountryInput(e.target.value)}
             placeholder="国家"
-            className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-24 px-3 py-2 text-sm"
           />
           <select
             value={filter}
             onChange={(e) => updateUrl({ filter: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部</option>
             <option value="today">今日待跟进</option>
@@ -252,7 +252,7 @@ export function CustomersClient() {
           <select
             value={status}
             onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部状态</option>
             {CUSTOMER_STATUSES.map((s) => (
@@ -264,7 +264,7 @@ export function CustomersClient() {
           <select
             value={ownerId}
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部负责人</option>
             {users.map((u) => (
@@ -276,7 +276,7 @@ export function CustomersClient() {
           <select
             value={`${sortBy}:${sortOrder}`}
             onChange={(e) => updateSort(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="updatedAt:desc">最新更新</option>
             <option value="createdAt:desc">最新创建</option>
@@ -290,7 +290,7 @@ export function CustomersClient() {
         </form>
         <button
           onClick={() => setDrawerOpen(true)}
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
         >
           新建客户
         </button>
@@ -326,7 +326,7 @@ export function CustomersClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="export-card overflow-x-auto overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : customers.length === 0 ? (

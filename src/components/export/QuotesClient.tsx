@@ -170,23 +170,23 @@ export function QuotesClient() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="export-filter-shell flex flex-wrap items-center gap-4 p-3">
         <form onSubmit={handleSearch} className="flex gap-2">
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="报价号/客户"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           />
-          <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
+          <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">
             搜索
           </button>
         </form>
         <select
           value={status}
           onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="px-3 py-2 text-sm"
         >
           <option value="">全部状态</option>
           {QUOTE_STATUSES.map((s) => (
@@ -198,7 +198,7 @@ export function QuotesClient() {
         <select
           value={ownerId}
           onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="px-3 py-2 text-sm"
         >
           <option value="">全部负责人</option>
           {users.map((u) => (
@@ -210,7 +210,7 @@ export function QuotesClient() {
         <select
           value={`${sortBy}:${sortOrder}`}
           onChange={(e) => updateSort(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="px-3 py-2 text-sm"
         >
           <option value="quoteDate:desc">最新报价日</option>
           <option value="createdAt:desc">最新创建</option>
@@ -220,7 +220,7 @@ export function QuotesClient() {
         </select>
         <Link
           href="/export/quotes/new"
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
         >
           新建报价
         </Link>
@@ -232,13 +232,13 @@ export function QuotesClient() {
             ...(since ? { since } : {}),
           }).toString()}`}
           download
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+          className="export-btn-secondary rounded-md px-4 py-2 text-sm"
         >
           导出 CSV
         </a>
       </div>
 
-      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="export-card overflow-x-auto overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : quotes.length === 0 ? (

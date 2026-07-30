@@ -117,14 +117,14 @@ export function ExportDashboardClient() {
   return (
     <div className="space-y-6">
       {/* 线索开发待办 */}
-      <div className="rounded-xl border border-teal-100 bg-gradient-to-r from-teal-50/80 to-cyan-50/70 p-5 shadow-sm">
+      <div className="export-card bg-gradient-to-r from-sky-50/90 to-cyan-50/70 p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-slate-700">线索开发（今日优先）</h2>
           <button
             type="button"
             onClick={runSop}
             disabled={runningSop}
-            className="rounded-md border border-teal-300 bg-white px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-50"
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-50"
           >
             {runningSop ? "SOP执行中..." : "一键运行SOP自动任务"}
           </button>
@@ -137,7 +137,7 @@ export function ExportDashboardClient() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href="/export/leads?pace=never&sortBy=createdAt&sortOrder=desc"
-            className="flex flex-col rounded-xl border border-white/80 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-slate-50"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-sky-50/50"
           >
             <span className="text-sm text-slate-500">未联系过</span>
             <span
@@ -145,11 +145,11 @@ export function ExportDashboardClient() {
             >
               {data.leadsNeverCount}
             </span>
-            <span className="mt-1 text-xs text-teal-600">去开发 →</span>
+            <span className="mt-1 text-xs text-sky-700">去开发 →</span>
           </Link>
           <Link
             href="/export/leads?pace=due&sortBy=lastContactAt&sortOrder=asc"
-            className="flex flex-col rounded-xl border border-white/80 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-slate-50"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-sky-50/50"
           >
             <span className="text-sm text-slate-500">二次及以上联系</span>
             <span
@@ -157,11 +157,11 @@ export function ExportDashboardClient() {
             >
               {data.leadsDueCount}
             </span>
-            <span className="mt-1 text-xs text-teal-600">按最久未联系排序 →</span>
+            <span className="mt-1 text-xs text-sky-700">按最久未联系排序 →</span>
           </Link>
           <Link
             href="/export/leads?pace=stuck&sortBy=lastContactAt&sortOrder=asc"
-            className="flex flex-col rounded-xl border border-white/80 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-slate-50"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:-translate-y-0.5 hover:bg-sky-50/50"
           >
             <span className="text-sm text-slate-500">联系 3+ 无响应</span>
             <span
@@ -169,13 +169,13 @@ export function ExportDashboardClient() {
             >
               {data.leadsStuckCount}
             </span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
         </div>
       </div>
 
       {/* 待办提醒区 */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="export-card p-4">
         <h2 className="mb-4 text-base font-semibold text-slate-700">客户 / 任务 / 报价</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Link
@@ -186,7 +186,7 @@ export function ExportDashboardClient() {
             <span className={`mt-1 text-2xl font-semibold ${data.todayFollowUpCount > 0 ? "text-teal-600" : "text-slate-400"}`}>
               {data.todayFollowUpCount}
             </span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
           <Link
             href="/export/customers?filter=overdue"
@@ -196,7 +196,7 @@ export function ExportDashboardClient() {
             <span className={`mt-1 text-2xl font-semibold ${data.overdueFollowUpCount > 0 ? "text-amber-600" : "text-slate-400"}`}>
               {data.overdueFollowUpCount}
             </span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
           <Link
             href="/export/tasks?due=today"
@@ -206,7 +206,7 @@ export function ExportDashboardClient() {
             <span className={`mt-1 text-2xl font-semibold ${data.todayDueTasksCount > 0 ? "text-teal-600" : "text-slate-400"}`}>
               {data.todayDueTasksCount}
             </span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
           <Link
             href="/export/tasks?status=overdue"
@@ -216,7 +216,7 @@ export function ExportDashboardClient() {
             <span className={`mt-1 text-2xl font-semibold ${data.tasksOverdue > 0 ? "text-red-600" : "text-slate-400"}`}>
               {data.tasksOverdue}
             </span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
           <div className="flex flex-col rounded-lg border border-slate-100 p-4">
             <span className="text-sm text-slate-500">报价3天未跟进</span>
@@ -256,40 +256,40 @@ export function ExportDashboardClient() {
       </div>
 
       {/* 数据概览 */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="export-card p-4">
         <h2 className="mb-4 text-base font-semibold text-slate-700">数据概览</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href="/export/leads?since=week&sortBy=createdAt&sortOrder=desc"
-            className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
+            className="flex flex-col rounded-lg border border-slate-200 p-4 transition-colors hover:bg-sky-50/40"
           >
             <span className="text-sm text-slate-500">本周新增 Leads</span>
             <span className="mt-1 text-2xl font-semibold text-slate-800">{data.leadsThisWeek}</span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
           <Link
             href="/export/quotes?since=month&sortBy=quoteDate&sortOrder=desc"
-            className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
+            className="flex flex-col rounded-lg border border-slate-200 p-4 transition-colors hover:bg-sky-50/40"
           >
             <span className="text-sm text-slate-500">本月 Quotes</span>
             <span className="mt-1 text-2xl font-semibold text-slate-800">{data.quotesThisMonth}</span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
           <Link
             href="/export/orders?since=month&sortBy=orderDate&sortOrder=desc"
-            className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
+            className="flex flex-col rounded-lg border border-slate-200 p-4 transition-colors hover:bg-sky-50/40"
           >
             <span className="text-sm text-slate-500">本月 Orders</span>
             <span className="mt-1 text-2xl font-semibold text-slate-800">{data.ordersThisMonth}</span>
-            <span className="mt-1 text-xs text-teal-600">查看 →</span>
+            <span className="mt-1 text-xs text-sky-700">查看 →</span>
           </Link>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div className="export-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-700">近期节日提醒（30天）</h2>
-          <Link href="/export/resources" className="text-xs text-teal-700 hover:underline">
+          <Link href="/export/resources" className="text-xs text-sky-700 hover:underline">
             打开资料库 →
           </Link>
         </div>
@@ -311,7 +311,7 @@ export function ExportDashboardClient() {
 
       {/* 统计 */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="export-card p-4">
           <h2 className="mb-4 text-base font-semibold text-slate-700">客户状态分布</h2>
           <div className="space-y-2">
             {data.customerStatusStats.length === 0 ? (
@@ -331,7 +331,7 @@ export function ExportDashboardClient() {
             )}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="export-card p-4">
           <h2 className="mb-4 text-base font-semibold text-slate-700">国家分布</h2>
           <div className="space-y-2">
             {data.countryStats.length === 0 ? (
@@ -351,7 +351,7 @@ export function ExportDashboardClient() {
             )}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="export-card p-4">
           <h2 className="mb-4 text-base font-semibold text-slate-700">负责人客户数</h2>
           <div className="space-y-2">
             {data.ownerStats.length === 0 ? (
@@ -377,7 +377,7 @@ export function ExportDashboardClient() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="export-card p-4">
           <h2 className="mb-3 text-base font-semibold text-slate-700">团队执行看板</h2>
           {teamRows.length === 0 ? (
             <p className="text-sm text-slate-500">暂无数据</p>
@@ -406,7 +406,7 @@ export function ExportDashboardClient() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="export-card p-4">
           <h2 className="mb-3 text-base font-semibold text-slate-700">获客渠道 ROI（线索转化）</h2>
           {sourceRows.length === 0 ? (
             <p className="text-sm text-slate-500">暂无数据</p>

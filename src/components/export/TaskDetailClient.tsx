@@ -122,7 +122,7 @@ export function TaskDetailClient({ taskId }: { taskId: string }) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6">
+      <div className="export-card p-6">
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-slate-500">关联对象</dt>

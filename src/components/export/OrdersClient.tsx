@@ -129,19 +129,19 @@ export function OrdersClient() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="export-filter-shell flex flex-wrap items-center gap-4 p-3">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="订单号/客户"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           />
           <select
             value={status}
             onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部状态</option>
             <option value="unpaid">未付</option>
@@ -151,7 +151,7 @@ export function OrdersClient() {
           <select
             value={ownerId}
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部负责人</option>
             {users.map((u) => (
@@ -163,7 +163,7 @@ export function OrdersClient() {
           <select
             value={`${sortBy}:${sortOrder}`}
             onChange={(e) => updateSort(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="orderDate:desc">最新订单日</option>
             <option value="createdAt:desc">最新创建</option>
@@ -171,13 +171,13 @@ export function OrdersClient() {
             <option value="eta:asc">最近 ETA</option>
             <option value="totalAmount:desc">金额从高到低</option>
           </select>
-          <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
+          <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">
             搜索
           </button>
         </form>
         <Link
           href="/export/orders/new"
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
         >
           新建订单
         </Link>
@@ -189,13 +189,13 @@ export function OrdersClient() {
             ...(since ? { since } : {}),
           }).toString()}`}
           download
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+          className="export-btn-secondary rounded-md px-4 py-2 text-sm"
         >
           导出 CSV
         </a>
       </div>
 
-      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="export-card overflow-x-auto overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : orders.length === 0 ? (

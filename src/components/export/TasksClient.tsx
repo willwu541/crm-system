@@ -139,7 +139,7 @@ export function TasksClient() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="export-filter-shell flex flex-wrap items-center gap-3 p-3">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -152,7 +152,7 @@ export function TasksClient() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="任务/备注"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           />
           <select
             value={due}
@@ -160,7 +160,7 @@ export function TasksClient() {
               const v = e.target.value || undefined;
               updateUrl({ due: v, status: v === "today" ? undefined : status, page: 1 });
             }}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部</option>
             <option value="today">今日到期</option>
@@ -171,7 +171,7 @@ export function TasksClient() {
               const v = e.target.value || undefined;
               updateUrl({ status: v, due: v === "overdue" ? undefined : due, page: 1 });
             }}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部状态</option>
             <option value="overdue">超期任务</option>
@@ -184,7 +184,7 @@ export function TasksClient() {
           <select
             value={ownerId}
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部负责人</option>
             {users.map((u) => (
@@ -196,26 +196,26 @@ export function TasksClient() {
           <select
             value={`${sortBy}:${sortOrder}`}
             onChange={(e) => updateSort(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="dueDate:asc">最近到期</option>
             <option value="dueDate:desc">最晚到期</option>
             <option value="createdAt:desc">最新创建</option>
             <option value="updatedAt:desc">最新更新</option>
           </select>
-          <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
+          <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">
             搜索
           </button>
         </form>
         <Link
           href="/export/tasks/new"
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
         >
           新建任务
         </Link>
       </div>
 
-      <div className="overflow-x-auto overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="export-card overflow-x-auto overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : tasks.length === 0 ? (

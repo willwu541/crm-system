@@ -25,6 +25,7 @@ export function OrderFormClient({
   const customerIdParam = customerIdProp ?? searchParams.get("customerId");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [customers, setCustomers] = useState<{ id: string; companyName: string }[]>([]);
   const [quotes, setQuotes] = useState<{ id: string; quoteNo: string }[]>([]);
   const [form, setForm] = useState({
@@ -100,6 +101,20 @@ export function OrderFormClient({
       });
       const json = await parseResponseJson<{ error?: string; data?: { id: string } }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
+      const createdOrderId = json.data?.id;
+      if (!orderId && createdOrderId && files.length > 0) {
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("entityType", "export_order");
+          fd.append("entityId", createdOrderId);
+          const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+          if (!uploadRes.ok) {
+            const uploadJson = await parseResponseJson<{ error?: string }>(uploadRes);
+            throw new Error(uploadJson.error ?? "附件上传失败");
+          }
+        }
+      }
       if (onSuccess) {
         onSuccess();
         return;
@@ -117,7 +132,7 @@ export function OrderFormClient({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+    <form onSubmit={handleSubmit} className="export-card max-w-2xl space-y-4 p-6">
       <h1 className="text-xl font-semibold text-slate-800">{orderId ? "编辑订单" : "新建订单"}</h1>
       {error && (
         <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
@@ -252,11 +267,24 @@ export function OrderFormClient({
           className="w-full rounded-md border border-slate-300 px-3 py-2"
         />
       </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700">附件（可选）</label>
+        <input
+          type="file"
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,image/*"
+          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+        {files.length > 0 && (
+          <p className="mt-1 text-xs text-slate-500">已选择 {files.length} 个文件，保存后自动上传。</p>
+        )}
+      </div>
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {loading ? "保存中..." : "保存"}
         </button>
@@ -264,14 +292,14 @@ export function OrderFormClient({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             取消
           </button>
         ) : (
           <Link
             href={orderId ? `/export/orders/${orderId}` : "/export/orders"}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
             取消
           </Link>

@@ -296,7 +296,7 @@ export function LeadsClient() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-sm backdrop-blur">
+      <div className="export-card p-4">
         <div className="mb-3">
           <h1 className="text-lg font-semibold text-slate-800">线索开发中心</h1>
           <p className="text-xs text-slate-500">管理获客渠道、联系节奏、转化进度</p>
@@ -308,19 +308,19 @@ export function LeadsClient() {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="公司名/邮箱/电话"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           />
           <input
             type="text"
             value={countryInput}
             onChange={(e) => setCountryInput(e.target.value)}
             placeholder="国家"
-            className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-24 px-3 py-2 text-sm"
           />
           <select
             value={status}
             onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部状态</option>
             {LEAD_STATUSES.map((s) => (
@@ -332,7 +332,7 @@ export function LeadsClient() {
           <select
             value={since}
             onChange={(e) => updateUrl({ since: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部时间</option>
             <option value="week">本周新增</option>
@@ -340,7 +340,7 @@ export function LeadsClient() {
           <select
             value={ownerId}
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="">全部负责人</option>
             {users.map((u) => (
@@ -352,7 +352,7 @@ export function LeadsClient() {
           <select
             value={`${sortBy}:${sortOrder}`}
             onChange={(e) => updateSort(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="px-3 py-2 text-sm"
           >
             <option value="createdAt:desc">最新创建</option>
             <option value="updatedAt:desc">最新更新</option>
@@ -360,7 +360,7 @@ export function LeadsClient() {
             <option value="lastContactAt:asc">最久未联系优先</option>
             <option value="companyName:asc">公司 A-Z</option>
           </select>
-          <button type="submit" className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-800">
+          <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">
             搜索
           </button>
         </form>
@@ -386,7 +386,7 @@ export function LeadsClient() {
               }
               className={`rounded-full border px-3 py-1 text-xs font-medium ${
                 pace === p.key
-                  ? "border-teal-500 bg-teal-500/10 text-teal-700"
+                  ? "border-sky-500 bg-sky-500/10 text-sky-700"
                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -396,7 +396,7 @@ export function LeadsClient() {
         </div>
         <button
           onClick={() => setDrawerOpen(true)}
-          className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
         >
           新建线索
         </button>
@@ -464,7 +464,7 @@ export function LeadsClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-sm">
+      <div className="export-card overflow-x-auto">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : leads.length === 0 ? (

@@ -7,6 +7,22 @@
   --primary: #0d9488;
   --primary-hover: #0f766e;
   --accent: #64748b;
+  --export-bg: #f8fafc;
+  --export-surface: #ffffff;
+  --export-text: #0f172a;
+  --export-muted: #64748b;
+  --export-border: #e2e8f0;
+  --export-border-strong: #cbd5e1;
+  --export-brand: #0369a1;
+  --export-brand-2: #0284c7;
+  --export-accent: #0ea5e9;
+  --export-success: #16a34a;
+  --export-warn: #d97706;
+  --export-danger: #dc2626;
+  --export-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --export-shadow-md: 0 4px 20px rgba(15, 23, 42, 0.08);
+  --export-shadow-card: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --export-focus: 0 0 0 3px rgba(14, 165, 233, 0.35);
 }
 
 @theme inline {
@@ -80,3 +96,88 @@ button, a, input, select, textarea {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Export CRM visual theme (aligned with public_html style) */
+.export-crm {
+  color: var(--export-text);
+}
+
+.export-crm h1,
+.export-crm h2,
+.export-crm h3 {
+  letter-spacing: -0.02em;
+}
+
+.export-crm .export-page-title {
+  color: var(--export-text);
+  font-weight: 800;
+}
+
+.export-crm .export-card {
+  border: 1px solid var(--export-border);
+  border-radius: 14px;
+  background: var(--export-surface);
+  box-shadow: var(--export-shadow-card);
+}
+
+.export-crm .export-filter-shell {
+  border: 1px solid var(--export-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--export-shadow-sm);
+}
+
+.export-crm input,
+.export-crm select,
+.export-crm textarea {
+  border-color: var(--export-border-strong) !important;
+  border-radius: 12px !important;
+  color: var(--export-text);
+  background: #fff;
+}
+
+.export-crm input:focus,
+.export-crm select:focus,
+.export-crm textarea:focus {
+  border-color: var(--export-brand) !important;
+  box-shadow: var(--export-focus) !important;
+  outline: none;
+}
+
+.export-crm .export-btn-primary {
+  background: var(--export-brand);
+  color: #fff;
+  border-color: var(--export-brand);
+}
+
+.export-crm .export-btn-primary:hover {
+  background: var(--export-brand-2);
+  border-color: var(--export-brand-2);
+}
+
+.export-crm .export-btn-secondary {
+  background: #fff;
+  color: #334155;
+  border: 1px solid var(--export-border-strong);
+}
+
+.export-crm .export-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.export-crm table thead {
+  background: #f8fafc;
+}
+
+.export-crm table thead th {
+  color: #334155;
+  font-weight: 600;
+}
+
+.export-crm table tbody tr {
+  border-color: #eef2f7;
+}
+
+.export-crm table tbody tr:hover {
+  background: #f9fbff;
+}

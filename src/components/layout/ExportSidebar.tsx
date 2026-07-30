@@ -19,9 +19,9 @@ export function ExportSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 shrink-0 border-r border-slate-200/80 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-slate-100 shadow-xl">
+    <aside className="w-60 shrink-0 border-r border-white/10 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-slate-100 shadow-[0_10px_35px_rgba(2,6,23,0.35)]">
       <div className="border-b border-white/10 px-4 py-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-teal-300">Export CRM</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-sky-300">Export CRM</p>
         <p className="mt-1 text-sm font-semibold text-white">钢格板外贸系统</p>
       </div>
       <nav className="flex flex-col gap-1 p-3">
@@ -35,7 +35,7 @@ export function ExportSidebar() {
               href={item.href}
               className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-teal-500/20 text-teal-100 shadow-[inset_0_0_0_1px_rgba(45,212,191,0.5)]"
+                  ? "bg-sky-500/20 text-sky-100 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.55)]"
                   : "text-slate-300 hover:bg-white/10 hover:text-white"
               }`}
             >
