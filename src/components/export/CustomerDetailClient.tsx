@@ -26,6 +26,10 @@ import {
   valueLevelLabel,
 } from "@/lib/export-display-labels";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
+import { ListBackLink } from "./shared/ListBackLink";
+import { NextFollowUpModal } from "./NextFollowUpModal";
+import { listHref } from "@/lib/export/list-filter-storage";
+import { resolveWhatsappStage } from "@/lib/export/follow-up";
 
 interface Customer {
   id: string;
@@ -74,6 +78,8 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [updatingStage, setUpdatingStage] = useState(false);
   const [quickFollowing, setQuickFollowing] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [activityType, setActivityType] = useState("email");
 
   async function fetchCustomer(opts?: { silent?: boolean }) {
     if (!opts?.silent) {
@@ -99,6 +105,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
   function closeDrawer() {
     setDrawer(null);
     setEditingContactId(null);
+    setActivityType("email");
   }
 
   function handleFormSuccess() {
@@ -222,6 +229,14 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
     })),
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 
+  const hasWhatsapp = customer.contacts.some((c) => c.whatsapp?.trim());
+  const waStage = resolveWhatsappStage({
+    hasWhatsapp,
+    status: customer.status,
+    lastContactAt: customer.lastFollowUpAt,
+    nextFollowUpAt: customer.nextFollowUpAt,
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -281,18 +296,75 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           </button>
           <ExportDeleteButton
             apiPath={`/api/export/customers/${customerId}`}
-            redirectTo="/export/customers"
+            redirectTo={listHref("/export/customers")}
             label="删除客户"
             className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
           />
-          <Link
-            href="/export/customers"
+          <ListBackLink
+            listPath="/export/customers"
             className="export-btn-secondary rounded-md px-4 py-2 text-sm"
-          >
-            返回
-          </Link>
+          />
         </div>
       </div>
+
+      {waStage === "first_contact" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-sky-900">WhatsApp 还未联系上</p>
+            <p className="text-xs text-sky-800">
+              已有号码，但还没有沟通记录。请先发 WhatsApp 联系上客户，联系成功后再进入维护。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setActivityType("whatsapp");
+              setDrawer("activity");
+            }}
+            className="rounded-md bg-sky-700 px-3 py-1.5 text-sm text-white hover:bg-sky-800"
+          >
+            记录首次 WhatsApp 联系
+          </button>
+        </div>
+      )}
+
+      {waStage === "maintain_due" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-green-900">WhatsApp 客户需要维护</p>
+            <p className="text-xs text-green-800">
+              {customer.nextFollowUpAt
+                ? `已联系上。下次提醒：${new Date(customer.nextFollowUpAt).toLocaleString("zh-CN")}`
+                : "已经联系上，但还没有安排下次维护时间。"}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={quickFollowing}
+              onClick={() => markFollowed(3)}
+              className="rounded-md bg-green-700 px-3 py-1.5 text-sm text-white hover:bg-green-800 disabled:opacity-50"
+            >
+              3 天后提醒
+            </button>
+            <button
+              type="button"
+              disabled={quickFollowing}
+              onClick={() => markFollowed(7)}
+              className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm text-green-800 hover:bg-green-100 disabled:opacity-50"
+            >
+              7 天后提醒
+            </button>
+            <button
+              type="button"
+              onClick={() => setFollowUpOpen(true)}
+              className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm text-green-800 hover:bg-green-100"
+            >
+              自定义提醒
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="export-card export-detail-group p-4">
         <h2 className="mb-3 font-medium text-slate-700">跟进流程快捷操作</h2>
@@ -689,6 +761,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
       >
         <ContactFormClient
           customerId={customerId}
+          currentNextFollowUpAt={customer.nextFollowUpAt}
           onSuccess={handleFormSuccess}
           onCancel={closeDrawer}
         />
@@ -704,6 +777,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             customerId={customerId}
             contactId={editingContact.id}
             initial={editingContact}
+            currentNextFollowUpAt={customer.nextFollowUpAt}
             onSuccess={handleFormSuccess}
             onCancel={closeDrawer}
           />
@@ -712,7 +786,9 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
 
       <Drawer open={drawer === "activity"} onClose={closeDrawer} title="新增跟进">
         <ActivityFormClient
+          key={activityType}
           customerId={customerId}
+          defaultType={activityType}
           onSuccess={handleFormSuccess}
           onCancel={closeDrawer}
         />
@@ -744,6 +820,18 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           onCancel={closeDrawer}
         />
       </Drawer>
+
+      <NextFollowUpModal
+        open={followUpOpen}
+        customerId={customer.id}
+        customerName={customer.companyName}
+        currentNextFollowUpAt={customer.nextFollowUpAt}
+        onClose={() => setFollowUpOpen(false)}
+        onSuccess={() => {
+          toast("已设置 WhatsApp 维护提醒");
+          fetchCustomer({ silent: true });
+        }}
+      />
     </div>
   );
 }

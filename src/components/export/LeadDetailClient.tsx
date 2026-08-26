@@ -22,6 +22,9 @@ import {
   sourceChannelLabel,
 } from "@/lib/export-display-labels";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
+import { ListBackLink } from "./shared/ListBackLink";
+import { listHref } from "@/lib/export/list-filter-storage";
+import { resolveWhatsappStage } from "@/lib/export/follow-up";
 
 interface LeadActivity {
   id: string;
@@ -69,6 +72,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   const [convertOpen, setConvertOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickDirection, setQuickDirection] = useState<"outbound" | "inbound">("outbound");
+  const [quickType, setQuickType] = useState<string | undefined>();
   const [notes, setNotes] = useState("");
   const [onboard, setOnboard] = useState<{ customerId: string; companyName: string } | null>(null);
   const [followUpOpen, setFollowUpOpen] = useState(false);
@@ -149,6 +153,24 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
     }
   }
 
+  async function setLeadReminder(days: number) {
+    try {
+      const next = new Date();
+      next.setDate(next.getDate() + days);
+      const res = await fetch(`/api/export/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nextFollowUpAt: next.toISOString() }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "设置失败");
+      toast(`已设置 ${days} 天后 WhatsApp 维护提醒`);
+      fetchAll({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "设置失败", "error");
+    }
+  }
+
   if (loading) return <div className="p-8 text-center text-slate-500">加载中...</div>;
   if (!lead) return <div className="p-8 text-center text-slate-500">线索不存在</div>;
 
@@ -201,6 +223,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                 type="button"
                 onClick={() => {
                   setQuickDirection("outbound");
+                  setQuickType(undefined);
                   setQuickOpen(true);
                 }}
                 className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
@@ -248,18 +271,79 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
           ) : null}
           <ExportDeleteButton
             apiPath={`/api/export/leads/${leadId}`}
-            redirectTo="/export/leads"
+            redirectTo={listHref("/export/leads")}
             label="删除线索"
             className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
           />
-          <Link
-            href="/export/leads"
+          <ListBackLink
+            listPath="/export/leads"
             className="export-btn-secondary rounded-md px-4 py-2 text-sm"
-          >
-            返回
-          </Link>
+          />
         </div>
       </div>
+
+      {lead.whatsapp?.trim() && lead.status !== "converted" && resolveWhatsappStage({
+        hasWhatsapp: true,
+        status: lead.status,
+        lastContactAt: lead.lastContactAt,
+        nextFollowUpAt: lead.nextFollowUpAt,
+        closedStatuses: ["converted", "invalid"],
+      }) === "first_contact" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-sky-900">WhatsApp 还未联系上</p>
+            <p className="text-xs text-sky-800">
+              已有号码，但还没有沟通记录。请先联系上，成功沟通后再进入维护。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickDirection("outbound");
+              setQuickType("whatsapp");
+              setQuickOpen(true);
+            }}
+            className="rounded-md bg-sky-700 px-3 py-1.5 text-sm text-white hover:bg-sky-800"
+          >
+            记录首次 WhatsApp 联系
+          </button>
+        </div>
+      )}
+
+      {lead.whatsapp?.trim() && lead.status !== "converted" && resolveWhatsappStage({
+        hasWhatsapp: true,
+        status: lead.status,
+        lastContactAt: lead.lastContactAt,
+        nextFollowUpAt: lead.nextFollowUpAt,
+        closedStatuses: ["converted", "invalid"],
+      }) === "maintain_due" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-green-900">WhatsApp 线索需要维护</p>
+            <p className="text-xs text-green-800">
+              {lead.nextFollowUpAt
+                ? `已联系上。下次提醒：${new Date(lead.nextFollowUpAt).toLocaleString("zh-CN")}`
+                : "已经联系上，请安排下次维护时间。"}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setLeadReminder(3)}
+              className="rounded-md bg-green-700 px-3 py-1.5 text-sm text-white hover:bg-green-800"
+            >
+              3 天后提醒
+            </button>
+            <button
+              type="button"
+              onClick={() => setLeadReminder(7)}
+              className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm text-green-800 hover:bg-green-100"
+            >
+              7 天后提醒
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="export-card export-detail-group grid gap-4 p-4 text-sm lg:grid-cols-5">
         <div>
@@ -426,10 +510,14 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
 
       <QuickContactModal
         open={quickOpen}
-        onClose={() => setQuickOpen(false)}
+        onClose={() => {
+          setQuickOpen(false);
+          setQuickType(undefined);
+        }}
         leadId={leadId}
         contactCount={lead.contactCount}
         defaultDirection={quickDirection}
+        defaultActivityType={quickType}
         contactEmail={lead.email}
         contactWhatsapp={lead.whatsapp}
         title={quickDirection === "outbound" ? "记录一次主动联系" : "记录客户回复"}

@@ -5,6 +5,7 @@ import { getExportDuplicateMessage } from "@/lib/export/dedupe";
 import {
   buildExportLeadListWhere,
   collectLeadEmails,
+  collectLeadWhatsapps,
 } from "@/lib/export/lead-list-where";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
@@ -22,6 +23,8 @@ export async function GET(request: NextRequest) {
   const ownerId = searchParams.get("ownerId")?.trim();
   const since = searchParams.get("since")?.trim();
   const sourceChannel = searchParams.get("sourceChannel")?.trim();
+  const channel = searchParams.get("channel")?.trim();
+  const filter = searchParams.get("filter")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "lastContactAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
@@ -44,19 +47,23 @@ export async function GET(request: NextRequest) {
     since,
     pace,
     sourceChannel,
+    channel,
+    filter,
   });
 
-  if (searchParams.get("emails") === "1") {
+  if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {
+    const field = searchParams.get("whatsapps") === "1" ? "whatsapp" : "email";
     const leads = await prisma.exportLead.findMany({
       where,
       orderBy: { companyName: "asc" },
       take: 5000,
-      select: { email: true },
+      select: { email: true, whatsapp: true },
     });
-    const emails = collectLeadEmails(leads);
+    const values =
+      field === "whatsapp" ? collectLeadWhatsapps(leads) : collectLeadEmails(leads);
     return NextResponse.json({
-      data: emails,
-      total: emails.length,
+      data: values,
+      total: values.length,
       leadCount: leads.length,
     });
   }
@@ -114,6 +121,7 @@ const createSchema = z.object({
   priority: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
+  nextFollowUpAt: z.string().datetime().optional().nullable(),
   /** 仅管理员：分配给业务员 */
   ownerId: z.string().optional(),
 });
@@ -138,7 +146,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { ownerId: bodyOwnerId, ...rest } = parsed.data;
+    const { ownerId: bodyOwnerId, nextFollowUpAt, ...rest } = parsed.data;
     let ownerId = user!.id;
     if (user!.role === "ADMIN" && bodyOwnerId) {
       const assignee = await prisma.user.findFirst({
@@ -165,6 +173,7 @@ export async function POST(request: NextRequest) {
         tenantId: ctx!.tenantId,
         ownerId,
         status: parsed.data.status ?? "new",
+        nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : undefined,
       },
       include: { owner: { select: { id: true, name: true } } },
     });

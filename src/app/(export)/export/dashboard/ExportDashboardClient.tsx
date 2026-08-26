@@ -21,6 +21,8 @@ interface DashboardData {
   quoteNoFollowUp3Days: { id: string; quoteNo: string; companyName: string; customerId: string }[];
   tasksOverdue: number;
   todayDueTasksCount: number;
+  whatsappMaintainCount: number;
+  whatsappFirstContactCount: number;
 }
 
 interface TeamInsightRow {
@@ -177,7 +179,7 @@ export function ExportDashboardClient() {
       {/* 待办提醒区 */}
       <div className="export-card p-4">
         <h2 className="mb-4 text-base font-semibold text-slate-700">客户 / 任务 / 报价</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Link
             href="/export/customers?filter=today"
             className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
@@ -197,6 +199,26 @@ export function ExportDashboardClient() {
               {data.overdueFollowUpCount}
             </span>
             <span className="mt-1 text-xs text-sky-700">查看 →</span>
+          </Link>
+          <Link
+            href="/export/customers?filter=whatsapp_first&sortBy=createdAt&sortOrder=desc"
+            className="flex flex-col rounded-lg border border-sky-100 bg-sky-50/40 p-4 transition-colors hover:bg-sky-50"
+          >
+            <span className="text-sm text-slate-600">WhatsApp 待联系</span>
+            <span className={`mt-1 text-2xl font-semibold ${data.whatsappFirstContactCount > 0 ? "text-sky-700" : "text-slate-400"}`}>
+              {data.whatsappFirstContactCount}
+            </span>
+            <span className="mt-1 text-xs text-sky-800">先联系上 →</span>
+          </Link>
+          <Link
+            href="/export/customers?filter=whatsapp_maintain&sortBy=lastFollowUpAt&sortOrder=asc"
+            className="flex flex-col rounded-lg border border-green-100 bg-green-50/40 p-4 transition-colors hover:bg-green-50"
+          >
+            <span className="text-sm text-slate-600">WhatsApp 待维护</span>
+            <span className={`mt-1 text-2xl font-semibold ${data.whatsappMaintainCount > 0 ? "text-green-700" : "text-slate-400"}`}>
+              {data.whatsappMaintainCount}
+            </span>
+            <span className="mt-1 text-xs text-green-800">已联系上，去维护 →</span>
           </Link>
           <Link
             href="/export/tasks?due=today"

@@ -7,6 +7,8 @@ import { CUSTOMER_STATUSES } from "@/lib/export-constants";
 import { customerStatusLabel } from "@/lib/export-display-labels";
 import { useToast } from "@/components/ui/Toast";
 import { buildListUrl } from "@/lib/export/url-params";
+import { saveListQuery } from "@/lib/export/list-filter-storage";
+import { usePersistedListQuery } from "@/lib/export/use-persisted-list-query";
 import { CustomerForm } from "./CustomerForm";
 import { NextFollowUpModal } from "./NextFollowUpModal";
 import { QuickContactModal } from "./QuickContactModal";
@@ -15,6 +17,7 @@ import { Pagination } from "./shared/Pagination";
 import { SocialLinksBar } from "./SocialLinksBar";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
+import { resolveWhatsappStage } from "@/lib/export/follow-up";
 
 interface Customer {
   id: string;
@@ -36,6 +39,27 @@ interface Customer {
     facebook: string | null;
     tiktok: string | null;
   }[];
+}
+
+function pickContactSocials(contacts?: Customer["contacts"]) {
+  const list = contacts ?? [];
+  return {
+    email: list.find((c) => c.email)?.email ?? null,
+    phone: list.find((c) => c.phone)?.phone ?? null,
+    whatsapp: list.find((c) => c.whatsapp)?.whatsapp ?? null,
+    linkedin: list.find((c) => c.linkedin)?.linkedin ?? null,
+    facebook: list.find((c) => c.facebook)?.facebook ?? null,
+    tiktok: list.find((c) => c.tiktok)?.tiktok ?? null,
+  };
+}
+
+function whatsappStageForCustomer(c: Customer) {
+  return resolveWhatsappStage({
+    hasWhatsapp: (c.contacts ?? []).some((x) => x.whatsapp?.trim()),
+    status: c.status,
+    lastContactAt: c.lastFollowUpAt,
+    nextFollowUpAt: c.nextFollowUpAt,
+  });
 }
 
 function isCustomerOverdue(c: Customer): boolean {
@@ -85,11 +109,13 @@ export function CustomersClient() {
   const filter = searchParams.get("filter") ?? "";
   const status = searchParams.get("status") ?? "";
   const ownerId = searchParams.get("ownerId") ?? "";
+  const channel = searchParams.get("channel") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
   const countryParam = searchParams.get("country") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "updatedAt";
   const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const { hydrated, resetListQuery } = usePersistedListQuery("/export/customers");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +128,7 @@ export function CustomersClient() {
   const [users, setUsers] = useState<User[]>([]);
   const [emailCopyFormat, setEmailCopyFormat] = useState<"newline" | "comma">("newline");
   const [copyingEmails, setCopyingEmails] = useState(false);
+  const [copyingWhatsapps, setCopyingWhatsapps] = useState(false);
 
   useEffect(() => {
     setKeyword(keywordParam);
@@ -114,6 +141,7 @@ export function CustomersClient() {
       status: status || undefined,
       country: countryParam || undefined,
       ownerId: ownerId || undefined,
+      channel: channel || undefined,
       keyword: keyword || undefined,
       sortBy,
       sortOrder,
@@ -151,6 +179,7 @@ export function CustomersClient() {
       if (keywordParam) params.set("keyword", keywordParam);
       if (countryParam) params.set("country", countryParam);
       if (ownerId) params.set("ownerId", ownerId);
+      if (channel) params.set("channel", channel);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/customers?${params}`);
@@ -177,48 +206,61 @@ export function CustomersClient() {
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     fetchCustomers();
-  }, [page, status, filter, countryParam, ownerId, keywordParam, sortBy, sortOrder]);
+  }, [hydrated, page, status, filter, countryParam, ownerId, channel, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     updateUrl({ keyword: keyword || undefined, country: countryInput || undefined, page: 1 });
   }
 
-  function buildListFilterParams(forEmails = false) {
+  function buildListFilterParams(mode?: "emails" | "whatsapps") {
     const params = new URLSearchParams();
-    if (forEmails) params.set("emails", "1");
+    if (mode === "emails") params.set("emails", "1");
+    if (mode === "whatsapps") params.set("whatsapps", "1");
     if (status) params.set("status", status);
     if (filter) params.set("filter", filter);
     if (keywordParam) params.set("keyword", keywordParam);
     if (countryParam) params.set("country", countryParam);
     if (ownerId) params.set("ownerId", ownerId);
+    if (channel) params.set("channel", channel);
     return params;
   }
 
-  async function handleCopyEmails() {
-    setCopyingEmails(true);
+  function openCustomer(id: string) {
+    saveListQuery(pathname, searchParams.toString());
+    router.push(`/export/customers/${id}`);
+  }
+
+  async function copyChannelValues(mode: "emails" | "whatsapps") {
+    const copying = mode === "emails" ? setCopyingEmails : setCopyingWhatsapps;
+    copying(true);
     try {
-      const res = await fetch(`/api/export/customers?${buildListFilterParams(true)}`);
+      const res = await fetch(`/api/export/customers?${buildListFilterParams(mode)}`);
       const json = await parseResponseJson<{
         error?: string;
         data?: string[];
         total?: number;
         customerCount?: number;
       }>(res);
-      if (!res.ok) throw new Error(json.error ?? "获取邮箱失败");
-      const emails = json.data ?? [];
-      if (emails.length === 0) {
-        toast("当前筛选结果中没有可复制的邮箱", "error");
+      if (!res.ok) throw new Error(json.error ?? (mode === "emails" ? "获取邮箱失败" : "获取 WhatsApp 失败"));
+      const values = json.data ?? [];
+      if (values.length === 0) {
+        toast(mode === "emails" ? "当前筛选结果中没有可复制的邮箱" : "当前筛选结果中没有可复制的 WhatsApp", "error");
         return;
       }
-      const text = emailCopyFormat === "comma" ? emails.join(", ") : emails.join("\n");
+      const text = emailCopyFormat === "comma" ? values.join(", ") : values.join("\n");
       await navigator.clipboard.writeText(text);
-      toast(`已复制 ${emails.length} 个邮箱（${json.customerCount ?? emails.length} 家客户）`);
+      toast(
+        mode === "emails"
+          ? `已复制 ${values.length} 个邮箱（${json.customerCount ?? values.length} 家客户）`
+          : `已复制 ${values.length} 个 WhatsApp（${json.customerCount ?? values.length} 家客户）`,
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "复制失败", "error");
     } finally {
-      setCopyingEmails(false);
+      copying(false);
     }
   }
 
@@ -245,9 +287,11 @@ export function CustomersClient() {
             onChange={(e) => updateUrl({ filter: e.target.value || undefined, page: 1 })}
             className="px-3 py-2 text-sm"
           >
-            <option value="">全部</option>
+            <option value="">全部跟进</option>
             <option value="today">今日待跟进</option>
             <option value="overdue">超7天未跟进</option>
+            <option value="whatsapp_first">WhatsApp 待联系</option>
+            <option value="whatsapp_maintain">WhatsApp 待维护</option>
           </select>
           <select
             value={status}
@@ -266,12 +310,23 @@ export function CustomersClient() {
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
             className="px-3 py-2 text-sm"
           >
-            <option value="">全部负责人</option>
+            <option value="">全部业务员</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
               </option>
             ))}
+          </select>
+          <select
+            value={channel}
+            onChange={(e) => updateUrl({ channel: e.target.value || undefined, page: 1 })}
+            className="px-3 py-2 text-sm"
+          >
+            <option value="">全部联系方式</option>
+            <option value="email">有邮箱</option>
+            <option value="no_email">无邮箱</option>
+            <option value="whatsapp">有 WhatsApp</option>
+            <option value="no_whatsapp">无 WhatsApp</option>
           </select>
           <select
             value={`${sortBy}:${sortOrder}`}
@@ -280,12 +335,20 @@ export function CustomersClient() {
           >
             <option value="updatedAt:desc">最新更新</option>
             <option value="createdAt:desc">最新创建</option>
-            <option value="lastFollowUpAt:desc">最近跟进</option>
+            <option value="lastFollowUpAt:desc">最近联系</option>
+            <option value="lastFollowUpAt:asc">最久未联系优先</option>
             <option value="nextFollowUpAt:asc">最近待跟进</option>
             <option value="companyName:asc">公司 A-Z</option>
           </select>
           <button type="submit" className="export-btn-primary rounded-md px-4 py-2 text-sm">
             搜索
+          </button>
+          <button
+            type="button"
+            onClick={resetListQuery}
+            className="export-btn-secondary rounded-md px-3 py-2 text-sm"
+          >
+            重置筛选
           </button>
         </form>
         <button
@@ -306,18 +369,26 @@ export function CustomersClient() {
             value={emailCopyFormat}
             onChange={(e) => setEmailCopyFormat(e.target.value as "newline" | "comma")}
             className="rounded border-0 bg-transparent px-2 py-1.5 text-sm text-slate-700 focus:outline-none"
-            aria-label="邮箱复制格式"
+            aria-label="复制格式"
           >
             <option value="newline">换行分隔</option>
             <option value="comma">逗号分隔</option>
           </select>
           <button
             type="button"
-            onClick={handleCopyEmails}
+            onClick={() => copyChannelValues("emails")}
             disabled={copyingEmails || loading}
             className="export-btn-primary rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
           >
             {copyingEmails ? "复制中..." : "复制全部邮箱"}
+          </button>
+          <button
+            type="button"
+            onClick={() => copyChannelValues("whatsapps")}
+            disabled={copyingWhatsapps || loading}
+            className="rounded-md bg-green-700 px-3 py-1.5 text-sm text-white hover:bg-green-800 disabled:opacity-50"
+          >
+            {copyingWhatsapps ? "复制中..." : "复制全部 WhatsApp"}
           </button>
         </div>
       </div>
@@ -361,7 +432,7 @@ export function CustomersClient() {
                 <tr
                   key={c.id}
                   className="cursor-pointer border-b border-slate-100"
-                  onClick={() => router.push(`/export/customers/${c.id}`)}
+                  onClick={() => openCustomer(c.id)}
                 >
                   <td className="px-4 py-3 font-medium text-slate-800">{c.customerCode}</td>
                   <td className="px-4 py-3 text-slate-600">
@@ -385,12 +456,7 @@ export function CustomersClient() {
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <SocialLinksBar
                       compact
-                      email={c.contacts?.[0]?.email}
-                      phone={c.contacts?.[0]?.phone}
-                      whatsapp={c.contacts?.[0]?.whatsapp}
-                      linkedin={c.contacts?.[0]?.linkedin}
-                      facebook={c.contacts?.[0]?.facebook}
-                      tiktok={c.contacts?.[0]?.tiktok}
+                      {...pickContactSocials(c.contacts)}
                     />
                   </td>
                   <td className="px-4 py-3 text-slate-600">{c.country ?? "-"}</td>
@@ -410,6 +476,16 @@ export function CustomersClient() {
                       {isCustomerOverdue(c) && (
                         <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
                           超7天
+                        </span>
+                      )}
+                      {whatsappStageForCustomer(c) === "first_contact" && (
+                        <span className="rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-800">
+                          WA待联系
+                        </span>
+                      )}
+                      {whatsappStageForCustomer(c) === "maintain_due" && (
+                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                          WA待维护
                         </span>
                       )}
                     </span>
@@ -448,7 +524,7 @@ export function CustomersClient() {
                     <span className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => router.push(`/export/customers/${c.id}`)}
+                        onClick={() => openCustomer(c.id)}
                         className="text-sm text-slate-500 hover:underline"
                       >
                         打开
@@ -467,7 +543,11 @@ export function CustomersClient() {
                       >
                         设置下次跟进
                       </button>
-                      <Link href={`/export/customers/${c.id}`} className="text-teal-600 hover:underline">
+                      <Link
+                        href={`/export/customers/${c.id}`}
+                        onClick={() => saveListQuery(pathname, searchParams.toString())}
+                        className="text-teal-600 hover:underline"
+                      >
                         详情
                       </Link>
                     </span>
@@ -493,10 +573,8 @@ export function CustomersClient() {
           open={!!quickCustomer}
           onClose={() => setQuickCustomer(null)}
           customerId={quickCustomer.id}
-          contactEmail={quickCustomer.contacts?.[0]?.email}
-          contactWhatsapp={
-            quickCustomer.contacts?.[0]?.whatsapp ?? quickCustomer.contacts?.[0]?.phone
-          }
+          contactEmail={pickContactSocials(quickCustomer.contacts).email}
+          contactWhatsapp={pickContactSocials(quickCustomer.contacts).whatsapp}
           title="记录一次客户沟通"
           onSuccess={() => {
             toast("已记录");

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ACTIVITY_TYPES, ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
 import { parseResponseJson } from "@/lib/parse-response-json";
+import { daysFromNowLocal } from "@/lib/export/follow-up";
 import {
   activityDirectionLabel,
   activityTypeLabel,
@@ -69,6 +70,12 @@ export function ActivityFormClient({
     customerFeedback: "",
     nextFollowUpAt: "",
   });
+
+  useEffect(() => {
+    if (form.type === "whatsapp" && !form.nextFollowUpAt) {
+      setForm((f) => ({ ...f, nextFollowUpAt: daysFromNowLocal(3) }));
+    }
+  }, [form.type, form.nextFollowUpAt]);
 
   // 加载联系人（仅 Customer 阶段）
   useEffect(() => {
@@ -343,8 +350,13 @@ export function ActivityFormClient({
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">下次跟进</label>
+        <div className={form.type === "whatsapp" ? "rounded-md border border-green-200 bg-green-50 p-3" : ""}>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {form.type === "whatsapp" ? "本次联系后的下次跟进" : "下次跟进"}
+          </label>
+          {form.type === "whatsapp" && (
+            <p className="mb-2 text-xs text-green-800">记录本次 WhatsApp 沟通后，可安排下次跟进。尚未联系上时不要提前进入维护。</p>
+          )}
           <input
             type="datetime-local"
             value={form.nextFollowUpAt}

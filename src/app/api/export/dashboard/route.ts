@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { buildLeadPacePrismaWhere } from "@/lib/export/lead-pace";
+import { customerWhatsappFirstContactWhere, customerWhatsappMaintainWhere } from "@/lib/export/customer-list-where";
 
 export async function GET() {
   const { ctx, error } = await requireExportSession();
@@ -39,6 +40,8 @@ export async function GET() {
     quoteCandidates,
     tasksOverdue,
     todayDueTasksCount,
+    whatsappMaintainCount,
+    whatsappFirstContactCount,
   ] = await Promise.all([
     prisma.exportCustomer.count({
       where: {
@@ -114,6 +117,18 @@ export async function GET() {
         dueDate: { gte: todayStart, lt: todayEnd },
       },
     }),
+    prisma.exportCustomer.count({
+      where: {
+        ...baseWhere,
+        ...customerWhatsappMaintainWhere(),
+      },
+    }),
+    prisma.exportCustomer.count({
+      where: {
+        ...baseWhere,
+        ...customerWhatsappFirstContactWhere(),
+      },
+    }),
   ]);
 
   const quoteNoFollowUp3Days = quoteCandidates
@@ -159,6 +174,8 @@ export async function GET() {
       quoteNoFollowUp3Days,
       tasksOverdue,
       todayDueTasksCount,
+      whatsappMaintainCount,
+      whatsappFirstContactCount,
     },
   });
 }

@@ -1,4 +1,6 @@
 import { buildLeadPacePrismaWhere, type LeadPaceFilter } from "@/lib/export/lead-pace";
+import { collectUniqueEmails, collectUniqueWhatsapps, leadChannelWhere } from "@/lib/export/contact-channel-filter";
+import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
 
 export interface LeadListFilterParams {
   keyword?: string;
@@ -8,6 +10,8 @@ export interface LeadListFilterParams {
   since?: string;
   pace?: string;
   sourceChannel?: string;
+  channel?: string;
+  filter?: string;
 }
 
 export interface LeadListContext {
@@ -15,9 +19,50 @@ export interface LeadListContext {
   ownerFilter?: { ownerId: string } | null;
 }
 
+function pushAnd(where: Record<string, unknown>, clause: Record<string, unknown>) {
+  const existing = where.AND;
+  if (Array.isArray(existing)) {
+    existing.push(clause);
+  } else if (existing) {
+    where.AND = [existing, clause];
+  } else {
+    where.AND = [clause];
+  }
+}
+
+export function leadWhatsappFirstContactWhere(): Record<string, unknown> {
+  const channel = leadChannelWhere("whatsapp");
+  return {
+    status: { not: "converted" },
+    lastContactAt: null,
+    AND: [...(channel ? [channel] : [])],
+  };
+}
+
+export function leadWhatsappMaintainWhere(now = new Date()): Record<string, unknown> {
+  const todayEnd = endOfLocalDay(now);
+  const silentSince = daysAgo(WHATSAPP_MAINTAIN_DAYS, now);
+  const channel = leadChannelWhere("whatsapp");
+  return {
+    status: { not: "converted" },
+    lastContactAt: { not: null },
+    AND: [
+      ...(channel ? [channel] : []),
+      {
+        OR: [
+          { nextFollowUpAt: null },
+          { nextFollowUpAt: { lt: todayEnd } },
+          { lastContactAt: { lt: silentSince } },
+        ],
+      },
+    ],
+  };
+}
+
 export function buildExportLeadListWhere(
   ctx: LeadListContext,
-  params: LeadListFilterParams
+  params: LeadListFilterParams,
+  now = new Date(),
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
   if (params.ownerId) where.ownerId = params.ownerId;
@@ -25,12 +70,12 @@ export function buildExportLeadListWhere(
   if (params.status) where.status = params.status;
   if (params.country) where.country = { contains: params.country, mode: "insensitive" };
   if (params.since === "week") {
-    const weekStart = new Date();
+    const weekStart = new Date(now);
     weekStart.setDate(weekStart.getDate() - 7);
     where.createdAt = { gte: weekStart };
   }
   if (params.sourceChannel === "__empty__") {
-    where.AND = [{ OR: [{ sourceChannel: null }, { sourceChannel: "" }] }];
+    pushAnd(where, { OR: [{ sourceChannel: null }, { sourceChannel: "" }] });
   } else if (params.sourceChannel) {
     where.sourceChannel = { equals: params.sourceChannel, mode: "insensitive" };
   }
@@ -43,32 +88,45 @@ export function buildExportLeadListWhere(
     if ("AND" in paceWhere) delete where.status;
   }
 
-  if (params.keyword) {
-    const orList = [
-      { companyName: { contains: params.keyword, mode: "insensitive" } },
-      { email: { contains: params.keyword, mode: "insensitive" } },
-      { phone: { contains: params.keyword, mode: "insensitive" } },
-    ];
-    if (Array.isArray(where.AND)) {
-      (where.AND as unknown[]).push({ OR: orList });
-    } else {
-      where.OR = orList;
+  if (params.filter === "whatsapp_first" || params.filter === "whatsapp_maintain") {
+    const special =
+      params.filter === "whatsapp_first"
+        ? leadWhatsappFirstContactWhere()
+        : leadWhatsappMaintainWhere(now);
+    if (!params.status) where.status = special.status;
+    else pushAnd(where, { status: special.status as Record<string, unknown> });
+    if ("lastContactAt" in special) where.lastContactAt = special.lastContactAt;
+    const extraAnd = special.AND;
+    if (Array.isArray(extraAnd)) {
+      for (const clause of extraAnd) {
+        pushAnd(where, clause as Record<string, unknown>);
+      }
     }
+  }
+
+  const channelWhere = leadChannelWhere(params.channel);
+  if (channelWhere && params.filter !== "whatsapp_maintain" && params.filter !== "whatsapp_first") {
+    pushAnd(where, channelWhere);
+  }
+
+  if (params.keyword) {
+    pushAnd(where, {
+      OR: [
+        { companyName: { contains: params.keyword, mode: "insensitive" } },
+        { email: { contains: params.keyword, mode: "insensitive" } },
+        { phone: { contains: params.keyword, mode: "insensitive" } },
+        { whatsapp: { contains: params.keyword, mode: "insensitive" } },
+      ],
+    });
   }
 
   return where;
 }
 
 export function collectLeadEmails(leads: { email: string | null }[]): string[] {
-  const seen = new Set<string>();
-  const emails: string[] = [];
-  for (const l of leads) {
-    const email = l.email?.trim();
-    if (!email) continue;
-    const key = email.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    emails.push(email);
-  }
-  return emails;
+  return collectUniqueEmails(leads.map((l) => l.email));
+}
+
+export function collectLeadWhatsapps(leads: { whatsapp: string | null }[]): string[] {
+  return collectUniqueWhatsapps(leads.map((l) => l.whatsapp));
 }

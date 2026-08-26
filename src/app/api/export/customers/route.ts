@@ -7,6 +7,7 @@ import { parseInterestedProducts } from "@/lib/export/interested-products";
 import {
   buildExportCustomerListWhere,
   collectUniqueEmails,
+  collectUniqueWhatsappsFromContacts,
 } from "@/lib/export/customer-list-where";
 import { z } from "zod";
 
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
   const country = searchParams.get("country")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const filter = searchParams.get("filter")?.trim();
+  const channel = searchParams.get("channel")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
@@ -40,25 +42,30 @@ export async function GET(request: NextRequest) {
     country,
     ownerId,
     filter,
+    channel,
   });
 
-  if (searchParams.get("emails") === "1") {
+  if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {
+    const field = searchParams.get("whatsapps") === "1" ? "whatsapp" : "email";
     const customers = await prisma.exportCustomer.findMany({
       where,
       orderBy: { companyName: "asc" },
       take: 5000,
       select: {
         contacts: {
-          where: { email: { not: null } },
-          select: { email: true },
+          where: { [field]: { not: null } },
+          select: { email: true, whatsapp: true },
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         },
       },
     });
-    const emails = collectUniqueEmails(customers.map((c) => c.contacts));
+    const values =
+      field === "whatsapp"
+        ? collectUniqueWhatsappsFromContacts(customers.map((c) => c.contacts))
+        : collectUniqueEmails(customers.map((c) => c.contacts));
     return NextResponse.json({
-      data: emails,
-      total: emails.length,
+      data: values,
+      total: values.length,
       customerCount: customers.length,
     });
   }
@@ -72,8 +79,8 @@ export async function GET(request: NextRequest) {
       include: {
         owner: { select: { id: true, name: true } },
         contacts: {
-          where: { isPrimary: true },
-          take: 1,
+          take: 5,
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
           select: {
             email: true,
             whatsapp: true,

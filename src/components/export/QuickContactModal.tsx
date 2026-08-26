@@ -10,6 +10,7 @@ import {
   emailTemplateCategoryLabel,
   emailTemplateLanguageLabel,
 } from "@/lib/export-display-labels";
+import { daysFromNowLocal } from "@/lib/export/follow-up";
 import {
   buildLeadSocialLinks,
   buildMailtoUrl,
@@ -93,6 +94,8 @@ export function QuickContactModal({
       setSelectedTemplateId("");
       setType(defaultActivityType ?? "email");
       setDirection(defaultDirection);
+    } else if (!nextFollowUpAt) {
+      setNextFollowUpAt(daysFromNowLocal(3));
     }
   }, [open, defaultDirection, defaultActivityType]);
 
@@ -169,6 +172,11 @@ export function QuickContactModal({
     setError("");
     setLoading(true);
     try {
+      if (type === "whatsapp" && direction === "outbound" && contactCount > 0 && !nextFollowUpAt) {
+        setError("已经联系上的 WhatsApp 客户，请设置下次维护时间");
+        setLoading(false);
+        return;
+      }
       const body: Record<string, unknown> = {
         customerId: customerId || undefined,
         leadId: leadId || undefined,
@@ -320,12 +328,25 @@ export function QuickContactModal({
         )}
 
         {direction === "outbound" && (
-          <div className="mt-3">
-            <label className="mb-1 block text-xs font-medium text-slate-600">下次跟进（可选）</label>
+          <div className={`mt-3 ${type === "whatsapp" && contactCount > 0 ? "rounded-md border border-green-200 bg-green-50 p-3" : ""}`}>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              {type === "whatsapp" && contactCount > 0
+                ? "下次维护提醒 *"
+                : type === "whatsapp"
+                  ? "下次再联系（可选）"
+                  : "下次跟进（可选）"}
+            </label>
+            {type === "whatsapp" && contactCount === 0 && (
+              <p className="mb-2 text-[11px] text-sky-800">本次是首次联系。联系上之后，再安排维护节奏。</p>
+            )}
+            {type === "whatsapp" && contactCount > 0 && (
+              <p className="mb-2 text-[11px] text-green-800">已经联系上，请安排下次维护时间。</p>
+            )}
             <input
               type="datetime-local"
               value={nextFollowUpAt}
               onChange={(e) => setNextFollowUpAt(e.target.value)}
+              required={type === "whatsapp" && contactCount > 0}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>

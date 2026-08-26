@@ -15,6 +15,7 @@ export function ContactFormClient({
   customerId: string;
   initial?: Record<string, unknown>;
   contactId?: string;
+  currentNextFollowUpAt?: string | null;
   onSuccess?: () => void;
   onCancel?: () => void;
 }) {
@@ -130,6 +131,11 @@ export function ContactFormClient({
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
+        {form.whatsapp.trim() ? (
+          <div className="sm:col-span-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+            有 WhatsApp 号码后，请先联系上客户。留下沟通记录之后，才会进入维护提醒。
+          </div>
+        ) : null}
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">LinkedIn</label>
           <input

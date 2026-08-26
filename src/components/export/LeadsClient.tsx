@@ -6,6 +6,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LEAD_STATUSES } from "@/lib/export-constants";
 import { leadStatusLabel, sourceChannelLabel } from "@/lib/export-display-labels";
 import { buildListUrl } from "@/lib/export/url-params";
+import { saveListQuery } from "@/lib/export/list-filter-storage";
+import { usePersistedListQuery } from "@/lib/export/use-persisted-list-query";
 import { useToast } from "@/components/ui/Toast";
 import { LeadForm } from "./LeadForm";
 import { Drawer } from "./shared/Drawer";
@@ -14,6 +16,7 @@ import { QuickContactModal } from "./QuickContactModal";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 import { getLeadPaceBadge } from "@/lib/export/lead-pace";
+import { resolveWhatsappStage } from "@/lib/export/follow-up";
 import { SocialLinksBar } from "./SocialLinksBar";
 import { ConvertLeadModal, type ConvertLeadPayload } from "./ConvertLeadModal";
 
@@ -35,6 +38,7 @@ interface Lead {
   createdAt: string;
   updatedAt: string;
   lastContactAt: string | null;
+  nextFollowUpAt: string | null;
   contactCount: number;
   convertedToCustomerId: string | null;
 }
@@ -72,10 +76,13 @@ export function LeadsClient() {
   const ownerId = searchParams.get("ownerId") ?? "";
   const pace = searchParams.get("pace") ?? "";
   const sourceChannel = searchParams.get("sourceChannel") ?? "";
+  const channel = searchParams.get("channel") ?? "";
+  const filter = searchParams.get("filter") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "lastContactAt";
   const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const { hydrated, resetListQuery } = usePersistedListQuery("/export/leads");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,6 +94,7 @@ export function LeadsClient() {
   const [importing, setImporting] = useState(false);
   const [emailCopyFormat, setEmailCopyFormat] = useState<"newline" | "comma">("newline");
   const [copyingEmails, setCopyingEmails] = useState(false);
+  const [copyingWhatsapps, setCopyingWhatsapps] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [quickModal, setQuickModal] = useState<QuickModalState>({
@@ -153,6 +161,8 @@ export function LeadsClient() {
       if (since) params.set("since", since);
       if (pace) params.set("pace", pace);
       if (sourceChannel) params.set("sourceChannel", sourceChannel);
+      if (channel) params.set("channel", channel);
+      if (filter) params.set("filter", filter);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/leads?${params}`);
@@ -185,6 +195,8 @@ export function LeadsClient() {
       ownerId: ownerId || undefined,
       pace: pace || undefined,
       sourceChannel: sourceChannel || undefined,
+      channel: channel || undefined,
+      filter: filter || undefined,
       keyword: keyword || undefined,
       sortBy,
       sortOrder,
@@ -200,17 +212,19 @@ export function LeadsClient() {
   }
 
   useEffect(() => {
+    if (!hydrated) return;
     fetchLeads();
-  }, [page, status, country, ownerId, since, pace, sourceChannel, keywordParam, sortBy, sortOrder]);
+  }, [hydrated, page, status, country, ownerId, since, pace, sourceChannel, channel, filter, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     updateUrl({ keyword: keyword || undefined, country: countryInput || undefined, page: 1 });
   }
 
-  function buildListFilterParams(forEmails = false) {
+  function buildListFilterParams(mode?: "emails" | "whatsapps") {
     const params = new URLSearchParams();
-    if (forEmails) params.set("emails", "1");
+    if (mode === "emails") params.set("emails", "1");
+    if (mode === "whatsapps") params.set("whatsapps", "1");
     if (status) params.set("status", status);
     if (keywordParam) params.set("keyword", keywordParam);
     if (country) params.set("country", country);
@@ -218,32 +232,44 @@ export function LeadsClient() {
     if (since) params.set("since", since);
     if (pace) params.set("pace", pace);
     if (sourceChannel) params.set("sourceChannel", sourceChannel);
+    if (channel) params.set("channel", channel);
+    if (filter) params.set("filter", filter);
     return params;
   }
 
-  async function handleCopyEmails() {
-    setCopyingEmails(true);
+  function openLead(id: string) {
+    saveListQuery(pathname, searchParams.toString());
+    router.push(`/export/leads/${id}`);
+  }
+
+  async function copyChannelValues(mode: "emails" | "whatsapps") {
+    const copying = mode === "emails" ? setCopyingEmails : setCopyingWhatsapps;
+    copying(true);
     try {
-      const res = await fetch(`/api/export/leads?${buildListFilterParams(true)}`);
+      const res = await fetch(`/api/export/leads?${buildListFilterParams(mode)}`);
       const json = await parseResponseJson<{
         error?: string;
         data?: string[];
         total?: number;
         leadCount?: number;
       }>(res);
-      if (!res.ok) throw new Error(String(json.error ?? "获取邮箱失败"));
-      const emails = json.data ?? [];
-      if (emails.length === 0) {
-        toast("当前筛选结果中没有可复制的邮箱", "error");
+      if (!res.ok) throw new Error(String(json.error ?? (mode === "emails" ? "获取邮箱失败" : "获取 WhatsApp 失败")));
+      const values = json.data ?? [];
+      if (values.length === 0) {
+        toast(mode === "emails" ? "当前筛选结果中没有可复制的邮箱" : "当前筛选结果中没有可复制的 WhatsApp", "error");
         return;
       }
-      const text = emailCopyFormat === "comma" ? emails.join(", ") : emails.join("\n");
+      const text = emailCopyFormat === "comma" ? values.join(", ") : values.join("\n");
       await navigator.clipboard.writeText(text);
-      toast(`已复制 ${emails.length} 个邮箱（${json.leadCount ?? emails.length} 条线索）`);
+      toast(
+        mode === "emails"
+          ? `已复制 ${values.length} 个邮箱（${json.leadCount ?? values.length} 条线索）`
+          : `已复制 ${values.length} 个 WhatsApp（${json.leadCount ?? values.length} 条线索）`,
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "复制失败", "error");
     } finally {
-      setCopyingEmails(false);
+      copying(false);
     }
   }
 
@@ -342,12 +368,23 @@ export function LeadsClient() {
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
             className="px-3 py-2 text-sm"
           >
-            <option value="">全部负责人</option>
+            <option value="">全部业务员</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
               </option>
             ))}
+          </select>
+          <select
+            value={channel}
+            onChange={(e) => updateUrl({ channel: e.target.value || undefined, page: 1 })}
+            className="px-3 py-2 text-sm"
+          >
+            <option value="">全部联系方式</option>
+            <option value="email">有邮箱</option>
+            <option value="no_email">无邮箱</option>
+            <option value="whatsapp">有 WhatsApp</option>
+            <option value="no_whatsapp">无 WhatsApp</option>
           </select>
           <select
             value={`${sortBy}:${sortOrder}`}
@@ -363,6 +400,13 @@ export function LeadsClient() {
           <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">
             搜索
           </button>
+          <button
+            type="button"
+            onClick={resetListQuery}
+            className="export-btn-secondary rounded-md px-3 py-2 text-sm"
+          >
+            重置筛选
+          </button>
         </form>
 
         <div className="flex flex-wrap gap-1">
@@ -371,23 +415,34 @@ export function LeadsClient() {
             { key: "never", label: "未联系过" },
             { key: "due", label: "该跟进了" },
             { key: "stuck", label: "联系 3+ 无响应" },
+            { key: "whatsapp_first", label: "WhatsApp待联系" },
+            { key: "whatsapp_maintain", label: "WhatsApp待维护" },
           ].map((p) => (
             <button
               key={p.key || "all"}
               type="button"
               onClick={() =>
                 updateUrl({
-                  pace: p.key || undefined,
+                  pace:
+                    p.key === "whatsapp_maintain" || p.key === "whatsapp_first"
+                      ? undefined
+                      : p.key || undefined,
+                  filter:
+                    p.key === "whatsapp_maintain" || p.key === "whatsapp_first" ? p.key : undefined,
                   page: 1,
-                  ...(p.key === "due" || p.key === "stuck"
+                  ...(p.key === "due" || p.key === "stuck" || p.key === "whatsapp_maintain"
                     ? { sortBy: "lastContactAt", sortOrder: "asc" }
                     : {}),
                 })
               }
               className={`export-chip px-3 py-1 ${
-                pace === p.key
-                  ? "export-chip-active"
-                  : "hover:bg-slate-50"
+                p.key === "whatsapp_maintain" || p.key === "whatsapp_first"
+                  ? filter === p.key
+                    ? "export-chip-active"
+                    : "hover:bg-slate-50"
+                  : !filter && pace === p.key
+                    ? "export-chip-active"
+                    : "hover:bg-slate-50"
               }`}
             >
               {p.label}
@@ -427,18 +482,26 @@ export function LeadsClient() {
             value={emailCopyFormat}
             onChange={(e) => setEmailCopyFormat(e.target.value as "newline" | "comma")}
             className="rounded border-0 bg-transparent px-2 py-1.5 text-sm text-slate-700 focus:outline-none"
-            aria-label="邮箱复制格式"
+            aria-label="复制格式"
           >
             <option value="newline">换行分隔</option>
             <option value="comma">逗号分隔</option>
           </select>
           <button
             type="button"
-            onClick={handleCopyEmails}
+            onClick={() => copyChannelValues("emails")}
             disabled={copyingEmails || loading}
             className="rounded-md bg-slate-700 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {copyingEmails ? "复制中..." : "复制全部邮箱"}
+          </button>
+          <button
+            type="button"
+            onClick={() => copyChannelValues("whatsapps")}
+            disabled={copyingWhatsapps || loading}
+            className="rounded-md bg-green-700 px-3 py-1.5 text-sm text-white hover:bg-green-800 disabled:opacity-50"
+          >
+            {copyingWhatsapps ? "复制中..." : "复制全部 WhatsApp"}
           </button>
         </div>
       </div>
@@ -498,11 +561,18 @@ export function LeadsClient() {
             <tbody>
               {leads.map((l) => {
                 const badge = getLeadPaceBadge(l);
+                const waStage = resolveWhatsappStage({
+                  hasWhatsapp: !!l.whatsapp?.trim(),
+                  status: l.status,
+                  lastContactAt: l.lastContactAt,
+                  nextFollowUpAt: l.nextFollowUpAt,
+                  closedStatuses: ["converted", "invalid"],
+                });
                 return (
                   <tr
                     key={l.id}
                     className="cursor-pointer border-b border-slate-100"
-                    onClick={() => router.push(`/export/leads/${l.id}`)}
+                    onClick={() => openLead(l.id)}
                   >
                     <td className="px-4 py-3 font-medium text-slate-800">
                       <div>{l.companyName}</div>
@@ -560,9 +630,21 @@ export function LeadsClient() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded px-2 py-0.5 text-xs ${badge.className}`}>
+                      <span
+                        className={`inline-flex rounded px-2 py-0.5 text-xs ${badge.className}`}
+                      >
                         {badge.label}
                       </span>
+                      {waStage === "first_contact" && (
+                        <span className="ml-1 rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-800">
+                          WA待联系
+                        </span>
+                      )}
+                      {waStage === "maintain_due" && (
+                        <span className="ml-1 rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                          WA待维护
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-700">{l.contactCount}</td>
                     <td className="px-4 py-3 text-slate-600">{l.owner.name}</td>
@@ -606,7 +688,11 @@ export function LeadsClient() {
                             收到回复
                           </button>
                         )}
-                        <Link href={`/export/leads/${l.id}`} className="text-teal-600 hover:underline">
+                        <Link
+                          href={`/export/leads/${l.id}`}
+                          onClick={() => saveListQuery(pathname, searchParams.toString())}
+                          className="text-teal-600 hover:underline"
+                        >
                           详情
                         </Link>
                         {l.status !== "converted" && (
