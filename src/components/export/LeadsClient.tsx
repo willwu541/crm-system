@@ -19,6 +19,7 @@ import { getLeadPaceBadge } from "@/lib/export/lead-pace";
 import { resolveWhatsappStage } from "@/lib/export/follow-up";
 import { SocialLinksBar } from "./SocialLinksBar";
 import { ConvertLeadModal, type ConvertLeadPayload } from "./ConvertLeadModal";
+import { ElsewhereHits, type ElsewhereHit } from "./ElsewhereHits";
 
 interface Lead {
   id: string;
@@ -95,6 +96,7 @@ export function LeadsClient() {
   const [emailCopyFormat, setEmailCopyFormat] = useState<"newline" | "comma">("newline");
   const [copyingEmails, setCopyingEmails] = useState(false);
   const [copyingWhatsapps, setCopyingWhatsapps] = useState(false);
+  const [elsewhere, setElsewhere] = useState<ElsewhereHit[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [quickModal, setQuickModal] = useState<QuickModalState>({
@@ -154,21 +156,26 @@ export function LeadsClient() {
     try {
       const params = new URLSearchParams();
       params.set("page", String(overrides?.page ?? page));
-      if (status) params.set("status", status);
-      if (keywordParam) params.set("keyword", keywordParam);
-      if (country) params.set("country", country);
-      if (ownerId) params.set("ownerId", ownerId);
-      if (since) params.set("since", since);
-      if (pace) params.set("pace", pace);
-      if (sourceChannel) params.set("sourceChannel", sourceChannel);
-      if (channel) params.set("channel", channel);
-      if (filter) params.set("filter", filter);
+      if (keywordParam) {
+        params.set("keyword", keywordParam);
+        if (country) params.set("country", country);
+      } else {
+        if (status) params.set("status", status);
+        if (country) params.set("country", country);
+        if (ownerId) params.set("ownerId", ownerId);
+        if (since) params.set("since", since);
+        if (pace) params.set("pace", pace);
+        if (sourceChannel) params.set("sourceChannel", sourceChannel);
+        if (channel) params.set("channel", channel);
+        if (filter) params.set("filter", filter);
+      }
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/leads?${params}`);
       const json = await parseResponseJson(res);
       if (!res.ok) throw new Error(String(json.error ?? "加载失败"));
       setLeads((json.data as Lead[]) || []);
+      setElsewhere((json.elsewhere as ElsewhereHit[]) || []);
       setPagination(json.pagination as PaginationData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
@@ -218,7 +225,18 @@ export function LeadsClient() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    updateUrl({ keyword: keyword || undefined, country: countryInput || undefined, page: 1 });
+    updateUrl({
+      keyword: keyword || undefined,
+      country: countryInput || undefined,
+      page: 1,
+      filter: undefined,
+      status: undefined,
+      channel: undefined,
+      pace: undefined,
+      since: undefined,
+      sourceChannel: undefined,
+      ownerId: undefined,
+    });
   }
 
   function buildListFilterParams(mode?: "emails" | "whatsapps") {
@@ -333,7 +351,7 @@ export function LeadsClient() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="公司名/邮箱/电话"
+            placeholder="搜索公司名、邮箱、电话"
             className="px-3 py-2 text-sm"
           />
           <input
@@ -527,12 +545,14 @@ export function LeadsClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
+      <ElsewhereHits keyword={keywordParam} hits={elsewhere} current="lead" />
+
       <div className="export-card overflow-hidden overflow-x-auto">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : leads.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
-            暂无线索
+            {keywordParam ? `线索列表没有「${keywordParam}」` : "暂无线索"}
             <div className="mt-2">
               <button
                 onClick={() => setDrawerOpen(true)}

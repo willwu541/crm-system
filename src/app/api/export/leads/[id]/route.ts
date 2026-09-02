@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
-import { getExportDuplicateMessage } from "@/lib/export/dedupe";
+import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
@@ -100,7 +100,7 @@ export async function PATCH(
       }
     }
 
-    const duplicateMessage = await getExportDuplicateMessage({
+    const duplicate = await findExportDuplicate({
       tenantId: ctx!.tenantId,
       companyName: parsed.data.companyName ?? lead.companyName,
       website: parsed.data.website ?? lead.website,
@@ -111,8 +111,8 @@ export async function PATCH(
         linkedCustomerId: lead.convertedToCustomerId,
       },
     });
-    if (duplicateMessage) {
-      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
+    if (duplicate) {
+      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
     }
 
     const updated = await prisma.exportLead.update({

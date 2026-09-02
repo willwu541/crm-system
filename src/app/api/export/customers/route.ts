@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { getExportDuplicateMessage } from "@/lib/export/dedupe";
+import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { generateCustomerCode } from "@/lib/export/number-generator";
 import { parseInterestedProducts } from "@/lib/export/interested-products";
 import {
@@ -9,6 +9,7 @@ import {
   collectUniqueEmails,
   collectUniqueWhatsappsFromContacts,
 } from "@/lib/export/customer-list-where";
+import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/export/company-name-search";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -36,14 +37,17 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
 
-  const where = buildExportCustomerListWhere(ctx!, {
-    keyword,
-    status,
-    country,
-    ownerId,
-    filter,
-    channel,
-  });
+  const where = buildExportCustomerListWhere(
+    ctx!,
+    await withNormalizedCompanyIds("export_customers", ctx!.tenantId, {
+      keyword,
+      status,
+      country,
+      ownerId,
+      filter,
+      channel,
+    }),
+  );
 
   if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {
     const field = searchParams.get("whatsapps") === "1" ? "whatsapp" : "email";
@@ -95,8 +99,14 @@ export async function GET(request: NextRequest) {
     prisma.exportCustomer.count({ where }),
   ]);
 
+  const elsewhere =
+    keyword && total === 0
+      ? await findExportRecordsByKeyword(ctx!.tenantId, keyword)
+      : [];
+
   return NextResponse.json({
     data,
+    elsewhere,
     pagination: {
       page,
       pageSize,
@@ -145,13 +155,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "客户编号已存在" }, { status: 400 });
     }
 
-    const duplicateMessage = await getExportDuplicateMessage({
+    const duplicate = await findExportDuplicate({
       tenantId: ctx!.tenantId,
       companyName: parsed.data.companyName,
       website: parsed.data.website,
     });
-    if (duplicateMessage) {
-      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
+    if (duplicate) {
+      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
     }
 
     const { interestedProducts, ...rest } = parsed.data;

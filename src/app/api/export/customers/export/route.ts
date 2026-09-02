@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { buildExportCustomerListWhere } from "@/lib/export/customer-list-where";
+import { withNormalizedCompanyIds } from "@/lib/export/company-name-search";
 import { csvDownloadResponse } from "@/lib/export/csv";
 
 function parseListParams(searchParams: URLSearchParams) {
@@ -20,7 +21,11 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
-  const filters = parseListParams(searchParams);
+  const filters = await withNormalizedCompanyIds(
+    "export_customers",
+    ctx!.tenantId,
+    parseListParams(searchParams),
+  );
   const where = buildExportCustomerListWhere(ctx!, filters);
 
   const customers = await prisma.exportCustomer.findMany({

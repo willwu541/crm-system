@@ -1,6 +1,7 @@
 import { buildLeadPacePrismaWhere, type LeadPaceFilter } from "@/lib/export/lead-pace";
 import { collectUniqueEmails, collectUniqueWhatsapps, leadChannelWhere } from "@/lib/export/contact-channel-filter";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
+import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
 export interface LeadListFilterParams {
   keyword?: string;
@@ -12,6 +13,7 @@ export interface LeadListFilterParams {
   sourceChannel?: string;
   channel?: string;
   filter?: string;
+  normalizedCompanyIds?: string[];
 }
 
 export interface LeadListContext {
@@ -65,8 +67,29 @@ export function buildExportLeadListWhere(
   now = new Date(),
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
-  if (params.ownerId) where.ownerId = params.ownerId;
-  else if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
+  if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
+
+  if (params.keyword) {
+    if (params.country) where.country = { contains: params.country, mode: "insensitive" };
+    const or: Record<string, unknown>[] = [
+      companyNameContainsWhere(params.keyword),
+      { email: { contains: params.keyword, mode: "insensitive" } },
+      { phone: { contains: params.keyword, mode: "insensitive" } },
+      { whatsapp: { contains: params.keyword, mode: "insensitive" } },
+      { website: { contains: params.keyword, mode: "insensitive" } },
+      { notes: { contains: params.keyword, mode: "insensitive" } },
+      { sourceKeyword: { contains: params.keyword, mode: "insensitive" } },
+    ];
+    const tokenAnd = companyNameTokenAndWhere(params.keyword);
+    if (tokenAnd) or.push(tokenAnd);
+    if (params.normalizedCompanyIds?.length) {
+      or.push({ id: { in: params.normalizedCompanyIds } });
+    }
+    pushAnd(where, { OR: or });
+    return where;
+  }
+
+  if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
   if (params.status) where.status = params.status;
   if (params.country) where.country = { contains: params.country, mode: "insensitive" };
   if (params.since === "week") {
@@ -107,17 +130,6 @@ export function buildExportLeadListWhere(
   const channelWhere = leadChannelWhere(params.channel);
   if (channelWhere && params.filter !== "whatsapp_maintain" && params.filter !== "whatsapp_first") {
     pushAnd(where, channelWhere);
-  }
-
-  if (params.keyword) {
-    pushAnd(where, {
-      OR: [
-        { companyName: { contains: params.keyword, mode: "insensitive" } },
-        { email: { contains: params.keyword, mode: "insensitive" } },
-        { phone: { contains: params.keyword, mode: "insensitive" } },
-        { whatsapp: { contains: params.keyword, mode: "insensitive" } },
-      ],
-    });
   }
 
   return where;

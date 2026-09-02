@@ -1,5 +1,6 @@
 import { customerChannelWhere, collectContactField } from "@/lib/export/contact-channel-filter";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
+import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
 export interface CustomerListFilterParams {
   keyword?: string;
@@ -8,6 +9,8 @@ export interface CustomerListFilterParams {
   ownerId?: string;
   filter?: string;
   channel?: string;
+  /** 去标点后的公司名命中 id，由 API 层用 SQL 查出后传入 */
+  normalizedCompanyIds?: string[];
 }
 
 export interface CustomerListContext {
@@ -64,8 +67,38 @@ export function buildExportCustomerListWhere(
   const sevenDaysAgo = daysAgo(7, now);
 
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
-  if (params.ownerId) where.ownerId = params.ownerId;
-  else if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
+  // 业务员始终只能看自己的；管理员搜公司名时不沿用上次选的业务员
+  if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
+
+  if (params.keyword) {
+    if (params.country) where.country = { contains: params.country, mode: "insensitive" };
+    const or: Record<string, unknown>[] = [
+      companyNameContainsWhere(params.keyword),
+      { customerCode: { contains: params.keyword, mode: "insensitive" } },
+      { website: { contains: params.keyword, mode: "insensitive" } },
+      {
+        contacts: {
+          some: {
+            OR: [
+              { name: { contains: params.keyword, mode: "insensitive" } },
+              { email: { contains: params.keyword, mode: "insensitive" } },
+              { phone: { contains: params.keyword, mode: "insensitive" } },
+              { whatsapp: { contains: params.keyword, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
+    ];
+    const tokenAnd = companyNameTokenAndWhere(params.keyword);
+    if (tokenAnd) or.push(tokenAnd);
+    if (params.normalizedCompanyIds?.length) {
+      or.push({ id: { in: params.normalizedCompanyIds } });
+    }
+    pushAnd(where, { OR: or });
+    return where;
+  }
+
+  if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
   if (params.status) where.status = params.status;
   if (params.country) where.country = { contains: params.country, mode: "insensitive" };
 
@@ -106,14 +139,6 @@ export function buildExportCustomerListWhere(
     pushAnd(where, channelWhere);
   }
 
-  if (params.keyword) {
-    pushAnd(where, {
-      OR: [
-        { companyName: { contains: params.keyword, mode: "insensitive" } },
-        { customerCode: { contains: params.keyword, mode: "insensitive" } },
-      ],
-    });
-  }
   return where;
 }
 

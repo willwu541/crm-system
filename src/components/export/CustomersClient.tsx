@@ -18,6 +18,7 @@ import { SocialLinksBar } from "./SocialLinksBar";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 import { resolveWhatsappStage } from "@/lib/export/follow-up";
+import { ElsewhereHits, type ElsewhereHit } from "./ElsewhereHits";
 
 interface Customer {
   id: string;
@@ -129,6 +130,7 @@ export function CustomersClient() {
   const [emailCopyFormat, setEmailCopyFormat] = useState<"newline" | "comma">("newline");
   const [copyingEmails, setCopyingEmails] = useState(false);
   const [copyingWhatsapps, setCopyingWhatsapps] = useState(false);
+  const [elsewhere, setElsewhere] = useState<ElsewhereHit[]>([]);
 
   useEffect(() => {
     setKeyword(keywordParam);
@@ -174,22 +176,28 @@ export function CustomersClient() {
     try {
       const params = new URLSearchParams();
       params.set("page", String(overrides?.page ?? page));
-      if (status) params.set("status", status);
-      if (filter) params.set("filter", filter);
-      if (keywordParam) params.set("keyword", keywordParam);
-      if (countryParam) params.set("country", countryParam);
-      if (ownerId) params.set("ownerId", ownerId);
-      if (channel) params.set("channel", channel);
+      if (keywordParam) {
+        params.set("keyword", keywordParam);
+        if (countryParam) params.set("country", countryParam);
+      } else {
+        if (status) params.set("status", status);
+        if (filter) params.set("filter", filter);
+        if (countryParam) params.set("country", countryParam);
+        if (ownerId) params.set("ownerId", ownerId);
+        if (channel) params.set("channel", channel);
+      }
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/customers?${params}`);
       const json = await parseResponseJson<{
         error?: string;
         data?: Customer[];
+        elsewhere?: ElsewhereHit[];
         pagination?: PaginationData;
       }>(res);
       if (!res.ok) throw new Error(json.error ?? "加载失败");
       setCustomers(json.data || []);
+      setElsewhere(json.elsewhere ?? []);
       setPagination(json.pagination ?? null);
     } catch (e) {
       if (!overrides?.silent) {
@@ -212,7 +220,15 @@ export function CustomersClient() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    updateUrl({ keyword: keyword || undefined, country: countryInput || undefined, page: 1 });
+    updateUrl({
+      keyword: keyword || undefined,
+      country: countryInput || undefined,
+      page: 1,
+      filter: undefined,
+      status: undefined,
+      channel: undefined,
+      ownerId: undefined,
+    });
   }
 
   function buildListFilterParams(mode?: "emails" | "whatsapps") {
@@ -272,7 +288,7 @@ export function CustomersClient() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="公司名/客户编号"
+            placeholder="搜索公司名、编号、邮箱、电话"
             className="px-3 py-2 text-sm"
           />
           <input
@@ -397,12 +413,14 @@ export function CustomersClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
+      <ElsewhereHits keyword={keywordParam} hits={elsewhere} current="customer" />
+
       <div className="export-card overflow-x-auto overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-slate-500">加载中...</div>
         ) : customers.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
-            暂无客户
+            {keywordParam ? `客户列表没有「${keywordParam}」` : "暂无客户"}
             <div className="mt-2">
               <button
                 onClick={() => setDrawerOpen(true)}

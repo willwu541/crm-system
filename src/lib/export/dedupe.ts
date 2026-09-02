@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getWebsiteHost } from "@/lib/website";
+import { normalizeCompanyName } from "@/lib/search-text";
 
 type DuplicateEntityType = "customer" | "lead";
 type DuplicateField = "companyName" | "website" | "email" | "phone";
@@ -17,17 +18,13 @@ interface DuplicateCheckInput {
   };
 }
 
-interface DuplicateMatch {
+export interface DuplicateMatchInfo {
   entityType: DuplicateEntityType;
   id: string;
   companyName: string;
   field: DuplicateField;
-}
-
-function normalizeCompanyName(value?: string | null): string | null {
-  const raw = value?.trim().toLowerCase();
-  if (!raw) return null;
-  return raw.replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "");
+  ownerName: string;
+  href: string;
 }
 
 function normalizeEmail(value?: string | null): string | null {
@@ -42,7 +39,7 @@ function normalizePhone(value?: string | null): string | null {
   return digits || null;
 }
 
-function buildDuplicateMessage(match: DuplicateMatch): string {
+export function formatExportDuplicateMessage(match: DuplicateMatchInfo): string {
   const entityLabel = match.entityType === "customer" ? "客户" : "线索";
   const fieldLabelMap: Record<DuplicateField, string> = {
     companyName: "公司名称",
@@ -50,10 +47,28 @@ function buildDuplicateMessage(match: DuplicateMatch): string {
     email: "邮箱",
     phone: "电话",
   };
-  return `发现重复：与${entityLabel}「${match.companyName}」的${fieldLabelMap[match.field]}重复，请先检查现有记录。`;
+  const ownerPart = match.ownerName ? `，负责人：${match.ownerName}` : "";
+  return `发现重复：与${entityLabel}「${match.companyName}」的${fieldLabelMap[match.field]}重复${ownerPart}。请打开已有记录，不要重复录入。`;
 }
 
-export async function getExportDuplicateMessage(input: DuplicateCheckInput): Promise<string | null> {
+function toMatch(
+  entityType: DuplicateEntityType,
+  id: string,
+  companyName: string,
+  field: DuplicateField,
+  ownerName: string,
+): DuplicateMatchInfo {
+  return {
+    entityType,
+    id,
+    companyName,
+    field,
+    ownerName,
+    href: entityType === "customer" ? `/export/customers/${id}` : `/export/leads/${id}`,
+  };
+}
+
+export async function findExportDuplicate(input: DuplicateCheckInput): Promise<DuplicateMatchInfo | null> {
   const normalized = {
     companyName: normalizeCompanyName(input.companyName),
     website: getWebsiteHost(input.website),
@@ -75,6 +90,7 @@ export async function getExportDuplicateMessage(input: DuplicateCheckInput): Pro
         id: true,
         companyName: true,
         website: true,
+        owner: { select: { name: true } },
         contacts: { select: { email: true, phone: true, whatsapp: true } },
       },
     }),
@@ -91,6 +107,7 @@ export async function getExportDuplicateMessage(input: DuplicateCheckInput): Pro
         phone: true,
         whatsapp: true,
         convertedToCustomerId: true,
+        owner: { select: { name: true } },
       },
     }),
   ]);
@@ -106,18 +123,19 @@ export async function getExportDuplicateMessage(input: DuplicateCheckInput): Pro
     const phones = customer.contacts
       .flatMap((contact) => [normalizePhone(contact.phone), normalizePhone(contact.whatsapp)])
       .filter(Boolean);
+    const ownerName = customer.owner.name;
 
     if (normalized.website && website === normalized.website) {
-      return buildDuplicateMessage({ entityType: "customer", id: customer.id, companyName: customer.companyName, field: "website" });
+      return toMatch("customer", customer.id, customer.companyName, "website", ownerName);
     }
     if (normalized.email && emails.includes(normalized.email)) {
-      return buildDuplicateMessage({ entityType: "customer", id: customer.id, companyName: customer.companyName, field: "email" });
+      return toMatch("customer", customer.id, customer.companyName, "email", ownerName);
     }
     if (normalized.phone && phones.includes(normalized.phone)) {
-      return buildDuplicateMessage({ entityType: "customer", id: customer.id, companyName: customer.companyName, field: "phone" });
+      return toMatch("customer", customer.id, customer.companyName, "phone", ownerName);
     }
     if (normalized.companyName && companyName === normalized.companyName) {
-      return buildDuplicateMessage({ entityType: "customer", id: customer.id, companyName: customer.companyName, field: "companyName" });
+      return toMatch("customer", customer.id, customer.companyName, "companyName", ownerName);
     }
   }
 
@@ -130,20 +148,33 @@ export async function getExportDuplicateMessage(input: DuplicateCheckInput): Pro
     const website = getWebsiteHost(lead.website);
     const emails = [normalizeEmail(lead.email)].filter(Boolean);
     const phones = [normalizePhone(lead.phone), normalizePhone(lead.whatsapp)].filter(Boolean);
+    const ownerName = lead.owner.name;
 
     if (normalized.website && website === normalized.website) {
-      return buildDuplicateMessage({ entityType: "lead", id: lead.id, companyName: lead.companyName, field: "website" });
+      return toMatch("lead", lead.id, lead.companyName, "website", ownerName);
     }
     if (normalized.email && emails.includes(normalized.email)) {
-      return buildDuplicateMessage({ entityType: "lead", id: lead.id, companyName: lead.companyName, field: "email" });
+      return toMatch("lead", lead.id, lead.companyName, "email", ownerName);
     }
     if (normalized.phone && phones.includes(normalized.phone)) {
-      return buildDuplicateMessage({ entityType: "lead", id: lead.id, companyName: lead.companyName, field: "phone" });
+      return toMatch("lead", lead.id, lead.companyName, "phone", ownerName);
     }
     if (normalized.companyName && companyName === normalized.companyName) {
-      return buildDuplicateMessage({ entityType: "lead", id: lead.id, companyName: lead.companyName, field: "companyName" });
+      return toMatch("lead", lead.id, lead.companyName, "companyName", ownerName);
     }
   }
 
   return null;
+}
+
+export async function getExportDuplicateMessage(input: DuplicateCheckInput): Promise<string | null> {
+  const match = await findExportDuplicate(input);
+  return match ? formatExportDuplicateMessage(match) : null;
+}
+
+export function exportDuplicateConflictBody(match: DuplicateMatchInfo) {
+  return {
+    error: formatExportDuplicateMessage(match),
+    duplicate: match,
+  };
 }

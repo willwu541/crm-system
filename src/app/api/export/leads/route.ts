@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { getExportDuplicateMessage } from "@/lib/export/dedupe";
+import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import {
   buildExportLeadListWhere,
   collectLeadEmails,
   collectLeadWhatsapps,
 } from "@/lib/export/lead-list-where";
+import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/export/company-name-search";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
@@ -39,17 +40,20 @@ export async function GET(request: NextRequest) {
 
   const pace = searchParams.get("pace")?.trim();
 
-  const where = buildExportLeadListWhere(ctx!, {
-    keyword,
-    status,
-    country,
-    ownerId,
-    since,
-    pace,
-    sourceChannel,
-    channel,
-    filter,
-  });
+  const where = buildExportLeadListWhere(
+    ctx!,
+    await withNormalizedCompanyIds("export_leads", ctx!.tenantId, {
+      keyword,
+      status,
+      country,
+      ownerId,
+      since,
+      pace,
+      sourceChannel,
+      channel,
+      filter,
+    }),
+  );
 
   if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {
     const field = searchParams.get("whatsapps") === "1" ? "whatsapp" : "email";
@@ -80,8 +84,14 @@ export async function GET(request: NextRequest) {
       prisma.exportLead.count({ where }),
     ]);
 
+    const elsewhere =
+      keyword && total === 0
+        ? await findExportRecordsByKeyword(ctx!.tenantId, keyword)
+        : [];
+
     return NextResponse.json({
       data,
+      elsewhere,
       pagination: {
         page,
         pageSize,
@@ -156,15 +166,15 @@ export async function POST(request: NextRequest) {
       if (assignee) ownerId = assignee.id;
     }
 
-    const duplicateMessage = await getExportDuplicateMessage({
+    const duplicate = await findExportDuplicate({
       tenantId: ctx!.tenantId,
       companyName: parsed.data.companyName,
       website: parsed.data.website,
       email: parsed.data.email,
       phone: parsed.data.phone ?? parsed.data.whatsapp,
     });
-    if (duplicateMessage) {
-      return NextResponse.json({ error: duplicateMessage }, { status: 400 });
+    if (duplicate) {
+      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
     }
 
     const lead = await prisma.exportLead.create({

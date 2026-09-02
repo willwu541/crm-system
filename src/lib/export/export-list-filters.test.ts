@@ -10,6 +10,7 @@ import { buildExportCustomerListWhere, collectUniqueEmails as collectCustomerEma
 import { buildExportLeadListWhere, collectLeadEmails, collectLeadWhatsapps } from "./lead-list-where";
 import { clearListQuery, listHref, loadListQuery, saveListQuery } from "./list-filter-storage";
 import { resolveWhatsappStage } from "./follow-up";
+import { companyNameTokenAndWhere, normalizeCompanyName, splitCompanyNameTokens } from "../search-text";
 
 const ctx = { tenantId: "t1" };
 
@@ -45,16 +46,25 @@ describe("channel where", () => {
 });
 
 describe("customer list where", () => {
-  it("keeps owner and overdue together with keyword", () => {
+  it("keyword search ignores overdue and owner dropdown", () => {
     const where = buildExportCustomerListWhere(ctx, {
       ownerId: "u1",
       filter: "overdue",
       keyword: "Acme",
     });
-    assert.equal(where.ownerId, "u1");
-    assert.ok(Array.isArray(where.AND));
+    assert.equal(where.ownerId, undefined);
+    assert.ok(!("status" in where));
     const and = where.AND as unknown[];
-    assert.equal(and.length, 2);
+    assert.equal(and.length, 1);
+  });
+
+  it("sales owner filter still applies when searching by keyword", () => {
+    const where = buildExportCustomerListWhere(
+      { tenantId: "t1", ownerFilter: { ownerId: "u9" } },
+      { keyword: "Acme", filter: "today" },
+    );
+    assert.equal(where.ownerId, "u9");
+    assert.ok(!("nextFollowUpAt" in where));
   });
 
   it("WhatsApp maintain requires prior contact", () => {
@@ -77,6 +87,28 @@ describe("customer list where", () => {
     const where = buildExportCustomerListWhere(ctx, { channel: "email" });
     const and = where.AND as Record<string, unknown>[];
     assert.ok(and.some((c) => c.contacts));
+  });
+
+  it("keyword matches punctuated names, website and contacts", () => {
+    const where = buildExportCustomerListWhere(ctx, { keyword: "ABC Trading Ltd" });
+    const and = where.AND as { OR: Record<string, unknown>[] }[];
+    const or = and.find((c) => Array.isArray(c.OR))?.OR ?? [];
+    assert.ok(or.some((c) => "website" in c));
+    assert.ok(or.some((c) => "contacts" in c));
+    assert.ok(or.some((c) => Array.isArray(c.AND)));
+  });
+
+  it("includes normalized company ids in keyword OR", () => {
+    const where = buildExportCustomerListWhere(ctx, {
+      keyword: "Acme",
+      normalizedCompanyIds: ["cust_1"],
+    });
+    const and = where.AND as { OR: Record<string, unknown>[] }[];
+    const or = and.find((c) => Array.isArray(c.OR))?.OR ?? [];
+    assert.ok(or.some((c) => {
+      const id = c.id as { in?: string[] } | undefined;
+      return id?.in?.includes("cust_1");
+    }));
   });
 
   it("collects contact emails and WhatsApps from nested arrays", () => {
@@ -107,6 +139,7 @@ describe("lead list where", () => {
     const and = where.AND as { OR: unknown[] }[];
     const or = and.find((c) => Array.isArray(c.OR))?.OR as Record<string, unknown>[];
     assert.ok(or.some((c) => "whatsapp" in c));
+    assert.ok(or.some((c) => "website" in c));
   });
 
   it("collects lead emails and WhatsApps", () => {
@@ -147,6 +180,25 @@ describe("whatsapp stage", () => {
       resolveWhatsappStage({ hasWhatsapp: false, status: "developing", lastContactAt: new Date() }),
       "none",
     );
+  });
+});
+
+describe("company name search text", () => {
+  it("strips punctuation for duplicate-style matching", () => {
+    assert.equal(normalizeCompanyName("ABC-Trading Co., Ltd"), "abctradingcoltd");
+    assert.equal(normalizeCompanyName("ABC Trading Co Ltd"), "abctradingcoltd");
+  });
+
+  it("splits tokens and drops tiny english words", () => {
+    assert.deepEqual(splitCompanyNameTokens("ABC Trading Co Ltd"), ["ABC", "Trading", "Co", "Ltd"]);
+    assert.deepEqual(splitCompanyNameTokens("A Trading"), ["Trading"]);
+  });
+
+  it("builds AND contains for multi-word company names", () => {
+    const where = companyNameTokenAndWhere("ABC Trading Ltd");
+    assert.ok(where && Array.isArray(where.AND));
+    assert.equal((where.AND as unknown[]).length, 3);
+    assert.equal(companyNameTokenAndWhere("Acme"), null);
   });
 });
 

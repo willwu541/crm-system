@@ -13,6 +13,7 @@ import {
 } from "@/lib/export-constants";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { normalizeWebsiteUrl } from "@/lib/website";
+import { DuplicateErrorAlert, type DuplicateRecord } from "./DuplicateErrorAlert";
 import {
   customerTypeLabel,
   interestedProductLabel,
@@ -32,6 +33,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [duplicate, setDuplicate] = useState<DuplicateRecord | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [form, setForm] = useState({
     companyName: (initial?.companyName as string) ?? "",
@@ -58,6 +60,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDuplicate(null);
     setLoading(true);
     try {
       const url = customerId ? `/api/export/customers/${customerId}` : "/api/export/customers";
@@ -69,8 +72,11 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = await parseResponseJson<{ error?: string; data?: { id: string } }>(res);
-      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      const json = await parseResponseJson<{ error?: string; data?: { id: string }; duplicate?: DuplicateRecord }>(res);
+      if (!res.ok) {
+        if (json.duplicate) setDuplicate(json.duplicate);
+        throw new Error(json.error ?? "保存失败");
+      }
       const createdCustomerId = json.data?.id;
       if (!customerId && createdCustomerId && files.length > 0) {
         for (const file of files) {
@@ -103,9 +109,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
 
   return (
     <form onSubmit={handleSubmit} className="export-card export-detail-group max-w-2xl space-y-5 p-7">
-      {error && (
-        <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
-      )}
+      {error && <DuplicateErrorAlert error={error} duplicate={duplicate} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">公司名 *</label>
