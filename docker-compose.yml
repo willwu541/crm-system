@@ -23,6 +23,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://crm_user:CHANGE_THIS_PASSWORD@postgres:5432/crm_db?schema=public
       - SESSION_SECRET=CHANGE_THIS_TO_RANDOM_64_CHARS
+      - WEBSITE_CHAT_API_URL=${WEBSITE_CHAT_API_URL:-https://wibergmetal.com/api/chat.php}
+      - WEBSITE_CHAT_API_KEY=${WEBSITE_CHAT_API_KEY}
 
 volumes:
   pgdata:
