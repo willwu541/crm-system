@@ -27,6 +27,13 @@ type Conversation = ChatSummary & {
   messages: ChatMessage[];
 };
 
+type VisualAlert = {
+  id: string;
+  title: string;
+  message: string;
+  updatedAt: string;
+};
+
 async function chatApi<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch("/api/export/live-chat", {
     method: "POST",
@@ -63,43 +70,9 @@ export function LiveChatClient() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [remindersEnabled, setRemindersEnabled] = useState(false);
+  const [visualAlerts, setVisualAlerts] = useState<VisualAlert[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const knownConversationsRef = useRef<Map<string, string> | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  const playAlert = useCallback(() => {
-    const AudioContextClass = window.AudioContext;
-    const context = audioContextRef.current ?? new AudioContextClass();
-    audioContextRef.current = context;
-    void context.resume().then(() => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, context.currentTime);
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.28);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.3);
-    }).catch(() => undefined);
-  }, []);
-
-  const enableReminders = useCallback(async () => {
-    setRemindersEnabled(true);
-    playAlert();
-    if (!("Notification" in window)) return;
-    const permission = Notification.permission === "default"
-      ? await Notification.requestPermission()
-      : Notification.permission;
-    if (permission === "denied") {
-      setError("声音提醒已开启；浏览器通知被阻止，请在地址栏的网站权限中允许通知。");
-    } else {
-      setError("");
-    }
-  }, [playAlert]);
 
   const loadList = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -107,22 +80,25 @@ export function LiveChatClient() {
       const data = await chatApi<{ conversations: ChatSummary[] }>("list");
       const conversations = data.conversations ?? [];
       const previous = knownConversationsRef.current;
-      if (previous && remindersEnabled) {
+      if (previous) {
         const incoming = conversations.filter((item) =>
           item.last_sender === "visitor" &&
           item.unread > 0 &&
           previous.get(item.id) !== item.updated_at,
         );
         if (incoming.length > 0) {
-          playAlert();
-          if ("Notification" in window && Notification.permission === "granted") {
-            const latest = incoming[0];
-            const visitor = latest.company || latest.name || `网站访客 ${latest.id.slice(0, 6)}`;
-            new Notification(`${visitor} 发来新消息`, {
-              body: latest.last_message || "点击查看客户会话",
-              tag: `website-chat-${latest.id}`,
+          setVisualAlerts((current) => {
+            const next = new Map(current.map((alert) => [alert.id, alert]));
+            incoming.forEach((item) => {
+              next.set(item.id, {
+                id: item.id,
+                title: item.company || item.name || "网站访客",
+                message: item.last_message || "发来一条新消息",
+                updatedAt: item.updated_at,
+              });
             });
-          }
+            return Array.from(next.values()).slice(-4);
+          });
         }
       }
       knownConversationsRef.current = new Map(
@@ -139,7 +115,7 @@ export function LiveChatClient() {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [playAlert, remindersEnabled]);
+  }, []);
 
   const loadConversation = useCallback(async (id: string, quiet = false) => {
     if (!id) {
@@ -242,22 +218,46 @@ export function LiveChatClient() {
           <p className="mt-1 text-xs text-slate-500">访客在官网发消息后，会自动出现在这里。</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void enableReminders()}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-              remindersEnabled
-                ? "bg-blue-50 text-blue-700"
-                : "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
-            }`}
-          >
-            {remindersEnabled ? "🔔 消息提醒已开启" : "开启消息提醒"}
-          </button>
+          <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
+            画面提醒已开启
+          </span>
           <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
             <i className="h-2 w-2 rounded-full bg-emerald-500" /> 客服在线
           </span>
         </div>
       </div>
+
+      {visualAlerts.length > 0 && (
+        <div className="fixed right-5 top-5 z-50 w-[min(380px,calc(100vw-2.5rem))] space-y-3">
+          {visualAlerts.map((alert) => (
+            <div
+              key={`${alert.id}-${alert.updatedAt}`}
+              className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-2xl ring-4 ring-blue-500/10"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedId(alert.id);
+                  setVisualAlerts((current) => current.filter((item) => item.id !== alert.id));
+                }}
+                className="block w-full p-4 text-left hover:bg-blue-50/60"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-blue-600">新客户消息</p>
+                    <p className="mt-1 truncate font-semibold text-slate-900">{alert.title}</p>
+                  </div>
+                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-1 font-mono text-[10px] text-slate-500">
+                    {alert.id.slice(0, 8).toUpperCase()}
+                  </span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-sm text-slate-600">{alert.message}</p>
+                <p className="mt-2 text-xs font-medium text-blue-600">点击查看并回复 →</p>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
