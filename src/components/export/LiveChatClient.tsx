@@ -63,24 +63,83 @@ export function LiveChatClient() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [remindersEnabled, setRemindersEnabled] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const knownConversationsRef = useRef<Map<string, string> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const playAlert = useCallback(() => {
+    const AudioContextClass = window.AudioContext;
+    const context = audioContextRef.current ?? new AudioContextClass();
+    audioContextRef.current = context;
+    void context.resume().then(() => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.28);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.3);
+    }).catch(() => undefined);
+  }, []);
+
+  const enableReminders = useCallback(async () => {
+    setRemindersEnabled(true);
+    playAlert();
+    if (!("Notification" in window)) return;
+    const permission = Notification.permission === "default"
+      ? await Notification.requestPermission()
+      : Notification.permission;
+    if (permission === "denied") {
+      setError("声音提醒已开启；浏览器通知被阻止，请在地址栏的网站权限中允许通知。");
+    } else {
+      setError("");
+    }
+  }, [playAlert]);
 
   const loadList = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
       const data = await chatApi<{ conversations: ChatSummary[] }>("list");
-      setItems(data.conversations ?? []);
+      const conversations = data.conversations ?? [];
+      const previous = knownConversationsRef.current;
+      if (previous && remindersEnabled) {
+        const incoming = conversations.filter((item) =>
+          item.last_sender === "visitor" &&
+          item.unread > 0 &&
+          previous.get(item.id) !== item.updated_at,
+        );
+        if (incoming.length > 0) {
+          playAlert();
+          if ("Notification" in window && Notification.permission === "granted") {
+            const latest = incoming[0];
+            const visitor = latest.company || latest.name || `网站访客 ${latest.id.slice(0, 6)}`;
+            new Notification(`${visitor} 发来新消息`, {
+              body: latest.last_message || "点击查看客户会话",
+              tag: `website-chat-${latest.id}`,
+            });
+          }
+        }
+      }
+      knownConversationsRef.current = new Map(
+        conversations.map((item) => [item.id, item.updated_at]),
+      );
+      setItems(conversations);
       setError("");
       setSelectedId((current) => {
         if (current) return current;
-        return (data.conversations ?? []).find((item) => item.status === "open")?.id ?? "";
+        return conversations.find((item) => item.status === "open")?.id ?? "";
       });
     } catch (cause) {
       if (!quiet) setError(cause instanceof Error ? cause.message : "加载失败。");
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, []);
+  }, [playAlert, remindersEnabled]);
 
   const loadConversation = useCallback(async (id: string, quiet = false) => {
     if (!id) {
@@ -125,6 +184,13 @@ export function LiveChatClient() {
   }, [items, filter, keyword]);
 
   const unread = items.reduce((total, item) => total + Number(item.unread || 0), 0);
+
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread}) 网站实时询盘` : "网站实时询盘";
+    return () => {
+      document.title = "Wiberg Metal CRM";
+    };
+  }, [unread]);
 
   async function sendReply(event: FormEvent) {
     event.preventDefault();
@@ -175,9 +241,22 @@ export function LiveChatClient() {
           </div>
           <p className="mt-1 text-xs text-slate-500">访客在官网发消息后，会自动出现在这里。</p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
-          <i className="h-2 w-2 rounded-full bg-emerald-500" /> 客服在线
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void enableReminders()}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              remindersEnabled
+                ? "bg-blue-50 text-blue-700"
+                : "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+            }`}
+          >
+            {remindersEnabled ? "🔔 消息提醒已开启" : "开启消息提醒"}
+          </button>
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+            <i className="h-2 w-2 rounded-full bg-emerald-500" /> 客服在线
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -208,7 +287,7 @@ export function LiveChatClient() {
               ))}
             </div>
           </div>
-          <div className="max-h-[565px] overflow-y-auto">
+          <div className="max-h-[565px] space-y-2 overflow-y-auto p-3">
             {loading ? (
               <p className="p-8 text-center text-sm text-slate-500">正在连接网站客服…</p>
             ) : visibleItems.length === 0 ? (
@@ -219,11 +298,23 @@ export function LiveChatClient() {
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedId(item.id)}
-                  className={`w-full border-b border-slate-200/80 p-4 text-left transition hover:bg-white ${selectedId === item.id ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : ""}`}
+                  className={`w-full rounded-xl border p-4 text-left shadow-sm transition hover:bg-white ${
+                    selectedId === item.id
+                      ? "border-blue-300 bg-blue-50 ring-1 ring-blue-200"
+                      : "border-slate-200 bg-white/70"
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <strong className="truncate text-sm text-slate-900">{item.company || item.name || "网站访客"}</strong>
                     <span className="shrink-0 text-[11px] text-slate-400">{timeLabel(item.updated_at)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-500">
+                      会话 {item.id.slice(0, 8).toUpperCase()}
+                    </span>
+                    <span className={item.status === "open" ? "text-emerald-600" : "text-slate-400"}>
+                      {item.status === "open" ? "进行中" : "已结束"}
+                    </span>
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <p className="min-w-0 flex-1 truncate text-xs text-slate-500">{item.last_message || "新会话"}</p>
@@ -252,6 +343,7 @@ export function LiveChatClient() {
                   <p className="mt-0.5 text-xs text-slate-500">
                     {[conversation.email, conversation.page_url].filter(Boolean).join(" · ") || `会话编号 ${conversation.id.slice(0, 8)}`}
                   </p>
+                  <p className="mt-1 font-mono text-[11px] text-slate-400">会话 {conversation.id.slice(0, 8).toUpperCase()}</p>
                 </div>
                 <button
                   type="button"
