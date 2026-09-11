@@ -20,12 +20,12 @@ function daysSince(date: Date): number {
 export function getLeadSopSuggestion(lead: SopLeadInput): SopSuggestion | null {
   if (!lead.lastContactAt) {
     const age = daysSince(lead.createdAt);
-    if (lead.contactCount === 0 && age >= 2) {
+    if (lead.contactCount === 0 && age >= 1) {
       return {
         category: "first_touch",
         title: `[SOP] 首轮开发触达：${lead.companyName}`,
         dueInDays: 0,
-        note: "线索创建后 2 天仍未触达，建议发送首封开发信或 WhatsApp 触达。",
+        note: "尚未首次联系",
       };
     }
     return null;
@@ -37,7 +37,7 @@ export function getLeadSopSuggestion(lead: SopLeadInput): SopSuggestion | null {
       category: "followup_1",
       title: `[SOP] 第2轮跟进：${lead.companyName}`,
       dueInDays: 0,
-      note: "距首次联系已 >=3 天，建议发送 Follow-up #1。",
+        note: "确认正确联系人",
     };
   }
   if (lead.contactCount === 2 && days >= 7) {
@@ -45,15 +45,15 @@ export function getLeadSopSuggestion(lead: SopLeadInput): SopSuggestion | null {
       category: "followup_2",
       title: `[SOP] 第3轮跟进：${lead.companyName}`,
       dueInDays: 0,
-      note: "距上次联系已 >=7 天，建议发送 Follow-up #2。",
+        note: "补一个具体问题",
     };
   }
-  if (lead.contactCount === 3 && days >= 14) {
+  if (lead.contactCount === 3 && days >= 12) {
     return {
       category: "followup_3",
       title: `[SOP] 第4轮跟进：${lead.companyName}`,
       dueInDays: 0,
-      note: "距上次联系已 >=14 天，建议发送 Follow-up #3。",
+        note: "最后确认采购范围",
     };
   }
   if (lead.contactCount >= 4 && days >= 30) {
@@ -61,7 +61,7 @@ export function getLeadSopSuggestion(lead: SopLeadInput): SopSuggestion | null {
       category: "long_tail",
       title: `[SOP] 长尾唤醒跟进：${lead.companyName}`,
       dueInDays: 0,
-      note: "距上次联系已 >=30 天，建议进入长尾唤醒节奏。",
+        note: "长尾唤醒",
     };
   }
 

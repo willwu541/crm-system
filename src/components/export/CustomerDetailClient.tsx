@@ -53,6 +53,8 @@ interface Customer {
   lastStageChangedAt: string | null;
   lostReason: string | null;
   notes: string | null;
+  fitEvidence: string | null;
+  lastOutcome: string | null;
   createdAt: string;
   contacts: { id: string; name: string; title: string | null; email: string | null; phone?: string | null; whatsapp?: string | null; linkedin?: string | null; language?: string | null; isPrimary: boolean; notes?: string | null }[];
   activities: {
@@ -253,6 +255,8 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           <p className="text-sm text-slate-500">
             {customer.customerCode} · {countryLabel(customer.country)}
           </p>
+          {customer.fitEvidence ? <p className="mt-1 text-sm text-slate-700">证据：{customer.fitEvidence}</p> : null}
+          {customer.lastOutcome ? <p className="text-xs text-slate-500">最近：{customer.lastOutcome}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {websiteUrl && (

@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ACTIVITY_TYPES, ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
+import { ACTIVITY_OUTCOMES } from "@/lib/export/work-outcomes";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { daysFromNowLocal } from "@/lib/export/follow-up";
 import {
   activityDirectionLabel,
+  activityOutcomeLabel,
   activityTypeLabel,
   emailTemplateCategoryLabel,
   emailTemplateLanguageLabel,
@@ -68,6 +70,7 @@ export function ActivityFormClient({
     subject: "",
     content: "",
     customerFeedback: "",
+    outcome: "",
     nextFollowUpAt: "",
   });
 
@@ -175,6 +178,7 @@ export function ActivityFormClient({
           subject: form.subject || undefined,
           content: form.content || undefined,
           customerFeedback: form.customerFeedback || undefined,
+          outcome: form.outcome || undefined,
           templateId: selectedTemplateId || undefined,
           nextFollowUpAt: form.nextFollowUpAt
             ? new Date(form.nextFollowUpAt).toISOString()
@@ -328,6 +332,22 @@ export function ActivityFormClient({
           />
         </div>
         <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">结果 *</label>
+          <select
+            value={form.outcome}
+            onChange={(e) => setForm((f) => ({ ...f, outcome: e.target.value }))}
+            required
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">请选择</option>
+            {ACTIVITY_OUTCOMES.map((item) => (
+              <option key={item} value={item}>
+                {activityOutcomeLabel[item] ?? item}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">
             内容
             {form.direction === "inbound" && (
@@ -342,11 +362,13 @@ export function ActivityFormClient({
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-slate-700">客户反馈</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">客户反馈 *</label>
           <textarea
             value={form.customerFeedback}
             onChange={(e) => setForm((f) => ({ ...f, customerFeedback: e.target.value }))}
             rows={2}
+            required
+            placeholder="对方说了什么，或查到的证据。不要只写已跟进。"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>

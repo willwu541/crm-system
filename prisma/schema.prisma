@@ -640,6 +640,8 @@ model ExportLead {
    * 线索：感兴趣产品/需求，自由文本
    */
   productInterest       String?   @map("product_interest")
+  fitEvidence           String?   @map("fit_evidence")
+  lastOutcome           String?   @map("last_outcome")
   priority              String?
   ownerId               String    @map("owner_id")
   status                String    @default("new")
@@ -693,6 +695,8 @@ model ExportCustomer {
   lastStageChangedAt DateTime? @map("last_stage_changed_at")
   lostReason         String?   @map("lost_reason")
   isWon              Boolean   @default(false) @map("is_won")
+  fitEvidence        String?   @map("fit_evidence")
+  lastOutcome        String?   @map("last_outcome")
   notes              String?
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
@@ -763,6 +767,7 @@ model ExportActivity {
   subject              String?
   content              String?
   customerFeedback     String?   @map("customer_feedback")
+  outcome              String?
   customerNameSnapshot String?   @map("customer_name_snapshot")
   contactNameSnapshot  String?   @map("contact_name_snapshot")
   contactEmailSnapshot String?   @map("contact_email_snapshot")

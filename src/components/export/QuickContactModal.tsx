@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { ACTIVITY_TYPES, ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
+import { ACTIVITY_OUTCOMES } from "@/lib/export/work-outcomes";
 import {
   activityDirectionLabel,
+  activityOutcomeLabel,
   activityTypeLabel,
   emailTemplateCategoryLabel,
   emailTemplateLanguageLabel,
@@ -68,6 +70,7 @@ export function QuickContactModal({
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
   const [customerFeedback, setCustomerFeedback] = useState("");
+  const [outcome, setOutcome] = useState("");
   const [nextFollowUpAt, setNextFollowUpAt] = useState("");
 
   const recommendedCategory = useMemo(() => {
@@ -90,6 +93,7 @@ export function QuickContactModal({
       setSubject("");
       setContent("");
       setCustomerFeedback("");
+      setOutcome("");
       setNextFollowUpAt("");
       setSelectedTemplateId("");
       setType(defaultActivityType ?? "email");
@@ -177,6 +181,11 @@ export function QuickContactModal({
         setLoading(false);
         return;
       }
+      if (!outcome) {
+        setError("请选择结果");
+        setLoading(false);
+        return;
+      }
       const body: Record<string, unknown> = {
         customerId: customerId || undefined,
         leadId: leadId || undefined,
@@ -184,11 +193,10 @@ export function QuickContactModal({
         direction,
         subject: subject || undefined,
         content: content || undefined,
+        customerFeedback: customerFeedback || undefined,
+        outcome,
         templateId: selectedTemplateId || undefined,
       };
-      if (direction === "inbound" && customerFeedback) {
-        body.customerFeedback = customerFeedback;
-      }
       if (nextFollowUpAt) {
         body.nextFollowUpAt = new Date(nextFollowUpAt).toISOString();
       }
@@ -384,6 +392,23 @@ export function QuickContactModal({
         )}
 
         <div className="mt-3">
+          <label className="mb-1 block text-xs font-medium text-slate-600">结果 *</label>
+          <select
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value)}
+            required
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">请选择</option>
+            {ACTIVITY_OUTCOMES.map((item) => (
+              <option key={item} value={item}>
+                {activityOutcomeLabel[item] ?? item}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-3">
           <label className="mb-1 block text-xs font-medium text-slate-600">
             {direction === "inbound" ? "沟通摘要" : "发送内容"}
           </label>
@@ -395,18 +420,17 @@ export function QuickContactModal({
           />
         </div>
 
-        {direction === "inbound" && (
-          <div className="mt-3">
-            <label className="mb-1 block text-xs font-medium text-slate-600">客户反馈（重点）</label>
-            <textarea
-              value={customerFeedback}
-              onChange={(e) => setCustomerFeedback(e.target.value)}
-              rows={4}
-              placeholder="客户说了什么、意向、下次要做什么…"
-              className="w-full rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-sm"
-            />
-          </div>
-        )}
+        <div className="mt-3">
+          <label className="mb-1 block text-xs font-medium text-slate-600">客户反馈 *</label>
+          <textarea
+            value={customerFeedback}
+            onChange={(e) => setCustomerFeedback(e.target.value)}
+            rows={2}
+            required
+            placeholder="对方说了什么，或查到的证据。不要只写已跟进。"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
 
         <div className="mt-4 flex justify-end gap-2">
           <button

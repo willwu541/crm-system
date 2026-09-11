@@ -15,6 +15,7 @@ import { parseResponseJson } from "@/lib/parse-response-json";
 import {
   activityDirectionLabel,
   activityTypeLabel,
+  activityOutcomeLabel,
   customerTypeLabel,
   emailTemplateCategoryLabel,
   interestedProductLabel,
@@ -34,6 +35,7 @@ interface LeadActivity {
   subject: string | null;
   content: string | null;
   customerFeedback: string | null;
+  outcome: string | null;
   createdAt: string;
   owner: { id: string; name: string };
   template: { id: string; name: string; category: string; language: string } | null;
@@ -61,6 +63,8 @@ interface Lead {
   nextFollowUpAt: string | null;
   convertedToCustomerId: string | null;
   notes: string | null;
+  fitEvidence: string | null;
+  lastOutcome: string | null;
   owner: { id: string; name: string };
 }
 
@@ -346,6 +350,13 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
       )}
 
+      {(lead.fitEvidence || lead.lastOutcome) && (
+        <div className="export-card space-y-1 p-3 text-sm">
+          {lead.fitEvidence ? <p className="text-slate-700">证据：{lead.fitEvidence}</p> : null}
+          {lead.lastOutcome ? <p className="text-slate-500">最近：{lead.lastOutcome}</p> : null}
+        </div>
+      )}
+
       <div className="export-card export-detail-group grid gap-4 p-4 text-sm lg:grid-cols-5">
         <div>
           <p className="text-slate-500">官网</p>
@@ -442,6 +453,11 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                           <span className="rounded bg-white px-2 py-0.5 text-slate-600">
                             {activityTypeLabel[a.type] ?? a.type}
                           </span>
+                          {a.outcome && (
+                            <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">
+                              {activityOutcomeLabel[a.outcome] ?? a.outcome}
+                            </span>
+                          )}
                           {a.template && (
                             <span className="rounded bg-white px-2 py-0.5 text-slate-600">
                               模板：{emailTemplateCategoryLabel[a.template.category] ?? a.template.category}

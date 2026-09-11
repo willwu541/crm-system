@@ -55,6 +55,7 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
     })(),
     sourceChannel: (initial?.sourceChannel as string) ?? "",
     status: (initial?.status as string) ?? "to_develop",
+    fitEvidence: (initial?.fitEvidence as string) ?? "",
     notes: (initial?.notes as string) ?? "",
   });
   const websitePreviewUrl = normalizeWebsiteUrl(form.website);
@@ -283,6 +284,16 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
             ))}
           </select>
         </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700">采购证据</label>
+        <input
+          type="text"
+          value={form.fitEvidence}
+          onChange={(e) => setForm((f) => ({ ...f, fitEvidence: e.target.value }))}
+          placeholder="官网卖格栅 / 项目有走道 / 业务含安装"
+          className="w-full rounded-md border border-slate-300 px-3 py-2"
+        />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">备注</label>

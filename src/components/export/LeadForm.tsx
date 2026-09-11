@@ -88,6 +88,7 @@ export function LeadForm({
         raw.split(/[,，]/).some((s) => s.trim() === p),
       ) as string[];
     })(),
+    fitEvidence: (initial?.fitEvidence as string) ?? "",
     priority: (initial?.priority as string) ?? "",
     status: (initial?.status as string) ?? "new",
     notes: (initial?.notes as string) ?? "",
@@ -148,6 +149,7 @@ export function LeadForm({
         facebook: form.facebook || undefined,
         tiktok: form.tiktok || undefined,
         mainBusiness: form.mainBusiness || undefined,
+        fitEvidence: form.fitEvidence || undefined,
         productInterest:
           [
             ...form.selectedProducts,
@@ -394,6 +396,16 @@ export function LeadForm({
             type="text"
             value={form.mainBusiness}
             onChange={(e) => setForm((f) => ({ ...f, mainBusiness: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">采购证据</label>
+          <input
+            type="text"
+            value={form.fitEvidence}
+            onChange={(e) => setForm((f) => ({ ...f, fitEvidence: e.target.value }))}
+            placeholder="官网卖格栅 / 项目有走道 / 业务含安装"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>

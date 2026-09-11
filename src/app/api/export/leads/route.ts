@@ -134,6 +134,7 @@ const createSchema = z.object({
   priority: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
+  fitEvidence: z.string().optional(),
   nextFollowUpAt: z.string().datetime().optional().nullable(),
   /** 仅管理员：分配给业务员 */
   ownerId: z.string().optional(),

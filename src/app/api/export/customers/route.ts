@@ -137,6 +137,7 @@ const createSchema = z.object({
   sourceChannel: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
+  fitEvidence: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {

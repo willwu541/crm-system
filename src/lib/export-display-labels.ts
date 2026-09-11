@@ -76,7 +76,22 @@ export const activityTypeLabel: Record<string, string> = {
   tiktok: "TikTok",
   meeting: "会议 (Meeting)",
   quote_followup: "报价跟进 (Quote follow-up)",
+  research: "深挖",
   other: "其他 (Other)",
+};
+
+export const activityOutcomeLabel: Record<string, string> = {
+  fit_confirmed: "确认采购",
+  named_contact: "找到人",
+  real_reply: "真实回应",
+  got_spec: "拿到资料",
+  next_agreed: "约定下一步",
+  first_touch: "首次接触",
+  switchboard: "总机转接",
+  wrong_person: "联系错人",
+  no_need: "暂无需求",
+  auto_reply: "自动回复",
+  parked: "暂缓",
 };
 
 export const sourceChannelLabel: Record<string, string> = {

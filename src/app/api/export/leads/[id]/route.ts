@@ -51,6 +51,7 @@ const updateSchema = z.object({
   priority: z.string().optional(),
   status: z.string().optional(),
   notes: z.string().optional(),
+  fitEvidence: z.string().optional(),
   /** 仅管理员：改派负责人 */
   ownerId: z.string().optional(),
 });

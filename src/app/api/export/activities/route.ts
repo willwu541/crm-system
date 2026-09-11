@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
+import { ACTIVITY_OUTCOMES, validateWorkLog } from "@/lib/export/work-outcomes";
 import { renderTemplate, type TemplateVarsInput } from "@/lib/export/template-vars";
 import { z } from "zod";
 
@@ -85,6 +86,7 @@ const createSchema = z
     subject: z.string().optional(),
     content: z.string().optional(),
     customerFeedback: z.string().optional(),
+    outcome: z.enum(ACTIVITY_OUTCOMES).optional(),
     templateId: z.string().optional().nullable(),
     /** 若指定 templateId，可选 renderTemplate=true 让后端用客户/联系人上下文重新渲染 subject/body 后再保存 */
     renderTemplate: z.boolean().optional(),
@@ -108,6 +110,10 @@ export async function POST(request: NextRequest) {
       );
     }
     const input = parsed.data;
+    const workError = validateWorkLog(input.outcome, input.customerFeedback || input.content);
+    if (workError) {
+      return NextResponse.json({ error: workError }, { status: 400 });
+    }
 
     // 校验目标存在 + 权限
     let customer: Awaited<ReturnType<typeof prisma.exportCustomer.findUnique>> | null = null;
@@ -205,6 +211,7 @@ export async function POST(request: NextRequest) {
           subject,
           content,
           customerFeedback: input.customerFeedback,
+          outcome: input.outcome,
           customerNameSnapshot: customer?.companyName ?? lead?.companyName ?? undefined,
           contactNameSnapshot: contact?.name ?? undefined,
           contactEmailSnapshot: contact?.email ?? undefined,
@@ -225,12 +232,19 @@ export async function POST(request: NextRequest) {
           lastContactAt: Date;
           contactCount?: { increment: number };
           nextFollowUpAt?: Date;
+          lastOutcome?: string;
+          fitEvidence?: string;
         } = { lastContactAt: new Date() };
         if (input.direction === "outbound") {
           leadUpdate.contactCount = { increment: 1 };
         }
         if (input.nextFollowUpAt) {
           leadUpdate.nextFollowUpAt = new Date(input.nextFollowUpAt);
+        }
+        const outcomeNote = (input.customerFeedback || input.content || "").trim();
+        if (outcomeNote) leadUpdate.lastOutcome = outcomeNote.slice(0, 500);
+        if (input.outcome === "fit_confirmed" && outcomeNote) {
+          leadUpdate.fitEvidence = outcomeNote.slice(0, 1000);
         }
         await tx.exportLead.update({
           where: { id: input.leadId },
@@ -239,11 +253,21 @@ export async function POST(request: NextRequest) {
       }
 
       if (input.customerId) {
-        const customerUpdate: { lastFollowUpAt: Date; nextFollowUpAt?: Date } = {
+        const customerUpdate: {
+          lastFollowUpAt: Date;
+          nextFollowUpAt?: Date;
+          lastOutcome?: string;
+          fitEvidence?: string;
+        } = {
           lastFollowUpAt: new Date(),
         };
         if (input.nextFollowUpAt) {
           customerUpdate.nextFollowUpAt = new Date(input.nextFollowUpAt);
+        }
+        const outcomeNote = (input.customerFeedback || input.content || "").trim();
+        if (outcomeNote) customerUpdate.lastOutcome = outcomeNote.slice(0, 500);
+        if (input.outcome === "fit_confirmed" && outcomeNote) {
+          customerUpdate.fitEvidence = outcomeNote.slice(0, 1000);
         }
         await tx.exportCustomer.update({
           where: { id: input.customerId },

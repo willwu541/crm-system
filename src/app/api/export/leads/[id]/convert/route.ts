@@ -66,6 +66,8 @@ export async function POST(
         sourceChannel: lead.sourceChannel,
         ownerId: lead.ownerId,
         status: payload.customerStatus ?? "to_develop",
+        fitEvidence: lead.fitEvidence,
+        lastOutcome: lead.lastOutcome,
         lastFollowUpAt: lead.lastContactAt ?? undefined,
         nextFollowUpAt: payload.nextFollowUpAt
           ? new Date(payload.nextFollowUpAt)

@@ -71,6 +71,7 @@ export const ACTIVITY_TYPES = [
   "tiktok",
   "meeting",
   "quote_followup",
+  "research",
   "other",
 ] as const;
 

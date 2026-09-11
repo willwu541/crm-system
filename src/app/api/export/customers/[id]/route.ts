@@ -80,6 +80,7 @@ const updateSchema = z.object({
   nextFollowUpAt: z.string().datetime().optional().nullable(),
   isWon: z.boolean().optional(),
   notes: z.string().optional().nullable(),
+  fitEvidence: z.string().optional(),
 });
 
 export async function PATCH(
