@@ -19,6 +19,9 @@ import { parseResponseJson } from "@/lib/parse-response-json";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 import { resolveWhatsappStage } from "@/lib/export/follow-up";
 import { ElsewhereHits, type ElsewhereHit } from "./ElsewhereHits";
+import { FillWhatsappModal, type FillWhatsappTarget } from "./FillWhatsappModal";
+import { CountrySelect } from "./CountrySelect";
+import { countryLabel } from "@/lib/export/countries";
 
 interface Customer {
   id: string;
@@ -33,6 +36,9 @@ interface Customer {
   createdAt: string;
   updatedAt: string;
   contacts?: {
+    id: string;
+    name: string;
+    isPrimary: boolean;
     email: string | null;
     whatsapp: string | null;
     phone: string | null;
@@ -54,9 +60,25 @@ function pickContactSocials(contacts?: Customer["contacts"]) {
   };
 }
 
+function pickFillWhatsappTarget(c: Customer): FillWhatsappTarget {
+  const list = c.contacts ?? [];
+  const contact = list.find((x) => x.isPrimary) ?? list[0];
+  return {
+    kind: "customer",
+    id: c.id,
+    companyName: c.companyName,
+    contactId: contact?.id,
+    contactName: contact?.name,
+  };
+}
+
+function customerHasWhatsapp(c: Customer) {
+  return (c.contacts ?? []).some((x) => x.whatsapp?.trim());
+}
+
 function whatsappStageForCustomer(c: Customer) {
   return resolveWhatsappStage({
-    hasWhatsapp: (c.contacts ?? []).some((x) => x.whatsapp?.trim()),
+    hasWhatsapp: customerHasWhatsapp(c),
     status: c.status,
     lastContactAt: c.lastFollowUpAt,
     nextFollowUpAt: c.nextFollowUpAt,
@@ -122,7 +144,7 @@ export function CustomersClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState(keywordParam);
-  const [countryInput, setCountryInput] = useState(countryParam);
+  const [countries, setCountries] = useState<string[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [followUpCustomer, setFollowUpCustomer] = useState<Customer | null>(null);
   const [quickCustomer, setQuickCustomer] = useState<Customer | null>(null);
@@ -131,11 +153,11 @@ export function CustomersClient() {
   const [copyingEmails, setCopyingEmails] = useState(false);
   const [copyingWhatsapps, setCopyingWhatsapps] = useState(false);
   const [elsewhere, setElsewhere] = useState<ElsewhereHit[]>([]);
+  const [fillWhatsapp, setFillWhatsapp] = useState<FillWhatsappTarget | null>(null);
 
   useEffect(() => {
     setKeyword(keywordParam);
-    setCountryInput(countryParam);
-  }, [keywordParam, countryParam]);
+  }, [keywordParam]);
 
   function updateUrl(updates: Record<string, string | number | undefined>) {
     const merged = {
@@ -194,11 +216,13 @@ export function CustomersClient() {
         data?: Customer[];
         elsewhere?: ElsewhereHit[];
         pagination?: PaginationData;
+        countries?: string[];
       }>(res);
       if (!res.ok) throw new Error(json.error ?? "加载失败");
       setCustomers(json.data || []);
       setElsewhere(json.elsewhere ?? []);
       setPagination(json.pagination ?? null);
+      if (Array.isArray(json.countries)) setCountries(json.countries);
     } catch (e) {
       if (!overrides?.silent) {
         setError(e instanceof Error ? e.message : "加载失败");
@@ -222,7 +246,6 @@ export function CustomersClient() {
     e.preventDefault();
     updateUrl({
       keyword: keyword || undefined,
-      country: countryInput || undefined,
       page: 1,
       filter: undefined,
       status: undefined,
@@ -291,12 +314,12 @@ export function CustomersClient() {
             placeholder="搜索公司名、编号、邮箱、电话"
             className="px-3 py-2 text-sm"
           />
-          <input
-            type="text"
-            value={countryInput}
-            onChange={(e) => setCountryInput(e.target.value)}
-            placeholder="国家"
-            className="w-24 px-3 py-2 text-sm"
+          <CountrySelect
+            value={countryParam}
+            extraValues={countries}
+            allowUnspecified
+            onChange={(next) => updateUrl({ country: next || undefined, page: 1 })}
+            className="min-w-[9.5rem] px-3 py-2 text-sm"
           />
           <select
             value={filter}
@@ -308,6 +331,7 @@ export function CustomersClient() {
             <option value="overdue">超7天未跟进</option>
             <option value="whatsapp_first">WhatsApp 待联系</option>
             <option value="whatsapp_maintain">WhatsApp 待维护</option>
+            <option value="no_whatsapp">无 WhatsApp</option>
           </select>
           <select
             value={status}
@@ -413,6 +437,12 @@ export function CustomersClient() {
         <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
       )}
 
+      {(filter === "no_whatsapp" || channel === "no_whatsapp") && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          这些客户还没有 WhatsApp 号码。点「补填 WhatsApp」补上后，会出现在 WhatsApp 待联系队列。
+        </div>
+      )}
+
       <ElsewhereHits keyword={keywordParam} hits={elsewhere} current="customer" />
 
       <div className="export-card overflow-x-auto overflow-hidden">
@@ -477,7 +507,7 @@ export function CustomersClient() {
                       {...pickContactSocials(c.contacts)}
                     />
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{c.country ?? "-"}</td>
+                  <td className="px-4 py-3 text-slate-600">{countryLabel(c.country)}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex flex-wrap items-center gap-1">
                       <span
@@ -504,6 +534,11 @@ export function CustomersClient() {
                       {whatsappStageForCustomer(c) === "maintain_due" && (
                         <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
                           WA待维护
+                        </span>
+                      )}
+                      {!customerHasWhatsapp(c) && (
+                        <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                          无WA
                         </span>
                       )}
                     </span>
@@ -547,6 +582,15 @@ export function CustomersClient() {
                       >
                         打开
                       </button>
+                      {!customerHasWhatsapp(c) && (
+                        <button
+                          type="button"
+                          onClick={() => setFillWhatsapp(pickFillWhatsappTarget(c))}
+                          className="text-sm text-amber-700 hover:underline"
+                        >
+                          补填 WhatsApp
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setQuickCustomer(c)}
@@ -585,6 +629,15 @@ export function CustomersClient() {
           onPageChange={(p) => updateUrl({ page: p })}
         />
       )}
+
+      <FillWhatsappModal
+        target={fillWhatsapp}
+        onClose={() => setFillWhatsapp(null)}
+        onSuccess={() => {
+          toast("已补填 WhatsApp");
+          fetchCustomers({ silent: true });
+        }}
+      />
 
       {quickCustomer && (
         <QuickContactModal

@@ -8,6 +8,7 @@ import {
   collectLeadWhatsapps,
 } from "@/lib/export/lead-list-where";
 import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/export/company-name-search";
+import { loadUsedExportCountries } from "@/lib/export/used-countries";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [data, total] = await Promise.all([
+    const [data, total, countries] = await Promise.all([
       prisma.exportLead.findMany({
         where,
         orderBy: { [sortBy]: sortOrder },
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
         include: { owner: { select: { id: true, name: true } } },
       }),
       prisma.exportLead.count({ where }),
+      loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerId),
     ]);
 
     const elsewhere =
@@ -92,6 +94,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data,
       elsewhere,
+      countries,
       pagination: {
         page,
         pageSize,

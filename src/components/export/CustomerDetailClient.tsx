@@ -27,6 +27,7 @@ import {
 } from "@/lib/export-display-labels";
 import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 import { ListBackLink } from "./shared/ListBackLink";
+import { countryLabel } from "@/lib/export/countries";
 import { NextFollowUpModal } from "./NextFollowUpModal";
 import { listHref } from "@/lib/export/list-filter-storage";
 import { resolveWhatsappStage } from "@/lib/export/follow-up";
@@ -250,7 +251,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
             )}
           </div>
           <p className="text-sm text-slate-500">
-            {customer.customerCode} · {customer.country ?? "-"}
+            {customer.customerCode} · {countryLabel(customer.country)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

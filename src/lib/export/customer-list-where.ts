@@ -1,4 +1,5 @@
 import { customerChannelWhere, collectContactField } from "@/lib/export/contact-channel-filter";
+import { countryPrismaWhere } from "@/lib/export/countries";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
 import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
@@ -70,8 +71,10 @@ export function buildExportCustomerListWhere(
   // 业务员始终只能看自己的；管理员搜公司名时不沿用上次选的业务员
   if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
 
+  const countryWhere = countryPrismaWhere(params.country);
+  if (countryWhere) pushAnd(where, countryWhere);
+
   if (params.keyword) {
-    if (params.country) where.country = { contains: params.country, mode: "insensitive" };
     const or: Record<string, unknown>[] = [
       companyNameContainsWhere(params.keyword),
       { customerCode: { contains: params.keyword, mode: "insensitive" } },
@@ -100,7 +103,6 @@ export function buildExportCustomerListWhere(
 
   if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
   if (params.status) where.status = params.status;
-  if (params.country) where.country = { contains: params.country, mode: "insensitive" };
 
   if (params.filter === "today") {
     // 今日待跟进同时包含已逾期未跟进，避免需要手动翻找
@@ -133,9 +135,17 @@ export function buildExportCustomerListWhere(
       }
     }
   }
+  if (params.filter === "no_whatsapp") {
+    const missing = customerChannelWhere("no_whatsapp");
+    if (missing) pushAnd(where, missing);
+  }
 
   const channelWhere = customerChannelWhere(params.channel);
-  if (channelWhere && params.filter !== "whatsapp_maintain" && params.filter !== "whatsapp_first") {
+  const skipChannelBecauseWhatsappQueue =
+    params.filter === "whatsapp_maintain" || params.filter === "whatsapp_first";
+  const skipDuplicateNoWhatsapp =
+    params.filter === "no_whatsapp" && params.channel === "no_whatsapp";
+  if (channelWhere && !skipChannelBecauseWhatsappQueue && !skipDuplicateNoWhatsapp) {
     pushAnd(where, channelWhere);
   }
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { customerStatusLabel } from "@/lib/export-display-labels";
+import { countryLabel } from "@/lib/export/countries";
 import { getUpcomingHolidays } from "@/lib/export/resources";
 
 interface DashboardData {
@@ -23,6 +24,8 @@ interface DashboardData {
   todayDueTasksCount: number;
   whatsappMaintainCount: number;
   whatsappFirstContactCount: number;
+  noWhatsappLeadCount: number;
+  noWhatsappCustomerCount: number;
 }
 
 interface TeamInsightRow {
@@ -136,7 +139,7 @@ export function ExportDashboardClient() {
             {sopResult}
           </div>
         )}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/export/leads?pace=never&sortBy=createdAt&sortOrder=desc"
             className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
@@ -172,6 +175,18 @@ export function ExportDashboardClient() {
               {data.leadsStuckCount}
             </span>
             <span className="export-soft-link mt-1 text-xs">查看 →</span>
+          </Link>
+          <Link
+            href="/export/leads?filter=no_whatsapp&sortBy=updatedAt&sortOrder=desc"
+            className="flex flex-col rounded-xl border border-amber-100 bg-amber-50/50 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <span className="text-sm text-slate-600">无 WhatsApp</span>
+            <span
+              className={`mt-1 text-2xl font-semibold ${data.noWhatsappLeadCount > 0 ? "text-amber-700" : "text-slate-400"}`}
+            >
+              {data.noWhatsappLeadCount}
+            </span>
+            <span className="mt-1 text-xs text-amber-800">去补填号码 →</span>
           </Link>
         </div>
       </div>
@@ -219,6 +234,16 @@ export function ExportDashboardClient() {
               {data.whatsappMaintainCount}
             </span>
             <span className="mt-1 text-xs text-green-800">已联系上，去维护 →</span>
+          </Link>
+          <Link
+            href="/export/customers?filter=no_whatsapp&sortBy=updatedAt&sortOrder=desc"
+            className="flex flex-col rounded-lg border border-amber-100 bg-amber-50/40 p-4 transition-colors hover:bg-amber-50"
+          >
+            <span className="text-sm text-slate-600">无 WhatsApp</span>
+            <span className={`mt-1 text-2xl font-semibold ${data.noWhatsappCustomerCount > 0 ? "text-amber-700" : "text-slate-400"}`}>
+              {data.noWhatsappCustomerCount}
+            </span>
+            <span className="mt-1 text-xs text-amber-800">去补填号码 →</span>
           </Link>
           <Link
             href="/export/tasks?due=today"
@@ -365,7 +390,7 @@ export function ExportDashboardClient() {
                   href={`/export/customers?country=${encodeURIComponent(s.country)}`}
                   className="flex items-center gap-2 rounded px-2 py-1 transition-colors hover:bg-slate-50"
                 >
-                  <span className="flex-1 text-sm text-slate-600">{s.country}</span>
+                  <span className="flex-1 text-sm text-slate-600">{countryLabel(s.country)}</span>
                   <span className="font-medium">{s.count}</span>
                   <span className="text-xs text-slate-400">→</span>
                 </Link>

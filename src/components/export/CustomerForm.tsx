@@ -14,6 +14,8 @@ import {
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { normalizeWebsiteUrl } from "@/lib/website";
 import { DuplicateErrorAlert, type DuplicateRecord } from "./DuplicateErrorAlert";
+import { CountrySelect } from "./CountrySelect";
+import { canonicalizeCountry } from "@/lib/export/countries";
 import {
   customerTypeLabel,
   interestedProductLabel,
@@ -65,8 +67,9 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
     try {
       const url = customerId ? `/api/export/customers/${customerId}` : "/api/export/customers";
       const method = customerId ? "PATCH" : "POST";
-      const payload = customerId ? { ...form, customerCode: undefined } : form;
+      const payload = customerId ? { ...form, customerCode: undefined } : { ...form };
       payload.website = normalizeWebsiteUrl(payload.website) ?? "";
+      payload.country = canonicalizeCountry(payload.country) ?? payload.country;
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -155,10 +158,11 @@ export function CustomerForm({ initial, customerId, onSuccess, onCancel }: Custo
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">国家</label>
-          <input
-            type="text"
+          <CountrySelect
             value={form.country}
-            onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+            allowCustom
+            emptyLabel="请选择国家"
+            onChange={(country) => setForm((f) => ({ ...f, country }))}
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>

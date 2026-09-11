@@ -25,6 +25,7 @@ import { getWebsiteHost, normalizeWebsiteUrl } from "@/lib/website";
 import { ListBackLink } from "./shared/ListBackLink";
 import { listHref } from "@/lib/export/list-filter-storage";
 import { resolveWhatsappStage } from "@/lib/export/follow-up";
+import { countryLabel } from "@/lib/export/countries";
 
 interface LeadActivity {
   id: string;
@@ -363,7 +364,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
         <div>
           <p className="text-slate-500">国家 / 类型</p>
-          <p className="font-medium text-slate-800">{lead.country ?? "-"}</p>
+          <p className="font-medium text-slate-800">{countryLabel(lead.country)}</p>
           <p className="text-slate-500">
             {customerTypeLabel[lead.customerType ?? ""] ?? lead.customerType ?? "未填写类型"}
           </p>

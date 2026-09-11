@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { buildLeadPacePrismaWhere } from "@/lib/export/lead-pace";
 import { customerWhatsappFirstContactWhere, customerWhatsappMaintainWhere } from "@/lib/export/customer-list-where";
+import { customerChannelWhere, leadChannelWhere } from "@/lib/export/contact-channel-filter";
+import { mergeCountryStats } from "@/lib/export/countries";
 
 export async function GET() {
   const { ctx, error } = await requireExportSession();
@@ -42,6 +44,8 @@ export async function GET() {
     todayDueTasksCount,
     whatsappMaintainCount,
     whatsappFirstContactCount,
+    noWhatsappLeadCount,
+    noWhatsappCustomerCount,
   ] = await Promise.all([
     prisma.exportCustomer.count({
       where: {
@@ -129,6 +133,19 @@ export async function GET() {
         ...customerWhatsappFirstContactWhere(),
       },
     }),
+    prisma.exportLead.count({
+      where: {
+        ...leadBase,
+        status: { not: "converted" },
+        ...leadChannelWhere("no_whatsapp"),
+      },
+    }),
+    prisma.exportCustomer.count({
+      where: {
+        ...baseWhere,
+        ...customerChannelWhere("no_whatsapp"),
+      },
+    }),
   ]);
 
   const quoteNoFollowUp3Days = quoteCandidates
@@ -161,11 +178,11 @@ export async function GET() {
       quotesThisMonth,
       ordersThisMonth,
       customerStatusStats: customerStatusStats.map((s) => ({ status: s.status, count: s._count })),
-      countryStats: countryStats
-        .filter((c) => c.country)
-        .map((s) => ({ country: s.country!, count: s._count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10),
+      countryStats: mergeCountryStats(
+        countryStats
+          .filter((c) => c.country)
+          .map((s) => ({ country: s.country!, count: s._count })),
+      ).slice(0, 10),
       ownerStats: ownerStats.map((s) => ({
         ownerId: s.ownerId,
         ownerName: ownerMap[s.ownerId] ?? "未知",
@@ -176,6 +193,8 @@ export async function GET() {
       todayDueTasksCount,
       whatsappMaintainCount,
       whatsappFirstContactCount,
+      noWhatsappLeadCount,
+      noWhatsappCustomerCount,
     },
   });
 }

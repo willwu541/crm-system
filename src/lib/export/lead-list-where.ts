@@ -1,5 +1,6 @@
 import { buildLeadPacePrismaWhere, type LeadPaceFilter } from "@/lib/export/lead-pace";
 import { collectUniqueEmails, collectUniqueWhatsapps, leadChannelWhere } from "@/lib/export/contact-channel-filter";
+import { countryPrismaWhere } from "@/lib/export/countries";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
 import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
@@ -69,8 +70,10 @@ export function buildExportLeadListWhere(
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
   if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
 
+  const countryWhere = countryPrismaWhere(params.country);
+  if (countryWhere) pushAnd(where, countryWhere);
+
   if (params.keyword) {
-    if (params.country) where.country = { contains: params.country, mode: "insensitive" };
     const or: Record<string, unknown>[] = [
       companyNameContainsWhere(params.keyword),
       { email: { contains: params.keyword, mode: "insensitive" } },
@@ -91,7 +94,6 @@ export function buildExportLeadListWhere(
 
   if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
   if (params.status) where.status = params.status;
-  if (params.country) where.country = { contains: params.country, mode: "insensitive" };
   if (params.since === "week") {
     const weekStart = new Date(now);
     weekStart.setDate(weekStart.getDate() - 7);
@@ -126,9 +128,18 @@ export function buildExportLeadListWhere(
       }
     }
   }
+  if (params.filter === "no_whatsapp") {
+    const missing = leadChannelWhere("no_whatsapp");
+    if (missing) pushAnd(where, missing);
+    if (!params.status) where.status = { not: "converted" };
+  }
 
   const channelWhere = leadChannelWhere(params.channel);
-  if (channelWhere && params.filter !== "whatsapp_maintain" && params.filter !== "whatsapp_first") {
+  const skipChannelBecauseWhatsappQueue =
+    params.filter === "whatsapp_maintain" || params.filter === "whatsapp_first";
+  const skipDuplicateNoWhatsapp =
+    params.filter === "no_whatsapp" && params.channel === "no_whatsapp";
+  if (channelWhere && !skipChannelBecauseWhatsappQueue && !skipDuplicateNoWhatsapp) {
     pushAnd(where, channelWhere);
   }
 

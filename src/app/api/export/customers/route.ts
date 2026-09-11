@@ -10,6 +10,7 @@ import {
   collectUniqueWhatsappsFromContacts,
 } from "@/lib/export/customer-list-where";
 import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/export/company-name-search";
+import { loadUsedExportCountries } from "@/lib/export/used-countries";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const [data, total] = await Promise.all([
+  const [data, total, countries] = await Promise.all([
     prisma.exportCustomer.findMany({
       where,
       orderBy: { [sortBy]: sortOrder },
@@ -86,6 +87,9 @@ export async function GET(request: NextRequest) {
           take: 5,
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
           select: {
+            id: true,
+            name: true,
+            isPrimary: true,
             email: true,
             whatsapp: true,
             phone: true,
@@ -97,6 +101,7 @@ export async function GET(request: NextRequest) {
       },
     }),
     prisma.exportCustomer.count({ where }),
+    loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerId),
   ]);
 
   const elsewhere =
@@ -107,6 +112,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     data,
     elsewhere,
+    countries,
     pagination: {
       page,
       pageSize,

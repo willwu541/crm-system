@@ -20,6 +20,9 @@ import { resolveWhatsappStage } from "@/lib/export/follow-up";
 import { SocialLinksBar } from "./SocialLinksBar";
 import { ConvertLeadModal, type ConvertLeadPayload } from "./ConvertLeadModal";
 import { ElsewhereHits, type ElsewhereHit } from "./ElsewhereHits";
+import { FillWhatsappModal, type FillWhatsappTarget } from "./FillWhatsappModal";
+import { CountrySelect } from "./CountrySelect";
+import { countryLabel } from "@/lib/export/countries";
 
 interface Lead {
   id: string;
@@ -89,7 +92,7 @@ export function LeadsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState(keywordParam);
-  const [countryInput, setCountryInput] = useState(country);
+  const [countries, setCountries] = useState<string[]>([]);
   const [converting, setConverting] = useState<string | null>(null);
   const [convertLead, setConvertLead] = useState<Lead | null>(null);
   const [importing, setImporting] = useState(false);
@@ -105,6 +108,7 @@ export function LeadsClient() {
     contactCount: 0,
     defaultDirection: "outbound",
   });
+  const [fillWhatsapp, setFillWhatsapp] = useState<FillWhatsappTarget | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   async function fetchUsers() {
@@ -177,6 +181,7 @@ export function LeadsClient() {
       setLeads((json.data as Lead[]) || []);
       setElsewhere((json.elsewhere as ElsewhereHit[]) || []);
       setPagination(json.pagination as PaginationData);
+      if (Array.isArray(json.countries)) setCountries(json.countries as string[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
       setLeads([]);
@@ -191,8 +196,7 @@ export function LeadsClient() {
 
   useEffect(() => {
     setKeyword(keywordParam);
-    setCountryInput(country);
-  }, [keywordParam, country]);
+  }, [keywordParam]);
 
   function updateUrl(updates: Record<string, string | number | undefined>) {
     const merged = {
@@ -227,7 +231,6 @@ export function LeadsClient() {
     e.preventDefault();
     updateUrl({
       keyword: keyword || undefined,
-      country: countryInput || undefined,
       page: 1,
       filter: undefined,
       status: undefined,
@@ -354,12 +357,12 @@ export function LeadsClient() {
             placeholder="搜索公司名、邮箱、电话"
             className="px-3 py-2 text-sm"
           />
-          <input
-            type="text"
-            value={countryInput}
-            onChange={(e) => setCountryInput(e.target.value)}
-            placeholder="国家"
-            className="w-24 px-3 py-2 text-sm"
+          <CountrySelect
+            value={country}
+            extraValues={countries}
+            allowUnspecified
+            onChange={(next) => updateUrl({ country: next || undefined, page: 1 })}
+            className="min-w-[9.5rem] px-3 py-2 text-sm"
           />
           <select
             value={status}
@@ -428,44 +431,44 @@ export function LeadsClient() {
         </form>
 
         <div className="flex flex-wrap gap-1">
-          {[
-            { key: "", label: "全部" },
-            { key: "never", label: "未联系过" },
-            { key: "due", label: "该跟进了" },
-            { key: "stuck", label: "联系 3+ 无响应" },
-            { key: "whatsapp_first", label: "WhatsApp待联系" },
-            { key: "whatsapp_maintain", label: "WhatsApp待维护" },
-          ].map((p) => (
-            <button
-              key={p.key || "all"}
-              type="button"
-              onClick={() =>
-                updateUrl({
-                  pace:
-                    p.key === "whatsapp_maintain" || p.key === "whatsapp_first"
-                      ? undefined
-                      : p.key || undefined,
-                  filter:
-                    p.key === "whatsapp_maintain" || p.key === "whatsapp_first" ? p.key : undefined,
-                  page: 1,
-                  ...(p.key === "due" || p.key === "stuck" || p.key === "whatsapp_maintain"
-                    ? { sortBy: "lastContactAt", sortOrder: "asc" }
-                    : {}),
-                })
-              }
-              className={`export-chip px-3 py-1 ${
-                p.key === "whatsapp_maintain" || p.key === "whatsapp_first"
+          {(
+            [
+              { key: "", label: "全部", kind: "all" },
+              { key: "never", label: "未联系过", kind: "pace" },
+              { key: "due", label: "该跟进了", kind: "pace" },
+              { key: "stuck", label: "联系 3+ 无响应", kind: "pace" },
+              { key: "whatsapp_first", label: "WhatsApp待联系", kind: "filter" },
+              { key: "whatsapp_maintain", label: "WhatsApp待维护", kind: "filter" },
+              { key: "no_whatsapp", label: "无 WhatsApp", kind: "filter" },
+            ] as const
+          ).map((p) => {
+            const active =
+              p.kind === "all"
+                ? !filter && !pace
+                : p.kind === "filter"
                   ? filter === p.key
-                    ? "export-chip-active"
-                    : "hover:bg-slate-50"
-                  : !filter && pace === p.key
-                    ? "export-chip-active"
-                    : "hover:bg-slate-50"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+                  : !filter && pace === p.key;
+            return (
+              <button
+                key={p.key || "all"}
+                type="button"
+                onClick={() =>
+                  updateUrl({
+                    pace: p.kind === "pace" ? p.key : undefined,
+                    filter: p.kind === "filter" ? p.key : undefined,
+                    channel: undefined,
+                    page: 1,
+                    ...(p.key === "due" || p.key === "stuck" || p.key === "whatsapp_maintain"
+                      ? { sortBy: "lastContactAt", sortOrder: "asc" }
+                      : {}),
+                  })
+                }
+                className={`export-chip px-3 py-1 ${active ? "export-chip-active" : "hover:bg-slate-50"}`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
         </div>
         <button
           onClick={() => setDrawerOpen(true)}
@@ -538,6 +541,12 @@ export function LeadsClient() {
           >
             清除
           </button>
+        </div>
+      )}
+
+      {(filter === "no_whatsapp" || channel === "no_whatsapp") && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          这些线索还没有 WhatsApp 号码。点「补填 WhatsApp」补上后，会出现在 WhatsApp 待联系队列。
         </div>
       )}
 
@@ -621,7 +630,7 @@ export function LeadsClient() {
                         <span className="text-xs text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{l.country ?? "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">{countryLabel(l.country)}</td>
                     <td className="px-4 py-3 text-slate-600" onClick={(e) => e.stopPropagation()}>
                       <div className="text-xs">{l.email ?? "未填邮箱"}</div>
                       <SocialLinksBar
@@ -665,12 +674,32 @@ export function LeadsClient() {
                           WA待维护
                         </span>
                       )}
+                      {waStage === "none" && l.status !== "converted" && (
+                        <span className="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                          无WA
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-700">{l.contactCount}</td>
                     <td className="px-4 py-3 text-slate-600">{l.owner.name}</td>
                     <td className="px-4 py-3 text-slate-500">{renderTime(l)}</td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <span className="flex gap-3">
+                        {!l.whatsapp?.trim() && l.status !== "converted" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFillWhatsapp({
+                                kind: "lead",
+                                id: l.id,
+                                companyName: l.companyName,
+                              })
+                            }
+                            className="text-amber-700 hover:underline"
+                          >
+                            补填 WhatsApp
+                          </button>
+                        )}
                         {l.status !== "converted" && (
                           <button
                             type="button"
@@ -774,6 +803,15 @@ export function LeadsClient() {
         title={quickModal.defaultDirection === "outbound" ? "记录一次主动联系" : "记录客户回复"}
         onSuccess={() => {
           toast("已记录");
+          fetchLeads({ silent: true });
+        }}
+      />
+
+      <FillWhatsappModal
+        target={fillWhatsapp}
+        onClose={() => setFillWhatsapp(null)}
+        onSuccess={() => {
+          toast("已补填 WhatsApp");
           fetchLeads({ silent: true });
         }}
       />

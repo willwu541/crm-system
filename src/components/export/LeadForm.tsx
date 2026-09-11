@@ -18,6 +18,8 @@ import type { SessionUser } from "@/lib/auth";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { normalizeWebsiteUrl } from "@/lib/website";
 import { DuplicateErrorAlert, type DuplicateRecord } from "./DuplicateErrorAlert";
+import { CountrySelect } from "./CountrySelect";
+import { canonicalizeCountry } from "@/lib/export/countries";
 
 interface LeadFormProps {
   initial?: Record<string, unknown>;
@@ -133,7 +135,7 @@ export function LeadForm({
       const body: Record<string, unknown> = {
         companyName: form.companyName,
         website: normalizeWebsiteUrl(form.website) || undefined,
-        country: form.country || undefined,
+        country: canonicalizeCountry(form.country) || undefined,
         city: form.city || undefined,
         address: form.address || undefined,
         customerType: form.customerType || undefined,
@@ -257,10 +259,11 @@ export function LeadForm({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">国家</label>
-          <input
-            type="text"
+          <CountrySelect
             value={form.country}
-            onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+            allowCustom
+            emptyLabel="请选择国家"
+            onChange={(country) => setForm((f) => ({ ...f, country }))}
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>

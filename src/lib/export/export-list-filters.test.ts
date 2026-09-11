@@ -8,6 +8,7 @@ import {
 } from "./contact-channel-filter";
 import { buildExportCustomerListWhere, collectUniqueEmails as collectCustomerEmails, collectUniqueWhatsappsFromContacts } from "./customer-list-where";
 import { buildExportLeadListWhere, collectLeadEmails, collectLeadWhatsapps } from "./lead-list-where";
+import { canonicalizeCountry, countryMatchNames, countryPrismaWhere, mergeCountryStats, EMPTY_COUNTRY_FILTER } from "./countries";
 import { clearListQuery, listHref, loadListQuery, saveListQuery } from "./list-filter-storage";
 import { resolveWhatsappStage } from "./follow-up";
 import { companyNameTokenAndWhere, normalizeCompanyName, splitCompanyNameTokens } from "../search-text";
@@ -83,6 +84,12 @@ describe("customer list where", () => {
     assert.ok(and.some((c) => c.contacts));
   });
 
+  it("filters customers missing WhatsApp", () => {
+    const where = buildExportCustomerListWhere(ctx, { filter: "no_whatsapp" });
+    const and = where.AND as Record<string, unknown>[];
+    assert.ok(and.some((c) => c.contacts));
+  });
+
   it("filters has-email customers", () => {
     const where = buildExportCustomerListWhere(ctx, { channel: "email" });
     const and = where.AND as Record<string, unknown>[];
@@ -150,6 +157,13 @@ describe("lead list where", () => {
   it("WhatsApp maintain excludes never-contacted leads", () => {
     const where = buildExportLeadListWhere(ctx, { filter: "whatsapp_maintain" });
     assert.deepEqual(where.lastContactAt, { not: null });
+  });
+
+  it("filters leads missing WhatsApp", () => {
+    const where = buildExportLeadListWhere(ctx, { filter: "no_whatsapp" });
+    const and = where.AND as Record<string, unknown>[];
+    assert.ok(and.some((c) => c.OR || c.whatsapp));
+    assert.deepEqual(where.status, { not: "converted" });
   });
 });
 
@@ -222,5 +236,35 @@ describe("list filter storage", () => {
     assert.equal(listHref("/export/customers"), "/export/customers?ownerId=u1&sortBy=lastFollowUpAt");
     clearListQuery("/export/customers");
     assert.equal(listHref("/export/customers"), "/export/customers");
+  });
+});
+
+describe("country classification", () => {
+  it("maps aliases to one country", () => {
+    assert.equal(canonicalizeCountry("USA"), "United States");
+    assert.equal(canonicalizeCountry("美国"), "United States");
+    assert.ok(countryMatchNames("美国").includes("USA"));
+    const where = countryPrismaWhere("USA") as { OR: { country: { equals: string } }[] };
+    assert.ok(where.OR.some((item) => item.country.equals === "United States"));
+    assert.deepEqual(countryPrismaWhere(EMPTY_COUNTRY_FILTER), {
+      OR: [{ country: null }, { country: "" }],
+    });
+    assert.deepEqual(
+      mergeCountryStats([
+        { country: "USA", count: 2 },
+        { country: "美国", count: 1 },
+        { country: "Germany", count: 4 },
+      ]),
+      [
+        { country: "Germany", count: 4 },
+        { country: "United States", count: 3 },
+      ],
+    );
+  });
+
+  it("keeps country filter when searching customers", () => {
+    const where = buildExportCustomerListWhere(ctx, { keyword: "Acme", country: "USA" });
+    const and = where.AND as Record<string, unknown>[];
+    assert.ok(and.some((clause) => Array.isArray(clause.OR) && (clause.OR as { country?: unknown }[]).some((item) => item.country)));
   });
 });
