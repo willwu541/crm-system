@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
+import { formatRole } from "@/lib/role-labels";
 
-export function ExportHeader({ user }: { user: SessionUser }) {
+export function ExportHeader({ user, isDirector = false }: { user: SessionUser; isDirector?: boolean }) {
   const router = useRouter();
 
   async function handleLogout() {
@@ -23,7 +24,7 @@ export function ExportHeader({ user }: { user: SessionUser }) {
         </div>
         <div className="flex items-center gap-4">
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700 shadow-sm">
-            {user.name} ({user.role === "ADMIN" ? "Admin" : "Sales"})
+            {user.name} ({formatRole(user.role, isDirector)})
           </span>
           <button
             onClick={handleLogout}

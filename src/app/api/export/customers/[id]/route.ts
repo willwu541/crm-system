@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { parseInterestedProducts } from "@/lib/export/interested-products";
 import { z } from "zod";
 
-async function getCustomerOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
+async function getCustomerOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const customer = await prisma.exportCustomer.findUnique({
     where: { id, tenantId },
     include: {
@@ -19,7 +20,7 @@ async function getCustomerOrError(id: string, tenantId: string, ownerFilter?: { 
     },
   });
   if (!customer) return { customer: null, error: NextResponse.json({ error: "客户不存在" }, { status: 404 }) };
-  if (ownerFilter && customer.ownerId !== ownerFilter.ownerId) {
+  if (!canSeeOwner(ownerFilter, customer.ownerId)) {
     return { customer: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   const activityIds = customer.activities.map((item) => item.id);

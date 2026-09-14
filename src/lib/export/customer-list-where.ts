@@ -1,6 +1,7 @@
 import { customerChannelWhere, collectContactField } from "@/lib/export/contact-channel-filter";
 import { countryPrismaWhere } from "@/lib/export/countries";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
+import { ownerPrismaValue, type DataOwnerFilter } from "@/lib/access-policy";
 import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
 export interface CustomerListFilterParams {
@@ -16,7 +17,7 @@ export interface CustomerListFilterParams {
 
 export interface CustomerListContext {
   tenantId: string;
-  ownerFilter?: { ownerId: string } | null;
+  ownerFilter?: DataOwnerFilter | null;
 }
 
 function pushAnd(where: Record<string, unknown>, clause: Record<string, unknown>) {
@@ -69,7 +70,8 @@ export function buildExportCustomerListWhere(
 
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
   // 业务员始终只能看自己的；管理员搜公司名时不沿用上次选的业务员
-  if (ctx.ownerFilter) where.ownerId = ctx.ownerFilter.ownerId;
+  const scopedOwner = ownerPrismaValue(ctx.ownerFilter);
+  if (scopedOwner !== undefined) where.ownerId = scopedOwner;
 
   const countryWhere = countryPrismaWhere(params.country);
   if (countryWhere) pushAnd(where, countryWhere);

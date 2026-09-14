@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { isDirector } from "@/lib/access-policy";
 import { ExportHeader } from "@/components/layout/ExportHeader";
 import { ExportProviders } from "@/components/layout/ExportProviders";
 import { ExportSidebar } from "@/components/layout/ExportSidebar";
@@ -23,7 +24,7 @@ export default async function ExportLayout({
       <div className="export-crm flex min-h-screen bg-gradient-to-br from-slate-200 via-slate-100 to-blue-50">
         <ExportSidebar />
         <div className="flex flex-1 flex-col">
-          <ExportHeader user={user} />
+          <ExportHeader user={user} isDirector={isDirector(user)} />
           <main className="flex-1 p-7 pb-20">
             <div className="mx-auto w-full max-w-[1600px]">{children}</div>
           </main>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { ownerPrismaValue } from "@/lib/access-policy";
 
 export async function GET() {
   const { ctx, error } = await requireExportSession();
@@ -11,7 +12,7 @@ export async function GET() {
       tenant: "export",
       tenantId: ctx!.tenantId,
       isActive: true,
-      ...(ctx!.ownerFilter ? { id: ctx!.ownerFilter.ownerId } : {}),
+      ...(ctx!.ownerFilter ? { id: ownerPrismaValue(ctx!.ownerFilter) } : {}),
     },
     select: { id: true, name: true },
   });

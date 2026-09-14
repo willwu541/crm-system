@@ -1,8 +1,8 @@
-import type { SessionUser } from "@/lib/auth";
+import type { DataOwnerFilter } from "@/lib/access-policy";
 
 export interface ExportContext {
   tenantId: string;
   userId: string;
-  /** SALES 时仅看自己，ADMIN 可看团队 */
-  ownerFilter?: { ownerId: string };
+  /** 未设置表示可看全部；否则只能看这些负责人的资料 */
+  ownerFilter?: DataOwnerFilter;
 }

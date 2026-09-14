@@ -15,14 +15,14 @@ export async function GET() {
   const now = new Date();
   const todayStart = startOfLocalDay(now);
   const todayEnd = new Date(todayStart.getTime() + 24 * 3600 * 1000);
-  const ownerScope = ctx!.ownerFilter?.ownerId;
+  const ownerScope = ctx!.ownerFilter?.ownerIds;
 
   const owners = await prisma.user.findMany({
     where: {
       tenant: "export",
       tenantId: ctx!.tenantId,
       isActive: true,
-      ...(ownerScope ? { id: ownerScope } : {}),
+      ...(ownerScope ? { id: { in: ownerScope } } : {}),
     },
     select: { id: true, name: true },
   });
@@ -30,13 +30,13 @@ export async function GET() {
   const leadDueWhere = {
     tenantId: ctx!.tenantId,
     status: { notIn: ["converted", "invalid"] },
-    ...(ownerScope ? { ownerId: ownerScope } : {}),
+    ...(ownerScope ? { ownerId: { in: ownerScope } } : {}),
     nextFollowUpAt: { gte: todayStart, lt: todayEnd },
   };
   const customerDueWhere = {
     tenantId: ctx!.tenantId,
     status: { notIn: ["won", "lost"] },
-    ...(ownerScope ? { ownerId: ownerScope } : {}),
+    ...(ownerScope ? { ownerId: { in: ownerScope } } : {}),
     nextFollowUpAt: { gte: todayStart, lt: todayEnd },
   };
 
@@ -45,7 +45,7 @@ export async function GET() {
       where: {
         tenantId: ctx!.tenantId,
         createdAt: { gte: todayStart, lt: todayEnd },
-        ...(ownerScope ? { ownerId: ownerScope } : {}),
+        ...(ownerScope ? { ownerId: { in: ownerScope } } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: 400,
@@ -163,7 +163,7 @@ export async function GET() {
 
   return NextResponse.json({
     data: {
-      isAdmin: user!.role === "ADMIN" || user!.role === "MANAGER",
+      isAdmin: !ownerScope || ownerScope.length > 1,
       viewerId: user!.id,
       viewerName: user!.name,
       metrics,

@@ -61,7 +61,7 @@ describe("customer list where", () => {
 
   it("sales owner filter still applies when searching by keyword", () => {
     const where = buildExportCustomerListWhere(
-      { tenantId: "t1", ownerFilter: { ownerId: "u9" } },
+      { tenantId: "t1", ownerFilter: { ownerIds: ["u9"] } },
       { keyword: "Acme", filter: "today" },
     );
     assert.equal(where.ownerId, "u9");

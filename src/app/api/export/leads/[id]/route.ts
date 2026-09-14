@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 
-async function getLeadOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
+async function getLeadOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const lead = await prisma.exportLead.findUnique({
     where: { id, tenantId },
     include: { owner: { select: { id: true, name: true } }, customer: true },
   });
   if (!lead) return { lead: null, error: NextResponse.json({ error: "线索不存在" }, { status: 404 }) };
-  if (ownerFilter && lead.ownerId !== ownerFilter.ownerId) {
+  if (!canSeeOwner(ownerFilter, lead.ownerId)) {
     return { lead: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { lead, error: null };

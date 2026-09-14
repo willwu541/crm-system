@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { createdByScope } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -13,8 +14,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const keyword = searchParams.get("keyword")?.trim();
 
-  const where: Record<string, unknown> = {};
-  if (user.role === "SALES") where.createdById = user.id;
+  const where: Record<string, unknown> = { ...createdByScope(user) };
   if (status) where.status = status;
   if (keyword) {
     where.OR = [

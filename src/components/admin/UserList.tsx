@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { parseResponseJson } from "@/lib/parse-response-json";
+import { formatRole } from "@/lib/role-labels";
 
 interface User {
   id: string;
@@ -14,9 +15,19 @@ interface User {
   createdAt: string;
 }
 
+type PolicyState = {
+  directorUserId: string | null;
+  directorName: string | null;
+  canView: Record<string, string[]>;
+  canClaim: boolean;
+  canEdit: boolean;
+};
+
 export function UserList() {
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
+  const [policy, setPolicy] = useState<PolicyState | null>(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
@@ -46,9 +57,61 @@ export function UserList() {
     }
   }
 
+  async function fetchPolicy() {
+    const res = await fetch("/api/admin/access-policy");
+    const json = await parseResponseJson<{ data?: PolicyState }>(res);
+    if (res.ok && json.data) setPolicy(json.data);
+  }
+
   useEffect(() => {
     fetchUsers();
+    void fetchPolicy();
   }, []);
+
+  async function claimDirector() {
+    setSavingPolicy(true);
+    try {
+      const res = await fetch("/api/admin/access-policy", { method: "POST" });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "设置失败");
+      toast("已设为业务经理");
+      await fetchPolicy();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "设置失败");
+    } finally {
+      setSavingPolicy(false);
+    }
+  }
+
+  async function saveCanView(canView: Record<string, string[]>) {
+    setSavingPolicy(true);
+    try {
+      const res = await fetch("/api/admin/access-policy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canView }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      await fetchPolicy();
+      toast("已保存");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSavingPolicy(false);
+    }
+  }
+
+  function toggleCanView(viewerId: string, ownerId: string) {
+    if (!policy?.canEdit) return;
+    const current = new Set(policy.canView[viewerId] ?? []);
+    if (current.has(ownerId)) current.delete(ownerId);
+    else current.add(ownerId);
+    void saveCanView({
+      ...policy.canView,
+      [viewerId]: Array.from(current),
+    });
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -141,6 +204,77 @@ export function UserList() {
         </div>
       )}
 
+      {policy?.canClaim && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-slate-800">业务经理</p>
+              <p className="text-xs text-slate-500">全公司仅你一人能勾谁可以看谁的资料</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void claimDirector()}
+              disabled={savingPolicy}
+              className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white disabled:opacity-50"
+            >
+              设为我的职位
+            </button>
+          </div>
+        </div>
+      )}
+
+      {policy?.canEdit && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <p className="mb-2 text-sm font-medium text-slate-800">谁可以看谁的资料</p>
+          <p className="mb-2 text-xs text-slate-500">只有你能勾。没勾的人只能看自己的。</p>
+          <div className="space-y-3">
+            {(["domestic", "export"] as const).map((tenant) => {
+              const group = users.filter((item) => item.tenant === tenant && item.isActive);
+              if (group.length === 0) return null;
+              return (
+                <div key={tenant}>
+                  <p className="mb-1 text-xs font-medium text-slate-500">{tenant === "export" ? "外贸" : "内贸"}</p>
+                  <div className="space-y-2">
+                    {group.map((viewer) => {
+                      const others = group.filter((item) => item.id !== viewer.id);
+                      const isBoss = viewer.id === policy.directorUserId;
+                      return (
+                        <div key={viewer.id} className="rounded-md bg-slate-50 px-3 py-2">
+                          <p className="text-sm text-slate-800">
+                            {viewer.name}
+                            <span className="ml-1 text-xs text-slate-400">
+                              {formatRole(viewer.role, isBoss)}
+                            </span>
+                          </p>
+                          {isBoss ? (
+                            <p className="mt-1 text-xs text-slate-500">可看全部</p>
+                          ) : (
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                              {others.map((owner) => (
+                                <label key={owner.id} className="flex items-center gap-1 text-xs text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={(policy.canView[viewer.id] ?? []).includes(owner.id)}
+                                    disabled={!policy.canEdit || savingPolicy}
+                                    onChange={() => toggleCanView(viewer.id, owner.id)}
+                                  />
+                                  {owner.name}
+                                </label>
+                              ))}
+                              {others.length === 0 ? <span className="text-xs text-slate-400">没有其他人</span> : null}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => setShowForm(!showForm)}
@@ -192,7 +326,7 @@ export function UserList() {
               >
                 <option value="SALES">业务员</option>
                 <option value="MANAGER">经理</option>
-                <option value="ADMIN">管理员</option>
+                <option value="ADMIN">管理者</option>
               </select>
             </div>
             <div>
@@ -249,7 +383,7 @@ export function UserList() {
                   <td className="px-4 py-3">{u.name}</td>
                   <td className="px-4 py-3">
                     <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                      {u.role === "ADMIN" ? "管理员" : u.role === "MANAGER" ? "经理" : "业务员"}
+                      {formatRole(u.role, u.id === policy?.directorUserId)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -332,7 +466,7 @@ export function UserList() {
                 >
                   <option value="SALES">业务员</option>
                   <option value="MANAGER">经理</option>
-                  <option value="ADMIN">管理员</option>
+                  <option value="ADMIN">管理者</option>
                 </select>
               </div>
               <div>

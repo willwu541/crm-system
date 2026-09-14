@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       },
     }),
     prisma.exportCustomer.count({ where }),
-    loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerId),
+    loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerIds),
   ]);
 
   const elsewhere =

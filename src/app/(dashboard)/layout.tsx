@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { isDirector } from "@/lib/access-policy";
 import { DomesticSidebar } from "@/components/layout/DomesticSidebar";
 
 export default async function DashboardLayout({
@@ -17,7 +18,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-teal-50/30">
-      <DomesticSidebar userName={user.name} userRole={user.role} />
+      <DomesticSidebar userName={user.name} userRole={user.role} isDirector={isDirector(user)} />
       <main className="flex-1 p-6">
         <div className="mx-auto w-full max-w-[1600px]">{children}</div>
       </main>

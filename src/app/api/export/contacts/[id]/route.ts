@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
 
-async function getContactOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
+async function getContactOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const contact = await prisma.exportContact.findUnique({
     where: { id, tenantId },
     include: { customer: true },
   });
   if (!contact) return { contact: null, error: NextResponse.json({ error: "联系人不存在" }, { status: 404 }) };
-  if (ownerFilter && contact.customer.ownerId !== ownerFilter.ownerId) {
+  if (!canSeeOwner(ownerFilter, contact.customer.ownerId)) {
     return { contact: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { contact, error: null };

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -24,7 +25,7 @@ export async function POST(
   }
 
   // 只有ADMIN/MANAGER或客户负责人可以操作
-  if (user.role === "SALES" && customer.ownerId !== user.id) {
+  if (isOwnDataOnly(user) && customer.ownerId !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

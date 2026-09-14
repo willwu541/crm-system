@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { createdByScope, isOwnDataOnly, ownerScope } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { customerOwnerFilter } from "@/lib/domestic/customer-access";
 import { REACTIVATION_STATUSES } from "@/lib/domestic/constants";
@@ -26,7 +27,7 @@ export default async function DashboardPage() {
   const user = await getSession();
   if (!user) redirect("/login");
 
-  const where = user.role === "SALES" ? { createdById: user.id } : {};
+  const where = createdByScope(user);
   const customerWhere = customerOwnerFilter(user);
   const dormantThreshold = getDormantThresholdDate(DEFAULT_DORMANT_DAYS);
 
@@ -116,14 +117,14 @@ export default async function DashboardPage() {
     }),
     // 新增统计
     prisma.lead.count({
-      where: { ...(user.role === "SALES" ? { ownerId: user.id } : {}) },
+      where: ownerScope(user),
     }),
     prisma.customer.count({
       where: { isInPool: true },
     }),
     prisma.customerQuote.count({
       where: {
-        ...(user.role === "SALES" ? { createdById: user.id } : {}),
+        ...createdByScope(user),
         status: { notIn: ["WON", "LOST"] },
       },
     }),
@@ -226,7 +227,7 @@ export default async function DashboardPage() {
       {/* 我的业绩 */}
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium text-slate-800">
-          {user.role === "SALES" ? "我的业绩" : "全员业绩"}
+          {isOwnDataOnly(user) ? "我的业绩" : "全员业绩"}
         </h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 p-5">

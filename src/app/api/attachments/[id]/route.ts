@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { createOpLog } from "@/lib/oplog";
 
@@ -23,7 +24,7 @@ export async function DELETE(
     return NextResponse.json({ error: "附件不存在" }, { status: 404 });
   }
 
-  if (user.role === "SALES" && att.order.createdById !== user.id) {
+  if (isOwnDataOnly(user) && att.order.createdById !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

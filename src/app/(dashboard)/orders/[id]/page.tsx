@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { createdByScope } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { serializeForClient } from "@/lib/utils";
 import Link from "next/link";
@@ -29,7 +30,7 @@ export default async function OrderDetailPage({
   const order = await prisma.order.findFirst({
     where: {
       id,
-      ...(user.role === "SALES" ? { createdById: user.id } : {}),
+      ...createdByScope(user),
     },
     include: {
       createdBy: { select: { name: true } },

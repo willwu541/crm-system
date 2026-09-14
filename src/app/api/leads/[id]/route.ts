@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -26,7 +27,7 @@ export async function GET(
     return NextResponse.json({ error: "线索不存在" }, { status: 404 });
   }
 
-  if (user.role === "SALES" && lead.ownerId !== user.id) {
+  if (isOwnDataOnly(user) && lead.ownerId !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
@@ -63,7 +64,7 @@ export async function PATCH(
     return NextResponse.json({ error: "线索不存在" }, { status: 404 });
   }
 
-  if (user.role === "SALES" && existing.ownerId !== user.id) {
+  if (isOwnDataOnly(user) && existing.ownerId !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

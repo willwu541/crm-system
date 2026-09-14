@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
 
-async function getQuoteOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
+async function getQuoteOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const quote = await prisma.exportQuote.findUnique({
     where: { id, tenantId },
     include: {
@@ -15,7 +16,7 @@ async function getQuoteOrError(id: string, tenantId: string, ownerFilter?: { own
     },
   });
   if (!quote) return { quote: null, error: NextResponse.json({ error: "报价不存在" }, { status: 404 }) };
-  if (ownerFilter && quote.customer.ownerId !== ownerFilter.ownerId) {
+  if (!canSeeOwner(ownerFilter, quote.customer.ownerId)) {
     return { quote: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { quote, error: null };

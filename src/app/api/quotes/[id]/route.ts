@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { createOpLog } from "@/lib/oplog";
 
@@ -23,7 +24,7 @@ export async function PATCH(
     return NextResponse.json({ error: "报价不存在" }, { status: 404 });
   }
 
-  if (user.role === "SALES" && quote.order.createdById !== user.id) {
+  if (isOwnDataOnly(user) && quote.order.createdById !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

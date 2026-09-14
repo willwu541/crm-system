@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner } from "@/lib/access-policy";
 import { generateOrderNo } from "@/lib/export/number-generator";
 
 export async function POST(
@@ -16,7 +17,7 @@ export async function POST(
     include: { customer: true, items: { orderBy: { sortOrder: "asc" } } },
   });
   if (!quote) return NextResponse.json({ error: "报价不存在" }, { status: 404 });
-  if (ctx!.ownerFilter && quote.customer.ownerId !== ctx!.ownerFilter.ownerId) {
+  if (!canSeeOwner(ctx!.ownerFilter, quote.customer.ownerId)) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

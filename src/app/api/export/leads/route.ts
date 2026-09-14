@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         include: { owner: { select: { id: true, name: true } } },
       }),
       prisma.exportLead.count({ where }),
-      loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerId),
+      loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerIds),
     ]);
 
     const elsewhere =

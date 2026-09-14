@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -22,7 +23,7 @@ export async function GET(
     },
   });
   if (!quote) return NextResponse.json({ error: "报价不存在" }, { status: 404 });
-  if (user.role === "SALES" && quote.createdById !== user.id) {
+  if (isOwnDataOnly(user) && quote.createdById !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
   return NextResponse.json({ data: quote });
@@ -44,7 +45,7 @@ export async function PATCH(
   const { id } = await params;
   const existing = await prisma.customerQuote.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "报价不存在" }, { status: 404 });
-  if (user.role === "SALES" && existing.createdById !== user.id) {
+  if (isOwnDataOnly(user) && existing.createdById !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

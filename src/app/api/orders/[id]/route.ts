@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { createdByScope } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { createOpLog } from "@/lib/oplog";
 
@@ -16,7 +17,7 @@ export async function GET(
   const order = await prisma.order.findFirst({
     where: {
       id,
-      ...(user.role === "SALES" ? { createdById: user.id } : {}),
+      ...createdByScope(user),
     },
     include: {
       createdBy: { select: { name: true } },
@@ -49,7 +50,7 @@ export async function PATCH(
   const order = await prisma.order.findFirst({
     where: {
       id,
-      ...(user.role === "SALES" ? { createdById: user.id } : {}),
+      ...createdByScope(user),
     },
   });
 
@@ -119,7 +120,7 @@ export async function DELETE(
   const order = await prisma.order.findFirst({
     where: {
       id,
-      ...(user.role === "SALES" ? { createdById: user.id } : {}),
+      ...createdByScope(user),
     },
   });
 

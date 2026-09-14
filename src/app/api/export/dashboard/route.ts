@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { prismaOwnerWhere } from "@/lib/access-policy";
 import { buildLeadPacePrismaWhere } from "@/lib/export/lead-pace";
 import { customerWhatsappFirstContactWhere, customerWhatsappMaintainWhere } from "@/lib/export/customer-list-where";
 import { customerChannelWhere, leadChannelWhere } from "@/lib/export/contact-channel-filter";
@@ -10,10 +11,9 @@ export async function GET() {
   const { ctx, error } = await requireExportSession();
   if (error) return error;
 
-  const baseWhere = { tenantId: ctx!.tenantId, ...ctx!.ownerFilter };
-  const customerWhere = ctx!.ownerFilter
-    ? { tenantId: ctx!.tenantId, ownerId: ctx!.ownerFilter.ownerId }
-    : { tenantId: ctx!.tenantId };
+  const ownerWhere = prismaOwnerWhere(ctx!.ownerFilter);
+  const baseWhere = { tenantId: ctx!.tenantId, ...ownerWhere };
+  const customerWhere = { tenantId: ctx!.tenantId, ...ownerWhere };
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -25,7 +25,7 @@ export async function GET() {
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-  const leadBase = { tenantId: ctx!.tenantId, ...(ctx!.ownerFilter ?? {}) };
+  const leadBase = { tenantId: ctx!.tenantId, ...ownerWhere };
 
   const [
     todayFollowUpCount,

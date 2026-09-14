@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner } from "@/lib/access-policy";
 import { buildExportQuoteListWhere } from "@/lib/export/quote-list-where";
 import { generateQuoteNo } from "@/lib/export/number-generator";
 import { z } from "zod";
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
       where: { id: parsed.data.customerId, tenantId: ctx!.tenantId },
     });
     if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-    if (ctx!.ownerFilter && customer.ownerId !== ctx!.ownerFilter.ownerId) {
+    if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

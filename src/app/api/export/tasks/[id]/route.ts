@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
 
-async function getTaskOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
+async function getTaskOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const task = await prisma.exportTask.findUnique({
     where: { id, tenantId },
     include: {
@@ -15,7 +16,7 @@ async function getTaskOrError(id: string, tenantId: string, ownerFilter?: { owne
     },
   });
   if (!task) return { task: null, error: NextResponse.json({ error: "任务不存在" }, { status: 404 }) };
-  if (ownerFilter && task.ownerId !== ownerFilter.ownerId) {
+  if (!canSeeOwner(ownerFilter, task.ownerId)) {
     return { task: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { task, error: null };

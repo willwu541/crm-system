@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { prismaOwnerWhere } from "@/lib/access-policy";
 
 export async function GET() {
   const { ctx, error } = await requireExportSession();
   if (error) return error;
 
   const leads = await prisma.exportLead.findMany({
-    where: { tenantId: ctx!.tenantId, ...(ctx!.ownerFilter ?? {}) },
+    where: { tenantId: ctx!.tenantId, ...prismaOwnerWhere(ctx!.ownerFilter) },
     select: { sourceChannel: true, status: true, convertedToCustomerId: true },
   });
 

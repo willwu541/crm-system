@@ -8,10 +8,12 @@ import {
   ClipboardList, CheckSquare, MessageCircle,
   Factory, BellRing, Settings, ScrollText, ChevronLeft, ChevronRight
 } from "lucide-react";
+import { formatRole } from "@/lib/role-labels";
 
 interface Props {
   userName: string;
   userRole: string;
+  isDirector?: boolean;
 }
 
 const ICON_CLASS = "h-4 w-4 flex-shrink-0";
@@ -29,12 +31,13 @@ const NAV_ITEMS = [
 
 const ADMIN_ITEMS = [
   { href: "/suppliers", label: "加工户", Icon: Factory },
+  { href: "/admin/pool-settings", label: "公海规则", Icon: Settings },
   { href: "/customers/reactivation", label: "私域唤醒", Icon: BellRing },
   { href: "/admin/users", label: "用户管理", Icon: Settings },
   { href: "/admin/logs", label: "操作日志", Icon: ScrollText },
 ];
 
-export function DomesticSidebar({ userName, userRole }: Props) {
+export function DomesticSidebar({ userName, userRole, isDirector = false }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -42,7 +45,7 @@ export function DomesticSidebar({ userName, userRole }: Props) {
 
   const items = isAdmin ? [...NAV_ITEMS, ...ADMIN_ITEMS] : NAV_ITEMS;
 
-  const roleLabel = userRole === "ADMIN" ? "管理员" : userRole === "MANAGER" ? "经理" : "业务员";
+  const roleText = formatRole(userRole, isDirector);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -109,7 +112,7 @@ export function DomesticSidebar({ userName, userRole }: Props) {
           <div className="flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium text-white truncate">{userName}</p>
-              <p className="text-xs text-slate-500">{roleLabel}</p>
+              <p className="text-xs text-slate-500">{roleText}</p>
             </div>
             <button
               onClick={handleLogout}

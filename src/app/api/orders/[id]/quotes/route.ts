@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { createdByScope } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -16,7 +17,7 @@ export async function GET(
   const order = await prisma.order.findFirst({
     where: {
       id: orderId,
-      ...(user.role === "SALES" ? { createdById: user.id } : {}),
+      ...createdByScope(user),
     },
   });
   if (!order) {

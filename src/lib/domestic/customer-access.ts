@@ -1,10 +1,8 @@
 import type { SessionUser } from "@/lib/auth";
+import { ownerScope } from "@/lib/access-policy";
 
 export function customerOwnerFilter(user: SessionUser) {
-  // SALES: 只能看自己的
-  // MANAGER: 看团队所有人的（暂简化为看全部内贸客户）
-  // ADMIN: 看全部
-  return user.role === "SALES" ? { ownerId: user.id } : {};
+  return ownerScope(user);
 }
 
 export function isAdminOrManager(user: SessionUser) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { exportOwnerFilter } from "@/lib/access-policy";
 import type { ExportContext } from "./types";
 
 const DEFAULT_TENANT_SLUG = "default";
@@ -43,7 +44,7 @@ export async function requireExportSession(): Promise<
   const ctx: ExportContext = {
     tenantId,
     userId: user.id,
-    ownerFilter: user.role === "SALES" ? { ownerId: user.id } : undefined,
+    ownerFilter: exportOwnerFilter(user),
   };
 
   return { user, ctx, error: null };
@@ -53,6 +54,6 @@ export function getExportContext(user: NonNullable<Awaited<ReturnType<typeof get
   return {
     tenantId,
     userId: user.id,
-    ownerFilter: user.role === "SALES" ? { ownerId: user.id } : undefined,
+    ownerFilter: exportOwnerFilter(user),
   };
 }

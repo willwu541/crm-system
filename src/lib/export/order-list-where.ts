@@ -1,3 +1,5 @@
+import { ownerPrismaValue, type DataOwnerFilter } from "@/lib/access-policy";
+
 export interface OrderListFilterParams {
   keyword?: string;
   status?: string;
@@ -8,7 +10,7 @@ export interface OrderListFilterParams {
 
 export interface OrderListContext {
   tenantId: string;
-  ownerFilter?: { ownerId: string } | null;
+  ownerFilter?: DataOwnerFilter | null;
 }
 
 export function buildExportOrderListWhere(
@@ -18,7 +20,7 @@ export function buildExportOrderListWhere(
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
   if (params.customerId) where.customerId = params.customerId;
   if (params.ownerId) where.customer = { ownerId: params.ownerId };
-  else if (ctx.ownerFilter) where.customer = { ownerId: ctx.ownerFilter.ownerId };
+  else if (ctx.ownerFilter) where.customer = { ownerId: ownerPrismaValue(ctx.ownerFilter) };
   if (params.status) {
     if (["unpaid", "partial_paid", "paid"].includes(params.status)) where.paymentStatus = params.status;
     else if (["pending", "in_production", "completed"].includes(params.status)) {

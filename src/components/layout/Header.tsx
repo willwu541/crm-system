@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
+import { formatRole } from "@/lib/role-labels";
 
-export function Header({ user }: { user: SessionUser }) {
+export function Header({ user, isDirector = false }: { user: SessionUser; isDirector?: boolean }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -56,7 +57,7 @@ export function Header({ user }: { user: SessionUser }) {
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           <span className="hidden text-sm text-slate-600 sm:inline">
-            {user.name} ({user.role === "ADMIN" ? "管理员" : user.role === "MANAGER" ? "经理" : "业务员"})
+            {user.name} ({formatRole(user.role, isDirector)})
           </span>
           <button
             onClick={handleLogout}
@@ -93,7 +94,7 @@ export function Header({ user }: { user: SessionUser }) {
             </Link>
           ))}
           <div className="pt-2 mt-2 border-t border-slate-200 text-sm text-slate-500">
-            {user.name} · {user.role === "ADMIN" ? "管理员" : user.role === "MANAGER" ? "经理" : "业务员"}
+            {user.name} · {formatRole(user.role, isDirector)}
           </div>
         </nav>
       )}

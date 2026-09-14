@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { recalcLeadContactStats } from "@/lib/export/recalc-lead-stats";
 import { z } from "zod";
 
-async function getActivityOrError(id: string, tenantId: string, ownerFilter?: { ownerId: string }) {
+async function getActivityOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const activity = await prisma.exportActivity.findUnique({
     where: { id, tenantId },
     include: { customer: true, lead: true, contact: true, owner: true },
   });
   if (!activity) return { activity: null, error: NextResponse.json({ error: "跟进记录不存在" }, { status: 404 }) };
-  if (ownerFilter) {
-    const ownerId = activity.customer?.ownerId ?? activity.lead?.ownerId;
-    if (ownerId && ownerId !== ownerFilter.ownerId) {
-      return { activity: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
-    }
+  const recordOwnerId = activity.customer?.ownerId ?? activity.lead?.ownerId;
+  if (recordOwnerId && !canSeeOwner(ownerFilter, recordOwnerId)) {
+    return { activity: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { activity, error: null };
 }

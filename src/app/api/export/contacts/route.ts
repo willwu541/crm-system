@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner } from "@/lib/access-policy";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     where: { id: customerId, tenantId: ctx!.tenantId },
   });
   if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-  if (ctx!.ownerFilter && customer.ownerId !== ctx!.ownerFilter.ownerId) {
+  if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       where: { id: parsed.data.customerId, tenantId: ctx!.tenantId },
     });
     if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-    if (ctx!.ownerFilter && customer.ownerId !== ctx!.ownerFilter.ownerId) {
+    if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

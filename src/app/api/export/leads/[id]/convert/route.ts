@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner } from "@/lib/access-policy";
 import { generateCustomerCode } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -38,7 +39,7 @@ export async function POST(
     include: { owner: true },
   });
   if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-  if (ctx!.ownerFilter && lead.ownerId !== ctx!.ownerFilter.ownerId) {
+  if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
   if (lead.convertedToCustomerId) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { prismaOwnerWhere } from "@/lib/access-policy";
 import { getLeadSopSuggestion } from "@/lib/export/sop";
 
 const bodySchema = z.object({
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
   const leads = await prisma.exportLead.findMany({
     where: {
       tenantId: ctx!.tenantId,
-      ...(ctx!.ownerFilter ?? {}),
+      ...prismaOwnerWhere(ctx!.ownerFilter),
       status: { notIn: ["converted", "invalid"] },
     },
     select: {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
   const openTasks = await prisma.exportTask.findMany({
     where: {
       tenantId: ctx!.tenantId,
-      ...(ctx!.ownerFilter ?? {}),
+      ...prismaOwnerWhere(ctx!.ownerFilter),
       leadId: { in: leads.map((l) => l.id) },
       status: { in: ["todo", "in_progress"] },
     },

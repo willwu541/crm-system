@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner } from "@/lib/access-policy";
 import { ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
 import { ACTIVITY_OUTCOMES, validateWorkLog } from "@/lib/export/work-outcomes";
 import { renderTemplate, type TemplateVarsInput } from "@/lib/export/template-vars";
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
       where: { id: customerId, tenantId: ctx!.tenantId },
     });
     if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-    if (ctx!.ownerFilter && customer.ownerId !== ctx!.ownerFilter.ownerId) {
+    if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
   }
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       where: { id: leadId, tenantId: ctx!.tenantId },
     });
     if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-    if (ctx!.ownerFilter && lead.ownerId !== ctx!.ownerFilter.ownerId) {
+    if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
   }
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
         include: { contacts: true },
       });
       if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-      if (ctx!.ownerFilter && customer.ownerId !== ctx!.ownerFilter.ownerId) {
+      if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
         return NextResponse.json({ error: "无权限" }, { status: 403 });
       }
     }
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
         where: { id: input.leadId, tenantId: ctx!.tenantId },
       });
       if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-      if (ctx!.ownerFilter && lead.ownerId !== ctx!.ownerFilter.ownerId) {
+      if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
         return NextResponse.json({ error: "无权限" }, { status: 403 });
       }
     }

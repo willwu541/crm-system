@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   const ownerId = searchParams.get("ownerId")?.trim();
 
   const where: Record<string, unknown> = {};
-  if (user.role === "SALES") {
+  if (isOwnDataOnly(user)) {
     where.ownerId = user.id;
   } else if (ownerId) {
     where.ownerId = ownerId;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { getAccessPolicy } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 
 async function requireAdminOrManager() {
@@ -43,8 +44,12 @@ export async function PATCH(
       );
     }
 
-    if (parsed.data.role === "ADMIN" && target.role !== "ADMIN") {
-      // pass
+    const directorId = getAccessPolicy().directorUserId;
+    if (target.id === directorId && parsed.data.role && parsed.data.role !== target.role) {
+      return NextResponse.json({ error: "不能更改业务经理的职位" }, { status: 400 });
+    }
+    if (target.id === directorId && parsed.data.isActive === false) {
+      return NextResponse.json({ error: "不能停用业务经理账号" }, { status: 400 });
     }
     if (parsed.data.role === "SALES" && target.role === "ADMIN") {
       const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
@@ -124,6 +129,9 @@ export async function DELETE(
   const { id } = await params;
   if (id === me!.id) {
     return NextResponse.json({ error: "不能删除当前登录账号" }, { status: 400 });
+  }
+  if (id === getAccessPolicy().directorUserId) {
+    return NextResponse.json({ error: "不能删除业务经理账号" }, { status: 400 });
   }
 
   const target = await prisma.user.findUnique({ where: { id } });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { isOwnDataOnly } from "@/lib/access-policy";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -15,7 +16,7 @@ export async function POST(
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
 
-  if (user.role === "SALES" && lead.ownerId !== user.id) {
+  if (isOwnDataOnly(user) && lead.ownerId !== user.id) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

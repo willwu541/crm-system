@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { canSeeOwner, ownerPrismaValue } from "@/lib/access-policy";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
 
   const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
   if (ownerId) where.ownerId = ownerId;
-  else if (ctx!.ownerFilter) where.ownerId = ctx!.ownerFilter.ownerId;
+  else if (ctx!.ownerFilter) where.ownerId = ownerPrismaValue(ctx!.ownerFilter);
   if (keyword) {
     where.OR = [
       { title: { contains: keyword, mode: "insensitive" } },
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
         where: { id: parsed.data.customerId, tenantId: ctx!.tenantId },
       });
       if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-      if (ctx!.ownerFilter && customer.ownerId !== ctx!.ownerFilter.ownerId) {
+      if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
         return NextResponse.json({ error: "无权限" }, { status: 403 });
       }
     }
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
         where: { id: parsed.data.leadId, tenantId: ctx!.tenantId },
       });
       if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-      if (ctx!.ownerFilter && lead.ownerId !== ctx!.ownerFilter.ownerId) {
+      if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
         return NextResponse.json({ error: "无权限" }, { status: 403 });
       }
     }

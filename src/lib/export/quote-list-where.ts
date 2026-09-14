@@ -1,3 +1,5 @@
+import { ownerPrismaValue, type DataOwnerFilter } from "@/lib/access-policy";
+
 export interface QuoteListFilterParams {
   keyword?: string;
   status?: string;
@@ -8,7 +10,7 @@ export interface QuoteListFilterParams {
 
 export interface QuoteListContext {
   tenantId: string;
-  ownerFilter?: { ownerId: string } | null;
+  ownerFilter?: DataOwnerFilter | null;
 }
 
 export function buildExportQuoteListWhere(
@@ -19,7 +21,7 @@ export function buildExportQuoteListWhere(
   if (params.customerId) where.customerId = params.customerId;
   if (params.status) where.status = params.status;
   if (params.ownerId) where.customer = { ownerId: params.ownerId };
-  else if (ctx.ownerFilter) where.customer = { ownerId: ctx.ownerFilter.ownerId };
+  else if (ctx.ownerFilter) where.customer = { ownerId: ownerPrismaValue(ctx.ownerFilter) };
   if (params.since === "month") {
     const monthStart = new Date();
     monthStart.setDate(1);
