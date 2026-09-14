@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const input = parsed.data;
-    const workError = validateWorkLog(input.outcome, input.customerFeedback || input.content);
+    const workError = validateWorkLog(input.outcome, input.customerFeedback, input.content);
     if (workError) {
       return NextResponse.json({ error: workError }, { status: 400 });
     }
