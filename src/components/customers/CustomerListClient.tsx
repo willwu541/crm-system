@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CUSTOMER_STATUS_LABELS } from "@/lib/domestic/customer-access";
+import { CUSTOMER_STATUS_LABELS } from "@/lib/domestic/customer-labels";
 
 export interface CustomerRow {
   id: string;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   ANALYSIS_STATUS_LABELS,
   SENTIMENT_LABELS,
-} from "@/lib/domestic/customer-access";
+} from "@/lib/domestic/customer-labels";
 
 export interface RecordingItem {
   id: string;

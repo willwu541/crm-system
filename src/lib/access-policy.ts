@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import path from "path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import type { SessionUser } from "@/lib/auth";
 import { formatRole } from "@/lib/role-labels";
 
