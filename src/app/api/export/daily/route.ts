@@ -98,7 +98,7 @@ export async function GET() {
         status: "sent",
         createdAt: { lt: new Date(now.getTime() - 3 * 24 * 3600 * 1000) },
         customer: ownerScope
-          ? { tenantId: ctx!.tenantId, ownerId: ownerScope }
+          ? { tenantId: ctx!.tenantId, ownerId: { in: ownerScope } }
           : { tenantId: ctx!.tenantId },
       },
       orderBy: { createdAt: "asc" },
