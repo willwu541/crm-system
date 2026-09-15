@@ -6,6 +6,7 @@ import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
+import { nullifyBlankFields } from "@/lib/export/blank-to-null";
 
 async function getLeadOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const lead = await prisma.exportLead.findUnique({
@@ -40,12 +41,12 @@ const updateSchema = z.object({
   customerType: z.string().optional(),
   sourceChannel: z.string().optional(),
   sourceKeyword: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional(),
-  linkedin: z.string().optional(),
-  facebook: z.string().optional(),
-  tiktok: z.string().optional(),
+  email: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  linkedin: z.string().optional().nullable(),
+  facebook: z.string().optional().nullable(),
+  tiktok: z.string().optional().nullable(),
   mainBusiness: z.string().optional(),
   productInterest: z.string().optional().nullable(),
   nextFollowUpAt: z.string().datetime().optional().nullable(),
@@ -84,7 +85,7 @@ export async function PATCH(
     }
 
     const { ownerId: nextOwnerId, nextFollowUpAt, ...rest } = parsed.data;
-    const data: Record<string, unknown> = { ...rest };
+    const data: Record<string, unknown> = nullifyBlankFields({ ...rest });
     if (nextFollowUpAt !== undefined) {
       data.nextFollowUpAt = nextFollowUpAt ? new Date(nextFollowUpAt) : null;
     }

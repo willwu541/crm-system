@@ -4,6 +4,7 @@ import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
+import { nullifyBlankFields } from "@/lib/export/blank-to-null";
 
 async function getContactOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
   const contact = await prisma.exportContact.findUnique({
@@ -31,16 +32,16 @@ export async function GET(
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
-  title: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional(),
-  linkedin: z.string().optional(),
-  facebook: z.string().optional(),
-  tiktok: z.string().optional(),
-  language: z.string().optional(),
+  title: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  linkedin: z.string().optional().nullable(),
+  facebook: z.string().optional().nullable(),
+  tiktok: z.string().optional().nullable(),
+  language: z.string().optional().nullable(),
   isPrimary: z.boolean().optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export async function PATCH(
@@ -72,7 +73,7 @@ export async function PATCH(
 
     const updated = await prisma.exportContact.update({
       where: { id, tenantId: ctx!.tenantId },
-      data: parsed.data,
+      data: nullifyBlankFields(parsed.data),
     });
     return NextResponse.json({ data: updated });
   } catch (e) {

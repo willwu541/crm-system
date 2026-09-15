@@ -9,6 +9,8 @@ import {
 import { buildExportCustomerListWhere, collectUniqueEmails as collectCustomerEmails, collectUniqueWhatsappsFromContacts } from "./customer-list-where";
 import { buildExportLeadListWhere, collectLeadEmails, collectLeadWhatsapps } from "./lead-list-where";
 import { canonicalizeCountry, countryMatchNames, countryPrismaWhere, mergeCountryStats, EMPTY_COUNTRY_FILTER } from "./countries";
+import { buildListUrl } from "./url-params";
+import { blankToNull, nullifyBlankFields } from "./blank-to-null";
 import { clearListQuery, listHref, loadListQuery, saveListQuery } from "./list-filter-storage";
 import { resolveWhatsappStage } from "./follow-up";
 import { companyNameTokenAndWhere, normalizeCompanyName, splitCompanyNameTokens } from "../search-text";
@@ -21,9 +23,8 @@ describe("contact channel collect", () => {
   });
 
   it("dedupes WhatsApp by digits", () => {
-    assert.deepEqual(collectUniqueWhatsapps(["+1 555 0100", "15550100", "", "+44 111"]), [
+    assert.deepEqual(collectUniqueWhatsapps(["+1 555 0100", "15550100", "", "+44 111", "n/a"]), [
       "+1 555 0100",
-      "+44 111",
     ]);
   });
 });
@@ -125,10 +126,10 @@ describe("customer list where", () => {
     );
     assert.deepEqual(
       collectUniqueWhatsappsFromContacts([
-        [{ whatsapp: "+1-555" }, { whatsapp: "1555" }],
-        [{ whatsapp: "+86 138" }],
+        [{ whatsapp: "+1-555-0100" }, { whatsapp: "15550100" }],
+        [{ whatsapp: "+86 138 0013 8000" }],
       ]),
-      ["+1-555", "+86 138"],
+      ["+1-555-0100", "+86 138 0013 8000"],
     );
   });
 });
@@ -151,7 +152,7 @@ describe("lead list where", () => {
 
   it("collects lead emails and WhatsApps", () => {
     assert.deepEqual(collectLeadEmails([{ email: "a@x.com" }, { email: "a@x.com" }]), ["a@x.com"]);
-    assert.deepEqual(collectLeadWhatsapps([{ whatsapp: "+1" }, { whatsapp: null }]), ["+1"]);
+    assert.deepEqual(collectLeadWhatsapps([{ whatsapp: "+15550100" }, { whatsapp: null }]), ["+15550100"]);
   });
 
   it("WhatsApp maintain excludes never-contacted leads", () => {
@@ -164,6 +165,11 @@ describe("lead list where", () => {
     const and = where.AND as Record<string, unknown>[];
     assert.ok(and.some((c) => c.OR || c.whatsapp));
     assert.deepEqual(where.status, { not: "converted" });
+  });
+
+  it("never-contacted pace keeps lastContactAt null", () => {
+    const where = buildExportLeadListWhere(ctx, { pace: "never" });
+    assert.equal(where.lastContactAt, null);
   });
 });
 
@@ -266,5 +272,24 @@ describe("country classification", () => {
     const where = buildExportCustomerListWhere(ctx, { keyword: "Acme", country: "USA" });
     const and = where.AND as Record<string, unknown>[];
     assert.ok(and.some((clause) => Array.isArray(clause.OR) && (clause.OR as { country?: unknown }[]).some((item) => item.country)));
+  });
+});
+
+describe("blank contact fields", () => {
+  it("turns empty WhatsApp into null so PATCH can clear it", () => {
+    assert.equal(blankToNull(""), null);
+    assert.equal(blankToNull("  "), null);
+    assert.equal(blankToNull("+15550100"), "+15550100");
+    assert.deepEqual(nullifyBlankFields({ whatsapp: "", phone: "12345678" }), {
+      whatsapp: null,
+      phone: "12345678",
+    });
+  });
+
+  it("keeps pace=never in the leads list URL", () => {
+    assert.equal(
+      buildListUrl("/export/leads", { pace: "never", sortBy: "createdAt", sortOrder: "desc", page: 1 }),
+      "/export/leads?pace=never&sortBy=createdAt&sortOrder=desc&page=1",
+    );
   });
 });

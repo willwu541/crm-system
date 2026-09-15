@@ -11,6 +11,7 @@ import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/expo
 import { loadUsedExportCountries } from "@/lib/export/used-countries";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
+import { nullifyBlankFields } from "@/lib/export/blank-to-null";
 
 export async function GET(request: NextRequest) {
   const { ctx, error } = await requireExportSession();
@@ -123,12 +124,12 @@ const createSchema = z.object({
   customerType: z.string().optional(),
   sourceChannel: z.string().optional(),
   sourceKeyword: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional(),
-  linkedin: z.string().optional(),
-  facebook: z.string().optional(),
-  tiktok: z.string().optional(),
+  email: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  linkedin: z.string().optional().nullable(),
+  facebook: z.string().optional().nullable(),
+  tiktok: z.string().optional().nullable(),
   mainBusiness: z.string().optional(),
   productInterest: z.string().optional(),
   priority: z.string().optional(),
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { ownerId: bodyOwnerId, nextFollowUpAt, ...rest } = parsed.data;
+    const { ownerId: bodyOwnerId, nextFollowUpAt, ...rest } = nullifyBlankFields(parsed.data);
     let ownerId = user!.id;
     if (user!.role === "ADMIN" && bodyOwnerId) {
       const assignee = await prisma.user.findFirst({

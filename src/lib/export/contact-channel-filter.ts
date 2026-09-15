@@ -73,7 +73,8 @@ export function collectUniqueWhatsapps(values: (string | null | undefined)[]): s
     const raw = v?.trim();
     if (!raw) continue;
     const digits = raw.replace(/[^\d]/g, "");
-    const key = digits || raw.toLowerCase();
+    if (digits.length < 7) continue;
+    const key = digits;
     if (seen.has(key)) continue;
     seen.add(key);
     numbers.push(raw);

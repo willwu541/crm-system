@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { parseResponseJson } from "@/lib/parse-response-json";
+import { blankToNull } from "@/lib/export/blank-to-null";
 
 export function ContactFormClient({
   customerId,
@@ -44,7 +45,19 @@ export function ContactFormClient({
     try {
       const url = contactId ? `/api/export/contacts/${contactId}` : "/api/export/contacts";
       const method = contactId ? "PATCH" : "POST";
-      const body = contactId ? form : { ...form, customerId };
+      const cleared = {
+        ...form,
+        title: blankToNull(form.title) ?? (contactId ? null : undefined),
+        email: blankToNull(form.email) ?? (contactId ? null : undefined),
+        phone: blankToNull(form.phone) ?? (contactId ? null : undefined),
+        whatsapp: blankToNull(form.whatsapp) ?? (contactId ? null : undefined),
+        linkedin: blankToNull(form.linkedin) ?? (contactId ? null : undefined),
+        facebook: blankToNull(form.facebook) ?? (contactId ? null : undefined),
+        tiktok: blankToNull(form.tiktok) ?? (contactId ? null : undefined),
+        language: blankToNull(form.language) ?? (contactId ? null : undefined),
+        notes: blankToNull(form.notes) ?? (contactId ? null : undefined),
+      };
+      const body = contactId ? cleared : { ...cleared, customerId };
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },

@@ -20,6 +20,7 @@ import { normalizeWebsiteUrl } from "@/lib/website";
 import { DuplicateErrorAlert, type DuplicateRecord } from "./DuplicateErrorAlert";
 import { CountrySelect } from "./CountrySelect";
 import { canonicalizeCountry } from "@/lib/export/countries";
+import { blankToNull } from "@/lib/export/blank-to-null";
 
 interface LeadFormProps {
   initial?: Record<string, unknown>;
@@ -133,6 +134,7 @@ export function LeadForm({
     try {
       const url = leadId ? `/api/export/leads/${leadId}` : "/api/export/leads";
       const method = leadId ? "PATCH" : "POST";
+      const clearTo = leadId ? null : undefined;
       const body: Record<string, unknown> = {
         companyName: form.companyName,
         website: normalizeWebsiteUrl(form.website) || undefined,
@@ -142,12 +144,12 @@ export function LeadForm({
         customerType: form.customerType || undefined,
         sourceChannel: form.sourceChannel || undefined,
         sourceKeyword: form.sourceKeyword || undefined,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        whatsapp: form.whatsapp || undefined,
-        linkedin: form.linkedin || undefined,
-        facebook: form.facebook || undefined,
-        tiktok: form.tiktok || undefined,
+        email: blankToNull(form.email) ?? clearTo,
+        phone: blankToNull(form.phone) ?? clearTo,
+        whatsapp: blankToNull(form.whatsapp) ?? clearTo,
+        linkedin: blankToNull(form.linkedin) ?? clearTo,
+        facebook: blankToNull(form.facebook) ?? clearTo,
+        tiktok: blankToNull(form.tiktok) ?? clearTo,
         mainBusiness: form.mainBusiness || undefined,
         fitEvidence: form.fitEvidence || undefined,
         productInterest:

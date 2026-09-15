@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner } from "@/lib/access-policy";
 import { z } from "zod";
+import { nullifyBlankFields } from "@/lib/export/blank-to-null";
 
 export async function GET(request: NextRequest) {
   const { ctx, error } = await requireExportSession();
@@ -32,16 +33,16 @@ export async function GET(request: NextRequest) {
 const createSchema = z.object({
   customerId: z.string().min(1),
   name: z.string().min(1),
-  title: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional(),
-  linkedin: z.string().optional(),
-  facebook: z.string().optional(),
-  tiktok: z.string().optional(),
-  language: z.string().optional(),
+  title: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  linkedin: z.string().optional().nullable(),
+  facebook: z.string().optional().nullable(),
+  tiktok: z.string().optional().nullable(),
+  language: z.string().optional().nullable(),
   isPrimary: z.boolean().optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export async function POST(request: NextRequest) {
@@ -73,11 +74,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const { customerId, isPrimary, ...rest } = nullifyBlankFields(parsed.data);
     const contact = await prisma.exportContact.create({
       data: {
-        ...parsed.data,
+        ...rest,
+        customerId,
         tenantId: ctx!.tenantId,
-        isPrimary: parsed.data.isPrimary ?? false,
+        isPrimary: isPrimary ?? false,
       },
     });
     return NextResponse.json({ data: contact });

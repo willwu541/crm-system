@@ -160,19 +160,15 @@ export function LeadsClient() {
     try {
       const params = new URLSearchParams();
       params.set("page", String(overrides?.page ?? page));
-      if (keywordParam) {
-        params.set("keyword", keywordParam);
-        if (country) params.set("country", country);
-      } else {
-        if (status) params.set("status", status);
-        if (country) params.set("country", country);
-        if (ownerId) params.set("ownerId", ownerId);
-        if (since) params.set("since", since);
-        if (pace) params.set("pace", pace);
-        if (sourceChannel) params.set("sourceChannel", sourceChannel);
-        if (channel) params.set("channel", channel);
-        if (filter) params.set("filter", filter);
-      }
+      if (keywordParam) params.set("keyword", keywordParam);
+      if (status) params.set("status", status);
+      if (country) params.set("country", country);
+      if (ownerId) params.set("ownerId", ownerId);
+      if (since) params.set("since", since);
+      if (pace) params.set("pace", pace);
+      if (sourceChannel) params.set("sourceChannel", sourceChannel);
+      if (channel) params.set("channel", channel);
+      if (filter) params.set("filter", filter);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/leads?${params}`);
@@ -454,11 +450,14 @@ export function LeadsClient() {
                 type="button"
                 onClick={() =>
                   updateUrl({
-                    pace: p.kind === "pace" ? p.key : undefined,
+                    pace: p.kind === "pace" ? p.key || undefined : undefined,
                     filter: p.kind === "filter" ? p.key : undefined,
                     channel: undefined,
+                    keyword: undefined,
                     page: 1,
-                    ...(p.key === "due" || p.key === "stuck" || p.key === "whatsapp_maintain"
+                    ...(p.key === "never"
+                      ? { sortBy: "createdAt", sortOrder: "desc" }
+                      : p.key === "due" || p.key === "stuck" || p.key === "whatsapp_maintain"
                       ? { sortBy: "lastContactAt", sortOrder: "asc" }
                       : {}),
                   })
