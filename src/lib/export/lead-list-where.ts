@@ -91,19 +91,19 @@ export function buildExportLeadListWhere(
       or.push({ id: { in: params.normalizedCompanyIds } });
     }
     pushAnd(where, { OR: or });
-  } else {
-    if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
-    if (params.status) where.status = params.status;
-    if (params.since === "week") {
-      const weekStart = new Date(now);
-      weekStart.setDate(weekStart.getDate() - 7);
-      where.createdAt = { gte: weekStart };
-    }
-    if (params.sourceChannel === "__empty__") {
-      pushAnd(where, { OR: [{ sourceChannel: null }, { sourceChannel: "" }] });
-    } else if (params.sourceChannel) {
-      where.sourceChannel = { equals: params.sourceChannel, mode: "insensitive" };
-    }
+  }
+
+  if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
+  if (params.status) where.status = params.status;
+  if (params.since === "week") {
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - 7);
+    where.createdAt = { gte: weekStart };
+  }
+  if (params.sourceChannel === "__empty__") {
+    pushAnd(where, { OR: [{ sourceChannel: null }, { sourceChannel: "" }] });
+  } else if (params.sourceChannel) {
+    where.sourceChannel = { equals: params.sourceChannel, mode: "insensitive" };
   }
 
   if (params.pace === "never" || params.pace === "due" || params.pace === "stuck") {

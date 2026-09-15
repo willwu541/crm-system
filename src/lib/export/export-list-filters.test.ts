@@ -49,16 +49,17 @@ describe("channel where", () => {
 });
 
 describe("customer list where", () => {
-  it("keyword search ignores overdue and owner dropdown", () => {
+  it("keyword search stacks with overdue, WhatsApp and owner dropdown", () => {
     const where = buildExportCustomerListWhere(ctx, {
       ownerId: "u1",
       filter: "overdue",
+      channel: "no_whatsapp",
       keyword: "Acme",
     });
-    assert.equal(where.ownerId, undefined);
-    assert.ok(!("status" in where));
-    const and = where.AND as unknown[];
-    assert.equal(and.length, 1);
+    assert.equal(where.ownerId, "u1");
+    const and = where.AND as Record<string, unknown>[];
+    assert.ok(and.some((c) => Array.isArray(c.OR)));
+    assert.ok(and.some((c) => c.contacts));
   });
 
   it("sales owner filter still applies when searching by keyword", () => {
@@ -67,7 +68,7 @@ describe("customer list where", () => {
       { keyword: "Acme", filter: "today" },
     );
     assert.equal(where.ownerId, "u9");
-    assert.ok(!("nextFollowUpAt" in where));
+    assert.ok("nextFollowUpAt" in where);
   });
 
   it("WhatsApp maintain requires prior contact", () => {
@@ -178,6 +179,13 @@ describe("lead list where", () => {
     assert.equal(where.lastContactAt, null);
     const and = where.AND as { OR?: unknown[] }[];
     assert.ok(and.some((c) => Array.isArray(c.OR)));
+  });
+
+  it("keeps company search when filtering no WhatsApp", () => {
+    const where = buildExportLeadListWhere(ctx, { keyword: "Acme", channel: "no_whatsapp" });
+    const and = where.AND as Record<string, unknown>[];
+    assert.ok(and.some((c) => Array.isArray(c.OR)));
+    assert.ok(and.some((c) => c.OR || c.whatsapp || c.AND));
   });
 
   it("first-contacted leads can be due", () => {

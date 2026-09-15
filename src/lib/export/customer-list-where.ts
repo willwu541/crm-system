@@ -100,7 +100,6 @@ export function buildExportCustomerListWhere(
       or.push({ id: { in: params.normalizedCompanyIds } });
     }
     pushAnd(where, { OR: or });
-    return where;
   }
 
   if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;

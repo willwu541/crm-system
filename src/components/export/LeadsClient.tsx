@@ -228,13 +228,6 @@ export function LeadsClient() {
     updateUrl({
       keyword: keyword || undefined,
       page: 1,
-      filter: undefined,
-      status: undefined,
-      channel: undefined,
-      pace: undefined,
-      since: undefined,
-      sourceChannel: undefined,
-      ownerId: undefined,
     });
   }
 

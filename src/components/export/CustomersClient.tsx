@@ -166,7 +166,7 @@ export function CustomersClient() {
       country: countryParam || undefined,
       ownerId: ownerId || undefined,
       channel: channel || undefined,
-      keyword: keyword || undefined,
+      keyword: keywordParam || undefined,
       sortBy,
       sortOrder,
       page,
@@ -198,16 +198,12 @@ export function CustomersClient() {
     try {
       const params = new URLSearchParams();
       params.set("page", String(overrides?.page ?? page));
-      if (keywordParam) {
-        params.set("keyword", keywordParam);
-        if (countryParam) params.set("country", countryParam);
-      } else {
-        if (status) params.set("status", status);
-        if (filter) params.set("filter", filter);
-        if (countryParam) params.set("country", countryParam);
-        if (ownerId) params.set("ownerId", ownerId);
-        if (channel) params.set("channel", channel);
-      }
+      if (keywordParam) params.set("keyword", keywordParam);
+      if (status) params.set("status", status);
+      if (filter) params.set("filter", filter);
+      if (countryParam) params.set("country", countryParam);
+      if (ownerId) params.set("ownerId", ownerId);
+      if (channel) params.set("channel", channel);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/customers?${params}`);
@@ -247,10 +243,6 @@ export function CustomersClient() {
     updateUrl({
       keyword: keyword || undefined,
       page: 1,
-      filter: undefined,
-      status: undefined,
-      channel: undefined,
-      ownerId: undefined,
     });
   }
 
