@@ -8,11 +8,12 @@ import {
 } from "./contact-channel-filter";
 import { buildExportCustomerListWhere, collectUniqueEmails as collectCustomerEmails, collectUniqueWhatsappsFromContacts } from "./customer-list-where";
 import { buildExportLeadListWhere, collectLeadEmails, collectLeadWhatsapps } from "./lead-list-where";
-import { canonicalizeCountry, countryMatchNames, countryPrismaWhere, mergeCountryStats, EMPTY_COUNTRY_FILTER } from "./countries";
+import { canonicalizeCountry, countryMatchNames, countryPrismaWhere, mergeCountryStats, searchExportCountries, EMPTY_COUNTRY_FILTER } from "./countries";
 import { buildListUrl } from "./url-params";
 import { blankToNull, nullifyBlankFields } from "./blank-to-null";
 import { clearListQuery, listHref, loadListQuery, saveListQuery } from "./list-filter-storage";
 import { resolveWhatsappStage } from "./follow-up";
+import { isLeadFollowUpDue } from "./lead-pace";
 import { companyNameTokenAndWhere, normalizeCompanyName, splitCompanyNameTokens } from "../search-text";
 
 const ctx = { tenantId: "t1" };
@@ -171,6 +172,51 @@ describe("lead list where", () => {
     const where = buildExportLeadListWhere(ctx, { pace: "never" });
     assert.equal(where.lastContactAt, null);
   });
+
+  it("keeps company search when filtering never-contacted", () => {
+    const where = buildExportLeadListWhere(ctx, { keyword: "Acme", pace: "never" });
+    assert.equal(where.lastContactAt, null);
+    const and = where.AND as { OR?: unknown[] }[];
+    assert.ok(and.some((c) => Array.isArray(c.OR)));
+  });
+
+  it("first-contacted leads can be due", () => {
+    const where = buildExportLeadListWhere(ctx, { pace: "due" });
+    const and = where.AND as Record<string, unknown>[];
+    assert.ok(and.some((c) => c.lastContactAt));
+    assert.ok(and.some((c) => Array.isArray(c.OR)));
+  });
+});
+
+describe("lead follow-up due", () => {
+  it("first contact is due after 3 days if no next time was set", () => {
+    const last = new Date();
+    last.setDate(last.getDate() - 3);
+    assert.equal(
+      isLeadFollowUpDue({
+        status: "valid",
+        lastContactAt: last,
+        contactCount: 1,
+        nextFollowUpAt: null,
+      }),
+      true,
+    );
+  });
+
+  it("first contact is not due if next time is still in the future", () => {
+    const last = new Date();
+    const next = new Date();
+    next.setDate(next.getDate() + 2);
+    assert.equal(
+      isLeadFollowUpDue({
+        status: "valid",
+        lastContactAt: last,
+        contactCount: 1,
+        nextFollowUpAt: next,
+      }),
+      false,
+    );
+  });
 });
 
 describe("whatsapp stage", () => {
@@ -272,6 +318,12 @@ describe("country classification", () => {
     const where = buildExportCustomerListWhere(ctx, { keyword: "Acme", country: "USA" });
     const and = where.AND as Record<string, unknown>[];
     assert.ok(and.some((clause) => Array.isArray(clause.OR) && (clause.OR as { country?: unknown }[]).some((item) => item.country)));
+  });
+
+  it("finds countries by Chinese alias or new typed name", () => {
+    const hits = searchExportCountries("美国");
+    assert.ok(hits.some((item) => item.value === "United States"));
+    assert.equal(canonicalizeCountry("Kazakhstan"), "Kazakhstan");
   });
 });
 

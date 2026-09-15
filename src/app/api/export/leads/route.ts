@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     "status",
     "priority",
     "lastContactAt",
+    "nextFollowUpAt",
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "lastContactAt";
 

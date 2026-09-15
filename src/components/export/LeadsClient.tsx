@@ -204,7 +204,7 @@ export function LeadsClient() {
       sourceChannel: sourceChannel || undefined,
       channel: channel || undefined,
       filter: filter || undefined,
-      keyword: keyword || undefined,
+      keyword: keywordParam || undefined,
       sortBy,
       sortOrder,
       page,
@@ -357,6 +357,7 @@ export function LeadsClient() {
             value={country}
             extraValues={countries}
             allowUnspecified
+            allowCustom
             onChange={(next) => updateUrl({ country: next || undefined, page: 1 })}
             className="min-w-[9.5rem] px-3 py-2 text-sm"
           />
@@ -431,7 +432,7 @@ export function LeadsClient() {
             [
               { key: "", label: "全部", kind: "all" },
               { key: "never", label: "未联系过", kind: "pace" },
-              { key: "due", label: "该跟进了", kind: "pace" },
+              { key: "due", label: "今天该联系", kind: "pace" },
               { key: "stuck", label: "联系 3+ 无响应", kind: "pace" },
               { key: "whatsapp_first", label: "WhatsApp待联系", kind: "filter" },
               { key: "whatsapp_maintain", label: "WhatsApp待维护", kind: "filter" },
@@ -453,11 +454,12 @@ export function LeadsClient() {
                     pace: p.kind === "pace" ? p.key || undefined : undefined,
                     filter: p.kind === "filter" ? p.key : undefined,
                     channel: undefined,
-                    keyword: undefined,
                     page: 1,
                     ...(p.key === "never"
                       ? { sortBy: "createdAt", sortOrder: "desc" }
-                      : p.key === "due" || p.key === "stuck" || p.key === "whatsapp_maintain"
+                      : p.key === "due"
+                        ? { sortBy: "nextFollowUpAt", sortOrder: "asc" }
+                      : p.key === "stuck" || p.key === "whatsapp_maintain"
                       ? { sortBy: "lastContactAt", sortOrder: "asc" }
                       : {}),
                   })

@@ -318,6 +318,7 @@ export function CustomersClient() {
             value={countryParam}
             extraValues={countries}
             allowUnspecified
+            allowCustom
             onChange={(next) => updateUrl({ country: next || undefined, page: 1 })}
             className="min-w-[9.5rem] px-3 py-2 text-sm"
           />

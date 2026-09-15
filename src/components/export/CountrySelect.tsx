@@ -1,16 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EMPTY_COUNTRY_FILTER,
-  EXPORT_COUNTRIES,
   canonicalizeCountry,
-  countryOptionLabel,
+  countryLabel,
   extraCountryValues,
-  findExportCountry,
+  searchExportCountries,
 } from "@/lib/export/countries";
-
-const CUSTOM_VALUE = "__custom__";
 
 type CountrySelectProps = {
   value: string;
@@ -35,61 +32,139 @@ export function CountrySelect({
   className,
   id,
 }: CountrySelectProps) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const extras = useMemo(
     () => extraCountryValues([...extraValues, value]),
     [extraValues, value],
   );
+  const options = useMemo(() => searchExportCountries(query, extras), [query, extras]);
   const canonical = canonicalizeCountry(value) ?? value.trim();
-  const inCatalog = Boolean(canonical && findExportCountry(canonical));
-  const inExtras = extras.some((item) => item === canonical);
-  const [customMode, setCustomMode] = useState(Boolean(canonical) && !inCatalog && !inExtras);
-  const [customDraft, setCustomDraft] = useState(customMode ? canonical : "");
-  const usingCustom = allowCustom && (customMode || (Boolean(canonical) && !inCatalog && !inExtras));
-  const selectValue = usingCustom ? CUSTOM_VALUE : canonical;
+  const shown = !canonical
+    ? ""
+    : canonical === EMPTY_COUNTRY_FILTER
+      ? "未填国家"
+      : countryLabel(canonical) === canonical
+        ? canonical
+        : `${countryLabel(canonical)} ${canonical}`;
 
-  function handleSelect(next: string) {
-    if (next === CUSTOM_VALUE) {
-      setCustomMode(true);
-      onChange(customDraft.trim());
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  function commit(raw: string) {
+    const next = raw.trim();
+    if (!next) {
+      onChange("");
+      setQuery("");
+      setOpen(false);
       return;
     }
-    setCustomMode(false);
+    if (allowUnspecified && (next === "未填国家" || next === EMPTY_COUNTRY_FILTER)) {
+      onChange(EMPTY_COUNTRY_FILTER);
+      setQuery("");
+      setOpen(false);
+      return;
+    }
+    const match = options.find(
+      (item) =>
+        item.value.toLowerCase() === next.toLowerCase() ||
+        item.display.toLowerCase() === next.toLowerCase(),
+    );
+    if (match) {
+      onChange(match.value);
+    } else if (allowCustom) {
+      onChange(canonicalizeCountry(next) ?? next);
+    }
+    setQuery("");
+    setOpen(false);
+  }
+
+  function pick(next: string) {
     onChange(next);
+    setQuery("");
+    setOpen(false);
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${allowCustom ? "w-full" : ""}`}>
-      <select
+    <div ref={boxRef} className={`relative min-w-[9.5rem] ${className?.includes("w-full") ? "w-full" : ""}`}>
+      <input
         id={id}
-        value={selectValue}
-        onChange={(e) => handleSelect(e.target.value)}
-        className={`${className ?? ""} ${allowCustom ? "min-w-0 flex-1" : ""}`}
-      >
-        {allowEmpty ? <option value="">{emptyLabel}</option> : null}
-        {allowUnspecified ? <option value={EMPTY_COUNTRY_FILTER}>未填国家</option> : null}
-        {EXPORT_COUNTRIES.map((country) => (
-          <option key={country.value} value={country.value}>
-            {countryOptionLabel(country)}
-          </option>
-        ))}
-        {extras.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-        {allowCustom ? <option value={CUSTOM_VALUE}>其他</option> : null}
-      </select>
-      {allowCustom && usingCustom ? (
-        <input
-          type="text"
-          value={customDraft}
-          onChange={(e) => {
-            setCustomDraft(e.target.value);
-            onChange(e.target.value);
-          }}
-          placeholder="输入国家"
-          className={className}
-        />
+        type="text"
+        autoComplete="off"
+        value={open ? query : shown}
+        placeholder={emptyLabel}
+        onFocus={() => {
+          setOpen(true);
+          setQuery("");
+        }}
+        onChange={(e) => {
+          setOpen(true);
+          setQuery(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(query || shown);
+          }
+          if (e.key === "Escape") setOpen(false);
+        }}
+        className={className}
+      />
+      {open ? (
+        <div className="absolute z-30 mt-1 max-h-64 w-full min-w-[16rem] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          {allowEmpty ? (
+            <button
+              type="button"
+              className="block w-full px-3 py-1.5 text-left text-sm text-slate-500 hover:bg-slate-50"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick("")}
+            >
+              {emptyLabel}
+            </button>
+          ) : null}
+          {allowUnspecified ? (
+            <button
+              type="button"
+              className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(EMPTY_COUNTRY_FILTER)}
+            >
+              未填国家
+            </button>
+          ) : null}
+          {options.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-teal-50 ${
+                item.value === canonical ? "bg-teal-50 text-teal-800" : "text-slate-700"
+              }`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(item.value)}
+            >
+              {item.display}
+            </button>
+          ))}
+          {allowCustom && query.trim() && !options.some((item) => item.display.toLowerCase() === query.trim().toLowerCase() || item.value.toLowerCase() === query.trim().toLowerCase()) ? (
+            <button
+              type="button"
+              className="block w-full px-3 py-1.5 text-left text-sm text-teal-700 hover:bg-teal-50"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => commit(query)}
+            >
+              新增「{query.trim()}」
+            </button>
+          ) : null}
+          {options.length === 0 && !allowCustom ? (
+            <div className="px-3 py-2 text-sm text-slate-400">没有匹配的国家</div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

@@ -115,6 +115,9 @@ export async function POST(request: NextRequest) {
     if (workError) {
       return NextResponse.json({ error: workError }, { status: 400 });
     }
+    if (!input.nextFollowUpAt) {
+      return NextResponse.json({ error: "请设置下次联系时间" }, { status: 400 });
+    }
 
     // 校验目标存在 + 权限
     let customer: Awaited<ReturnType<typeof prisma.exportCustomer.findUnique>> | null = null;

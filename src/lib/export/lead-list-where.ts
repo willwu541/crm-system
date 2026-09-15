@@ -91,28 +91,35 @@ export function buildExportLeadListWhere(
       or.push({ id: { in: params.normalizedCompanyIds } });
     }
     pushAnd(where, { OR: or });
-    return where;
-  }
-
-  if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
-  if (params.status) where.status = params.status;
-  if (params.since === "week") {
-    const weekStart = new Date(now);
-    weekStart.setDate(weekStart.getDate() - 7);
-    where.createdAt = { gte: weekStart };
-  }
-  if (params.sourceChannel === "__empty__") {
-    pushAnd(where, { OR: [{ sourceChannel: null }, { sourceChannel: "" }] });
-  } else if (params.sourceChannel) {
-    where.sourceChannel = { equals: params.sourceChannel, mode: "insensitive" };
+  } else {
+    if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
+    if (params.status) where.status = params.status;
+    if (params.since === "week") {
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - 7);
+      where.createdAt = { gte: weekStart };
+    }
+    if (params.sourceChannel === "__empty__") {
+      pushAnd(where, { OR: [{ sourceChannel: null }, { sourceChannel: "" }] });
+    } else if (params.sourceChannel) {
+      where.sourceChannel = { equals: params.sourceChannel, mode: "insensitive" };
+    }
   }
 
   if (params.pace === "never" || params.pace === "due" || params.pace === "stuck") {
     const paceWhere = buildLeadPacePrismaWhere(params.pace as LeadPaceFilter, {
       status: where.status,
-    });
-    Object.assign(where, paceWhere);
-    if ("AND" in paceWhere) delete where.status;
+    }, now);
+    const paceAnd = paceWhere.AND;
+    const rest = { ...paceWhere };
+    delete rest.AND;
+    Object.assign(where, rest);
+    if (Array.isArray(paceAnd)) {
+      for (const clause of paceAnd) {
+        pushAnd(where, clause as Record<string, unknown>);
+      }
+      if ("status" in rest) delete where.status;
+    }
   }
 
   if (params.filter === "whatsapp_first" || params.filter === "whatsapp_maintain") {

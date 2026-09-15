@@ -137,6 +137,28 @@ export function mergeCountryStats(
     .sort((a, b) => b.count - a.count);
 }
 
+export function searchExportCountries(
+  query: string,
+  extraValues: Array<string | null | undefined> = [],
+): { value: string; display: string }[] {
+  const extras = extraCountryValues(extraValues).map((value) => ({
+    value,
+    display: value,
+    haystack: value,
+  }));
+  const catalog = EXPORT_COUNTRIES.map((country) => ({
+    value: country.value,
+    display: countryOptionLabel(country),
+    haystack: [country.value, country.label, ...country.aliases].join(" "),
+  }));
+  const q = query.trim().toLowerCase();
+  const rows = [...catalog, ...extras];
+  if (!q) return rows.map(({ value, display }) => ({ value, display }));
+  return rows
+    .filter((row) => row.haystack.toLowerCase().includes(q) || row.display.toLowerCase().includes(q))
+    .map(({ value, display }) => ({ value, display }));
+}
+
 export function extraCountryValues(used: Array<string | null | undefined>): string[] {
   const extras: string[] = [];
   const seen = new Set<string>();

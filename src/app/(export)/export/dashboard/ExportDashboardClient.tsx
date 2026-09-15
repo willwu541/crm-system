@@ -153,16 +153,16 @@ export function ExportDashboardClient() {
             <span className="export-soft-link mt-1 text-xs">去开发 →</span>
           </Link>
           <Link
-            href="/export/leads?pace=due&sortBy=lastContactAt&sortOrder=asc"
+            href="/export/leads?pace=due&sortBy=nextFollowUpAt&sortOrder=asc"
             className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
-            <span className="text-sm text-slate-500">二次及以上联系</span>
+            <span className="text-sm text-slate-500">今天该联系</span>
             <span
               className={`mt-1 text-2xl font-semibold ${data.leadsDueCount > 0 ? "text-orange-600" : "text-slate-400"}`}
             >
               {data.leadsDueCount}
             </span>
-            <span className="export-soft-link mt-1 text-xs">按最久未联系排序 →</span>
+            <span className="export-soft-link mt-1 text-xs">含首次联系后到期 →</span>
           </Link>
           <Link
             href="/export/leads?pace=stuck&sortBy=lastContactAt&sortOrder=asc"

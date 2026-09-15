@@ -176,8 +176,8 @@ export function QuickContactModal({
     setError("");
     setLoading(true);
     try {
-      if (type === "whatsapp" && direction === "outbound" && contactCount > 0 && !nextFollowUpAt) {
-        setError("已经联系上的 WhatsApp 客户，请设置下次维护时间");
+      if (!nextFollowUpAt) {
+        setError("请设置下次联系时间");
         setLoading(false);
         return;
       }
@@ -335,30 +335,17 @@ export function QuickContactModal({
           </div>
         )}
 
-        {direction === "outbound" && (
-          <div className={`mt-3 ${type === "whatsapp" && contactCount > 0 ? "rounded-md border border-green-200 bg-green-50 p-3" : ""}`}>
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              {type === "whatsapp" && contactCount > 0
-                ? "下次维护提醒 *"
-                : type === "whatsapp"
-                  ? "下次再联系（可选）"
-                  : "下次跟进（可选）"}
-            </label>
-            {type === "whatsapp" && contactCount === 0 && (
-              <p className="mb-2 text-[11px] text-sky-800">本次是首次联系。联系上之后，再安排维护节奏。</p>
-            )}
-            {type === "whatsapp" && contactCount > 0 && (
-              <p className="mb-2 text-[11px] text-green-800">已经联系上，请安排下次维护时间。</p>
-            )}
-            <input
-              type="datetime-local"
-              value={nextFollowUpAt}
-              onChange={(e) => setNextFollowUpAt(e.target.value)}
-              required={type === "whatsapp" && contactCount > 0}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-        )}
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+          <label className="mb-1 block text-xs font-medium text-slate-600">下次联系时间 *</label>
+          <p className="mb-2 text-[11px] text-amber-900">每次联系后都要定下次时间，到期会出现在「今天该联系」。</p>
+          <input
+            type="datetime-local"
+            value={nextFollowUpAt}
+            onChange={(e) => setNextFollowUpAt(e.target.value)}
+            required
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
 
         {direction === "outbound" && (
           <>
