@@ -9,6 +9,8 @@ export function prismaErrorToUserMessage(e: unknown, fallback: string): string {
     lower.includes("product_interest") ||
     lower.includes("interested_products") ||
     lower.includes("export_deletion_logs") ||
+    lower.includes("export_projects") ||
+    lower.includes("export_project_parties") ||
     (lower.includes("column") && lower.includes("does not exist")) ||
     (lower.includes("unknown arg") && lower.includes("productinterest"))
   ) {

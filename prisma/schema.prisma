@@ -132,6 +132,9 @@ model User {
   exportTasks          ExportTask[]
   exportDeletionLogs   ExportDeletionLog[]
   exportEmailTemplates ExportEmailTemplate[]
+  exportProjectsOwned        ExportProject[]      @relation("ExportProjectOwner")
+  exportProjectsCreated      ExportProject[]      @relation("ExportProjectCreator")
+  exportProjectPartiesFound  ExportProjectParty[] @relation("ExportProjectPartyFinder")
 
   @@map("users")
 }
@@ -599,6 +602,8 @@ model ExportTenant {
   tasks          ExportTask[]
   sequences      ExportSequence[]
   emailTemplates ExportEmailTemplate[]
+  projects       ExportProject[]
+  projectParties ExportProjectParty[]
 
   @@map("export_tenants")
 }
@@ -661,8 +666,9 @@ model ExportLead {
   tenant     ExportTenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   owner      User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   customer   ExportCustomer?  @relation(fields: [convertedToCustomerId], references: [id], onDelete: SetNull)
-  activities ExportActivity[]
-  tasks      ExportTask[]
+  activities     ExportActivity[]
+  tasks          ExportTask[]
+  projectParties ExportProjectParty[]
 
   @@index([tenantId])
   @@index([ownerId])
@@ -926,6 +932,74 @@ model ExportTask {
   @@index([dueDate])
   @@index([createdAt])
   @@map("export_tasks")
+}
+
+/**
+ * 外贸项目找人板：录入碰到的项目，业务员去找 EPC / 总包 / 分包等联系方式。
+ * 租户内全员可见，负责人仅表示谁在跟，不限制其他人查看。
+ */
+model ExportProject {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  name        String
+  country     String?
+  city        String?
+  location    String?
+  productNeed String?   @map("product_need") @db.Text
+  description String?   @db.Text
+  source      String?
+  tenderUrl   String?   @map("tender_url")
+  status      String    @default("hunting")
+  bidDeadline DateTime? @map("bid_deadline")
+  ownerId     String?   @map("owner_id")
+  createdById String    @map("created_by_id")
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant    ExportTenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner     User?                @relation("ExportProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy User                 @relation("ExportProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  parties   ExportProjectParty[]
+
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([country])
+  @@index([createdAt])
+  @@map("export_projects")
+}
+
+model ExportProjectParty {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  projectId    String   @map("project_id")
+  role         String
+  companyName  String   @map("company_name")
+  country      String?
+  website      String?
+  contactName  String?  @map("contact_name")
+  contactTitle String?  @map("contact_title")
+  email        String?
+  phone        String?
+  whatsapp     String?
+  linkedin     String?
+  notes        String?  @db.Text
+  foundById    String   @map("found_by_id")
+  leadId       String?  @map("lead_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant  ExportTenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project ExportProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  foundBy User          @relation("ExportProjectPartyFinder", fields: [foundById], references: [id], onDelete: Restrict)
+  lead    ExportLead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([projectId])
+  @@index([foundById])
+  @@index([leadId])
+  @@map("export_project_parties")
 }
 
 /**

@@ -118,6 +118,27 @@ export const TASK_STATUSES = [
   "overdue",
 ] as const;
 
+/** 外贸项目找人：项目推进状态 */
+export const PROJECT_STATUSES = [
+  "hunting",
+  "contacting",
+  "quoted",
+  "won",
+  "lost",
+  "parked",
+] as const;
+
+/** 外贸项目找人：参与方角色 */
+export const PROJECT_PARTY_ROLES = [
+  "epc",
+  "general_contractor",
+  "subcontractor",
+  "fabricator",
+  "owner",
+  "consultant",
+  "other",
+] as const;
+
 /** 邮件 / 沟通模板分类（对应开发客户全链路） */
 export const EMAIL_TEMPLATE_CATEGORIES = [
   "dev_letter",       // 首封开发信 (D+0)

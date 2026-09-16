@@ -121,6 +121,16 @@ export function ExportDashboardClient() {
 
   return (
     <div className="space-y-6">
+      <Link
+        href="/export/projects"
+        className="export-card flex items-center justify-between gap-3 p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
+      >
+        <div>
+          <p className="text-sm font-semibold text-slate-800">项目找人</p>
+          <p className="mt-0.5 text-xs text-slate-500">录入碰到的项目，去找 EPC / 总包 / 分包联系方式</p>
+        </div>
+        <span className="export-soft-link text-sm">打开 →</span>
+      </Link>
       {/* 线索开发待办 */}
       <div className="export-card bg-gradient-to-r from-blue-50 to-slate-50 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

@@ -22,7 +22,9 @@ export type ExportEntityType =
   | "activity"
   | "quote"
   | "order"
-  | "task";
+  | "task"
+  | "project"
+  | "project_party";
 
 export async function deleteWithExportLog(params: {
   tenantId: string;

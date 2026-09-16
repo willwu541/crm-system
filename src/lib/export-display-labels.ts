@@ -164,6 +164,25 @@ export const taskStatusLabel: Record<string, string> = {
   overdue: "超期",
 };
 
+export const projectStatusLabel: Record<string, string> = {
+  hunting: "找联系人",
+  contacting: "已联系",
+  quoted: "已报价",
+  won: "已成交",
+  lost: "已丢单",
+  parked: "暂缓",
+};
+
+export const projectPartyRoleLabel: Record<string, string> = {
+  epc: "EPC",
+  general_contractor: "总包",
+  subcontractor: "分包",
+  fabricator: "钢构加工厂",
+  owner: "业主",
+  consultant: "顾问/设计院",
+  other: "其他",
+};
+
 export const emailTemplateCategoryLabel: Record<string, string> = {
   dev_letter: "首封开发信 (Dev letter)",
   followup_1: "Follow-up #1（3 天）",

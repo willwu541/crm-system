@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/export/live-chat", label: "网站询盘" },
   { href: "/export/inbox", label: "统一收件箱" },
   { href: "/export/leads", label: "线索" },
+  { href: "/export/projects", label: "项目" },
   { href: "/export/customers", label: "客户" },
   { href: "/export/quotes", label: "报价" },
   { href: "/export/orders", label: "订单" },

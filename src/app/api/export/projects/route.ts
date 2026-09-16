@@ -1,0 +1,166 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireExportSession } from "@/lib/export/auth";
+import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
+import { canonicalizeCountry, extraCountryValues } from "@/lib/export/countries";
+import { PROJECT_STATUSES } from "@/lib/export-constants";
+import {
+  PROJECT_LIST_INCLUDE,
+  isProjectPartyRole,
+  isProjectStatus,
+  parseOptionalDate,
+  resolveExportOwnerId,
+} from "@/lib/export/projects";
+import { z } from "zod";
+
+export async function GET(request: NextRequest) {
+  const { ctx, error } = await requireExportSession();
+  if (error) return error;
+
+  const { searchParams } = new URL(request.url);
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
+  const pageSize = Math.min(50, Math.max(10, parseInt(searchParams.get("pageSize") ?? "20")));
+  const keyword = searchParams.get("keyword")?.trim();
+  const status = searchParams.get("status")?.trim();
+  const country = searchParams.get("country")?.trim();
+  const ownerId = searchParams.get("ownerId")?.trim();
+  const role = searchParams.get("role")?.trim();
+  const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
+  const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+  const allowedSort = new Set(["createdAt", "updatedAt", "name", "status", "bidDeadline", "country"]);
+  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
+
+  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
+  const and: Record<string, unknown>[] = [];
+
+  if (status && isProjectStatus(status)) where.status = status;
+  if (country) where.country = country;
+  if (ownerId) where.ownerId = ownerId;
+  if (role && isProjectPartyRole(role)) {
+    and.push({ parties: { some: { role } } });
+  }
+  if (keyword) {
+    and.push({
+      OR: [
+        { name: { contains: keyword, mode: "insensitive" } },
+        { city: { contains: keyword, mode: "insensitive" } },
+        { location: { contains: keyword, mode: "insensitive" } },
+        { productNeed: { contains: keyword, mode: "insensitive" } },
+        { description: { contains: keyword, mode: "insensitive" } },
+        { source: { contains: keyword, mode: "insensitive" } },
+        { notes: { contains: keyword, mode: "insensitive" } },
+        { parties: { some: { companyName: { contains: keyword, mode: "insensitive" } } } },
+        { parties: { some: { contactName: { contains: keyword, mode: "insensitive" } } } },
+      ],
+    });
+  }
+  if (and.length) where.AND = and;
+
+  try {
+    const [data, total, countryRows] = await Promise.all([
+      prisma.exportProject.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: PROJECT_LIST_INCLUDE,
+      }),
+      prisma.exportProject.count({ where }),
+      prisma.exportProject.groupBy({
+        by: ["country"],
+        where: {
+          tenantId: ctx!.tenantId,
+          AND: [{ country: { not: null } }, { country: { not: "" } }],
+        },
+      }),
+    ]);
+
+    return NextResponse.json({
+      data,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+      countries: extraCountryValues(countryRows.map((row) => row.country)),
+    });
+  } catch (e) {
+    console.error("List export projects error:", e);
+    return NextResponse.json(
+      { error: prismaErrorToUserMessage(e, "加载项目失败") },
+      { status: 500 },
+    );
+  }
+}
+
+const createSchema = z.object({
+  name: z.string().trim().min(1, "请填写项目名称"),
+  country: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  productNeed: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
+  tenderUrl: z.string().optional().nullable(),
+  status: z.enum(PROJECT_STATUSES).optional(),
+  bidDeadline: z.string().optional().nullable(),
+  ownerId: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export async function POST(request: NextRequest) {
+  const { user, ctx, error } = await requireExportSession();
+  if (error) return error;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "请求体无效或为空，请刷新页面后重试" }, { status: 400 });
+  }
+
+  try {
+    const parsed = createSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "参数错误" },
+        { status: 400 },
+      );
+    }
+
+    const bidDeadline = parseOptionalDate(parsed.data.bidDeadline);
+    if (parsed.data.bidDeadline && bidDeadline === undefined) {
+      return NextResponse.json({ error: "投标截止日期无效" }, { status: 400 });
+    }
+
+    const ownerId = await resolveExportOwnerId(ctx!.tenantId, parsed.data.ownerId);
+
+    const project = await prisma.exportProject.create({
+      data: {
+        tenantId: ctx!.tenantId,
+        name: parsed.data.name,
+        country: canonicalizeCountry(parsed.data.country ?? "") || parsed.data.country?.trim() || null,
+        city: parsed.data.city?.trim() || null,
+        location: parsed.data.location?.trim() || null,
+        productNeed: parsed.data.productNeed?.trim() || null,
+        description: parsed.data.description?.trim() || null,
+        source: parsed.data.source?.trim() || null,
+        tenderUrl: parsed.data.tenderUrl?.trim() || null,
+        status: parsed.data.status ?? "hunting",
+        bidDeadline: bidDeadline ?? null,
+        ownerId: ownerId ?? null,
+        createdById: user!.id,
+        notes: parsed.data.notes?.trim() || null,
+      },
+      include: PROJECT_LIST_INCLUDE,
+    });
+    return NextResponse.json({ data: project });
+  } catch (e) {
+    console.error("Create export project error:", e);
+    return NextResponse.json(
+      { error: prismaErrorToUserMessage(e, "创建项目失败") },
+      { status: 500 },
+    );
+  }
+}
