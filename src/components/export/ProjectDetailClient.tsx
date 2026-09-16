@@ -7,9 +7,18 @@ import { PROJECT_PARTY_ROLES } from "@/lib/export-constants";
 import {
   displayInterestedProductsList,
   displayLabel,
+  projectConfidenceLabel,
+  projectIndustryLabel,
   projectPartyRoleLabel,
+  projectStageLabel,
   projectStatusLabel,
 } from "@/lib/export-display-labels";
+import {
+  displayGeneralContractor,
+  displayOwnerOperator,
+  displayPotentialBuyers,
+  formatProjectPlace,
+} from "@/lib/export/project-board";
 import { countryLabel } from "@/lib/export/countries";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import { parseResponseJson } from "@/lib/parse-response-json";
@@ -44,6 +53,12 @@ interface Project {
   country: string | null;
   city: string | null;
   location: string | null;
+  industry: string | null;
+  stage: string;
+  confidence: string;
+  ownerOperator: string | null;
+  generalContractor: string | null;
+  potentialBuyers: string | null;
   productNeed: string | null;
   description: string | null;
   source: string | null;
@@ -198,30 +213,40 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-slate-800">{project.name}</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              {countryLabel(project.country) === "-" ? "未填国家" : countryLabel(project.country)}
-              {project.city ? ` · ${project.city}` : ""}
-              {project.location ? ` · ${project.location}` : ""}
-            </p>
+            <p className="mt-1 text-sm text-slate-500">{formatProjectPlace(project)}</p>
           </div>
-          <span
-            className={`inline-flex rounded px-2 py-0.5 text-xs ${
-              project.status === "won"
-                ? "bg-green-50 text-green-700"
-                : project.status === "lost"
-                  ? "bg-red-50 text-red-700"
-                  : project.status === "hunting"
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            {displayLabel(projectStatusLabel, project.status)}
+          <span className="inline-flex rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs text-stone-700">
+            {displayLabel(projectStageLabel, project.stage)}
           </span>
         </div>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
+            <span className="text-slate-500">行业：</span>
+            {displayLabel(projectIndustryLabel, project.industry)}
+          </div>
+          <div>
+            <span className="text-slate-500">可靠度：</span>
+            {displayLabel(projectConfidenceLabel, project.confidence)}
+          </div>
+          <div>
+            <span className="text-slate-500">业主/运营商：</span>
+            {displayOwnerOperator(project, project.parties) || "—"}
+          </div>
+          <div>
+            <span className="text-slate-500">总包：</span>
+            {displayGeneralContractor(project, project.parties) || "—"}
+          </div>
+          <div className="sm:col-span-2">
+            <span className="text-slate-500">潜在采购公司：</span>
+            {displayPotentialBuyers(project, project.parties) || "—"}
+          </div>
+          <div>
             <span className="text-slate-500">跟进人：</span>
             {project.owner?.name ?? "未指定"}
+          </div>
+          <div>
+            <span className="text-slate-500">跟进状态：</span>
+            {displayLabel(projectStatusLabel, project.status)}
           </div>
           <div>
             <span className="text-slate-500">录入人：</span>

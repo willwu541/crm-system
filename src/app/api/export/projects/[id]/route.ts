@@ -4,7 +4,7 @@ import { requireExportSession } from "@/lib/export/auth";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry } from "@/lib/export/countries";
-import { PROJECT_STATUSES } from "@/lib/export-constants";
+import { PROJECT_CONFIDENCE, PROJECT_INDUSTRIES, PROJECT_STAGES, PROJECT_STATUSES } from "@/lib/export-constants";
 import {
   PROJECT_DETAIL_INCLUDE,
   getProjectOrError,
@@ -30,6 +30,12 @@ const updateSchema = z.object({
   country: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
+  industry: z.enum(PROJECT_INDUSTRIES).optional().nullable(),
+  stage: z.enum(PROJECT_STAGES).optional(),
+  confidence: z.enum(PROJECT_CONFIDENCE).optional(),
+  ownerOperator: z.string().optional().nullable(),
+  generalContractor: z.string().optional().nullable(),
+  potentialBuyers: z.string().optional().nullable(),
   productNeed: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
@@ -74,6 +80,16 @@ export async function PATCH(
     }
     if (parsed.data.city !== undefined) data.city = parsed.data.city?.trim() || null;
     if (parsed.data.location !== undefined) data.location = parsed.data.location?.trim() || null;
+    if (parsed.data.industry !== undefined) data.industry = parsed.data.industry || null;
+    if (parsed.data.stage !== undefined) data.stage = parsed.data.stage;
+    if (parsed.data.confidence !== undefined) data.confidence = parsed.data.confidence;
+    if (parsed.data.ownerOperator !== undefined) data.ownerOperator = parsed.data.ownerOperator?.trim() || null;
+    if (parsed.data.generalContractor !== undefined) {
+      data.generalContractor = parsed.data.generalContractor?.trim() || null;
+    }
+    if (parsed.data.potentialBuyers !== undefined) {
+      data.potentialBuyers = parsed.data.potentialBuyers?.trim() || null;
+    }
     if (parsed.data.productNeed !== undefined) data.productNeed = parsed.data.productNeed?.trim() || null;
     if (parsed.data.description !== undefined) data.description = parsed.data.description?.trim() || null;
     if (parsed.data.source !== undefined) data.source = parsed.data.source?.trim() || null;

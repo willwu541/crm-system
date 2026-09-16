@@ -3,15 +3,27 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PROJECT_PARTY_ROLES, PROJECT_STATUSES } from "@/lib/export-constants";
 import {
-  displayInterestedProductsList,
-  projectPartyRoleLabel,
-  projectStatusLabel,
+  PROJECT_CONFIDENCE,
+  PROJECT_INDUSTRIES,
+  PROJECT_STAGES,
+} from "@/lib/export-constants";
+import {
+  displayLabel,
+  projectConfidenceLabel,
+  projectIndustryLabel,
+  projectStageLabel,
 } from "@/lib/export-display-labels";
 import { buildListUrl } from "@/lib/export/url-params";
-import { countryLabel } from "@/lib/export/countries";
 import { parseResponseJson } from "@/lib/parse-response-json";
+import {
+  displayGeneralContractor,
+  displayOwnerOperator,
+  displayPotentialBuyers,
+  formatProjectPlace,
+  projectSubtitle,
+  wrapSlashLabel,
+} from "@/lib/export/project-board";
 import { Pagination } from "./shared/Pagination";
 import { CountrySelect } from "./CountrySelect";
 
@@ -20,13 +32,18 @@ interface ProjectRow {
   name: string;
   country: string | null;
   city: string | null;
-  productNeed: string | null;
-  status: string;
+  location: string | null;
+  industry: string | null;
+  stage: string;
+  confidence: string;
+  ownerOperator: string | null;
+  generalContractor: string | null;
+  potentialBuyers: string | null;
+  source: string | null;
+  notes: string | null;
+  description: string | null;
   bidDeadline: string | null;
-  owner: { id: string; name: string } | null;
-  createdBy: { id: string; name: string };
-  _count: { parties: number };
-  updatedAt: string;
+  parties: { role: string; companyName: string }[];
 }
 
 interface PaginationInfo {
@@ -36,31 +53,45 @@ interface PaginationInfo {
   totalPages: number;
 }
 
-function statusClass(status: string) {
-  if (status === "won") return "bg-green-50 text-green-700";
-  if (status === "lost") return "bg-red-50 text-red-700";
-  if (status === "hunting") return "bg-amber-50 text-amber-700";
-  if (status === "parked") return "bg-slate-100 text-slate-500";
-  return "bg-slate-100 text-slate-600";
+function stageClass(stage: string) {
+  switch (stage) {
+    case "awarded":
+      return "border-emerald-300 bg-emerald-50 text-emerald-800";
+    case "construction":
+      return "border-green-300 bg-green-50 text-green-800";
+    case "tendering":
+      return "border-orange-300 bg-orange-50 text-orange-800";
+    case "mep_install":
+      return "border-amber-300 bg-amber-50 text-amber-800";
+    case "commissioning":
+      return "border-teal-300 bg-teal-50 text-teal-800";
+    case "delayed":
+      return "border-slate-300 bg-slate-100 text-slate-600";
+    case "planning":
+      return "border-sky-300 bg-sky-50 text-sky-800";
+    default:
+      return "border-stone-300 bg-stone-50 text-stone-600";
+  }
+}
+
+function dash(value: string | null | undefined): string {
+  return value?.trim() ? value : "—";
 }
 
 export function ProjectsClient() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const status = searchParams.get("status") ?? "";
+  const stage = searchParams.get("stage") ?? "";
+  const industry = searchParams.get("industry") ?? "";
+  const confidence = searchParams.get("confidence") ?? "";
   const country = searchParams.get("country") ?? "";
-  const ownerId = searchParams.get("ownerId") ?? "";
-  const role = searchParams.get("role") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
-  const sortBy = searchParams.get("sortBy") ?? "updatedAt";
-  const sortOrder = searchParams.get("sortOrder") ?? "desc";
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [countries, setCountries] = useState<string[]>([]);
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState(keywordParam);
 
@@ -69,31 +100,18 @@ export function ProjectsClient() {
   }, [keywordParam]);
 
   function updateUrl(updates: Record<string, string | number | undefined>) {
-    const merged = {
-      status: status || undefined,
-      country: country || undefined,
-      ownerId: ownerId || undefined,
-      role: role || undefined,
-      keyword: keyword || undefined,
-      sortBy,
-      sortOrder,
-      page,
-      ...updates,
-    };
-    router.replace(buildListUrl(pathname, merged));
+    router.replace(
+      buildListUrl(pathname, {
+        stage: stage || undefined,
+        industry: industry || undefined,
+        confidence: confidence || undefined,
+        country: country || undefined,
+        keyword: keyword || undefined,
+        page,
+        ...updates,
+      }),
+    );
   }
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/export/users");
-        const json = await parseResponseJson<{ data?: { id: string; name: string }[] }>(res);
-        if (res.ok && json.data) setUsers(json.data);
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,13 +120,11 @@ export function ProjectsClient() {
       try {
         const params = new URLSearchParams();
         params.set("page", String(page));
-        if (status) params.set("status", status);
+        if (stage) params.set("stage", stage);
+        if (industry) params.set("industry", industry);
+        if (confidence) params.set("confidence", confidence);
         if (country) params.set("country", country);
-        if (ownerId) params.set("ownerId", ownerId);
-        if (role) params.set("role", role);
         if (keywordParam) params.set("keyword", keywordParam);
-        if (sortBy) params.set("sortBy", sortBy);
-        if (sortOrder) params.set("sortOrder", sortOrder);
         const res = await fetch(`/api/export/projects?${params}`);
         const json = await parseResponseJson<{
           error?: string;
@@ -131,148 +147,158 @@ export function ProjectsClient() {
     return () => {
       cancelled = true;
     };
-  }, [page, status, country, ownerId, role, keywordParam, sortBy, sortOrder]);
+  }, [page, stage, industry, confidence, country, keywordParam]);
 
   return (
-    <div className="space-y-4">
-      <div className="export-filter-shell flex flex-wrap items-center gap-3 p-3">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             updateUrl({ keyword: keyword || undefined, page: 1 });
           }}
-          className="flex flex-wrap gap-2"
+          className="flex flex-wrap items-center gap-2"
         >
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="项目/公司/联系人/WhatsApp"
-            className="px-3 py-2 text-sm"
+            placeholder="搜项目、公司、地点"
+            className="min-w-[14rem] rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm"
           />
           <CountrySelect
             value={country}
             extraValues={countries}
             allowCustom
+            emptyLabel="全部国家"
             onChange={(next) => updateUrl({ country: next || undefined, page: 1 })}
-            className="min-w-[9.5rem] px-3 py-2 text-sm"
+            className="min-w-[8.5rem] rounded-md border border-stone-300 px-3 py-1.5 text-sm"
           />
           <select
-            value={status}
-            onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
-            className="px-3 py-2 text-sm"
+            value={industry}
+            onChange={(e) => updateUrl({ industry: e.target.value || undefined, page: 1 })}
+            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
           >
-            <option value="">全部状态</option>
-            {PROJECT_STATUSES.map((s) => (
+            <option value="">全部行业</option>
+            {PROJECT_INDUSTRIES.map((s) => (
               <option key={s} value={s}>
-                {projectStatusLabel[s] ?? s}
+                {projectIndustryLabel[s] ?? s}
               </option>
             ))}
           </select>
           <select
-            value={role}
-            onChange={(e) => updateUrl({ role: e.target.value || undefined, page: 1 })}
-            className="px-3 py-2 text-sm"
+            value={stage}
+            onChange={(e) => updateUrl({ stage: e.target.value || undefined, page: 1 })}
+            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
           >
-            <option value="">全部角色</option>
-            {PROJECT_PARTY_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {projectPartyRoleLabel[r] ?? r}
+            <option value="">全部阶段</option>
+            {PROJECT_STAGES.map((s) => (
+              <option key={s} value={s}>
+                {projectStageLabel[s] ?? s}
               </option>
             ))}
           </select>
           <select
-            value={ownerId}
-            onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
-            className="px-3 py-2 text-sm"
+            value={confidence}
+            onChange={(e) => updateUrl({ confidence: e.target.value || undefined, page: 1 })}
+            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
           >
-            <option value="">全部跟进人</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
+            <option value="">全部</option>
+            {PROJECT_CONFIDENCE.map((s) => (
+              <option key={s} value={s}>
+                {projectConfidenceLabel[s] ?? s}
               </option>
             ))}
           </select>
-          <select
-            value={`${sortBy}:${sortOrder}`}
-            onChange={(e) => {
-              const [nextSortBy, nextSortOrder] = e.target.value.split(":");
-              updateUrl({ sortBy: nextSortBy, sortOrder: nextSortOrder, page: 1 });
-            }}
-            className="px-3 py-2 text-sm"
-          >
-            <option value="updatedAt:desc">最新更新</option>
-            <option value="createdAt:desc">最新创建</option>
-            <option value="bidDeadline:asc">截止最早</option>
-            <option value="name:asc">项目名 A-Z</option>
-          </select>
-          <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">
+          <button type="submit" className="export-btn-secondary rounded-md px-3 py-1.5 text-sm">
             搜索
           </button>
         </form>
         <Link
           href="/export/projects/new"
-          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
+          className="export-btn-primary ml-auto rounded-md px-4 py-1.5 text-sm font-medium"
         >
           新建项目
         </Link>
       </div>
 
-      <div className="export-card overflow-x-auto overflow-hidden">
+      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-[#f7f1e8]">
         {loading ? (
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : projects.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            还没有项目。先录入碰到的项目，再让业务员去找 EPC / 总包 / 分包联系方式。
+            还没有项目。先录入碰到的项目，再让业务员去找业主、总包、分包联系方式。
           </div>
         ) : (
-          <table className="export-table w-full text-sm">
-            <thead className="border-b border-slate-200">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">项目</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">国家</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">产品</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">状态</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">已找公司</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">跟进人</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">截止</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-700">操作</th>
+          <table className="w-full min-w-[72rem] text-sm">
+            <thead className="sticky top-0 z-10 bg-[#f3ece3]">
+              <tr className="border-b border-stone-300 text-left text-xs font-medium text-stone-500">
+                <th className="px-4 py-2.5">项目</th>
+                <th className="px-3 py-2.5">行业</th>
+                <th className="px-3 py-2.5">地点</th>
+                <th className="px-3 py-2.5">阶段</th>
+                <th className="px-3 py-2.5">业主/运营商</th>
+                <th className="px-3 py-2.5">总包</th>
+                <th className="px-3 py-2.5">潜在采购公司</th>
+                <th className="px-3 py-2.5">可靠度</th>
+                <th className="px-3 py-2.5" />
               </tr>
             </thead>
             <tbody>
-              {projects.map((p) => (
-                <tr
-                  key={p.id}
-                  className="cursor-pointer border-b border-slate-100"
-                  onClick={() => router.push(`/export/projects/${p.id}`)}
-                >
-                  <td className="px-4 py-3 font-medium text-slate-800">
-                    {p.name}
-                    {p.city ? <div className="text-xs font-normal text-slate-500">{p.city}</div> : null}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{countryLabel(p.country) || p.country || "-"}</td>
-                  <td className="max-w-[16rem] truncate px-4 py-3 text-slate-600">
-                    {displayInterestedProductsList(
-                      p.productNeed ? p.productNeed.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : [],
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded px-2 py-0.5 text-xs ${statusClass(p.status)}`}>
-                      {projectStatusLabel[p.status] ?? p.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{p._count.parties}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.owner?.name ?? "未指定"}</td>
-                  <td className="px-4 py-3 text-slate-500">
-                    {p.bidDeadline ? new Date(p.bidDeadline).toLocaleDateString("zh-CN") : "-"}
-                  </td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <Link href={`/export/projects/${p.id}`} className="text-teal-600 hover:underline">
-                      找人
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {projects.map((p) => {
+                const subtitle = projectSubtitle(p);
+                return (
+                  <tr
+                    key={p.id}
+                    className="cursor-pointer border-b border-stone-200/80 hover:bg-white/70"
+                    onClick={() => router.push(`/export/projects/${p.id}`)}
+                  >
+                    <td className="max-w-[22rem] px-4 py-3 align-top">
+                      <div className="font-semibold text-slate-800" title={p.name}>
+                        {p.name}
+                      </div>
+                      {subtitle ? (
+                        <div className="mt-0.5 line-clamp-2 text-xs font-normal text-stone-500">
+                          {subtitle}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="max-w-[8.5rem] whitespace-pre-line px-3 py-3 align-top leading-5 text-slate-700">
+                      {wrapSlashLabel(displayLabel(projectIndustryLabel, p.industry))}
+                    </td>
+                    <td className="max-w-[12rem] whitespace-pre-line px-3 py-3 align-top leading-5 text-slate-700">
+                      {formatProjectPlace(p)}
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${stageClass(p.stage)}`}
+                      >
+                        {displayLabel(projectStageLabel, p.stage)}
+                      </span>
+                    </td>
+                    <td className="max-w-[10rem] px-3 py-3 align-top text-slate-700">
+                      {dash(displayOwnerOperator(p, p.parties))}
+                    </td>
+                    <td className="max-w-[10rem] px-3 py-3 align-top text-slate-700">
+                      {dash(displayGeneralContractor(p, p.parties))}
+                    </td>
+                    <td className="max-w-[12rem] px-3 py-3 align-top text-slate-700">
+                      {dash(displayPotentialBuyers(p, p.parties))}
+                    </td>
+                    <td className="px-3 py-3 align-top text-stone-500">
+                      {displayLabel(projectConfidenceLabel, p.confidence)}
+                    </td>
+                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/export/projects/${p.id}`}
+                        className="inline-flex rounded border border-stone-400 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-stone-50"
+                      >
+                        详情
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

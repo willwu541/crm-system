@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { INTERESTED_PRODUCTS, PROJECT_STATUSES } from "@/lib/export-constants";
-import { interestedProductLabel, projectStatusLabel } from "@/lib/export-display-labels";
+import { INTERESTED_PRODUCTS, PROJECT_CONFIDENCE, PROJECT_INDUSTRIES, PROJECT_STAGES, PROJECT_STATUSES } from "@/lib/export-constants";
+import {
+  interestedProductLabel,
+  projectConfidenceLabel,
+  projectIndustryLabel,
+  projectStageLabel,
+  projectStatusLabel,
+} from "@/lib/export-display-labels";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import { CountrySelect } from "./CountrySelect";
@@ -55,6 +61,12 @@ export function ProjectForm({
     country: (initial?.country as string) ?? "",
     city: (initial?.city as string) ?? "",
     location: (initial?.location as string) ?? "",
+    industry: (initial?.industry as string) ?? "",
+    stage: (initial?.stage as string) ?? "unknown",
+    confidence: (initial?.confidence as string) ?? "unknown",
+    ownerOperator: (initial?.ownerOperator as string) ?? "",
+    generalContractor: (initial?.generalContractor as string) ?? "",
+    potentialBuyers: (initial?.potentialBuyers as string) ?? "",
     selectedProducts: initialProducts.selected,
     productNeedExtra: initialProducts.extra,
     description: (initial?.description as string) ?? "",
@@ -98,6 +110,12 @@ export function ProjectForm({
         country: canonicalizeCountry(form.country) || form.country.trim() || null,
         city: form.city.trim() || null,
         location: form.location.trim() || null,
+        industry: form.industry || null,
+        stage: form.stage,
+        confidence: form.confidence,
+        ownerOperator: form.ownerOperator.trim() || null,
+        generalContractor: form.generalContractor.trim() || null,
+        potentialBuyers: form.potentialBuyers.trim() || null,
         productNeed,
         description: form.description.trim() || null,
         source: form.source.trim() || null,
@@ -135,9 +153,12 @@ export function ProjectForm({
     <form onSubmit={handleSubmit} className="export-card export-detail-group max-w-3xl space-y-5 p-7">
       {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
       <p className="text-sm text-slate-500">
-        录入碰到的项目，业务员去找 EPC、总包、分包等公司的联系方式。团队全员可见。
+        先填项目情报（行业、阶段、业主、总包），保存后再让业务员去找联系方式。团队全员可见。
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+          项目情报
+        </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">项目名称 *</label>
           <input
@@ -145,7 +166,7 @@ export function ProjectForm({
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             required
-            placeholder="例如：沙特某石化厂检修平台"
+            placeholder="例如：AirTrunk Sedenak Tech Park Data Center"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
@@ -174,12 +195,55 @@ export function ProjectForm({
             type="text"
             value={form.location}
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-            placeholder="工地/园区/港口等"
+            placeholder="城市 / 州，如 Sedenak, Johor"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">状态</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">行业</label>
+          <select
+            value={form.industry}
+            onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">未选</option>
+            {PROJECT_INDUSTRIES.map((s) => (
+              <option key={s} value={s}>
+                {projectIndustryLabel[s] ?? s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">阶段</label>
+          <select
+            value={form.stage}
+            onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            {PROJECT_STAGES.map((s) => (
+              <option key={s} value={s}>
+                {projectStageLabel[s] ?? s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">可靠度</label>
+          <select
+            value={form.confidence}
+            onChange={(e) => setForm((f) => ({ ...f, confidence: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            {PROJECT_CONFIDENCE.map((s) => (
+              <option key={s} value={s}>
+                {projectConfidenceLabel[s] ?? s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">跟进状态</label>
           <select
             value={form.status}
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
@@ -191,6 +255,39 @@ export function ProjectForm({
               </option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">业主/运营商</label>
+          <input
+            type="text"
+            value={form.ownerOperator}
+            onChange={(e) => setForm((f) => ({ ...f, ownerOperator: e.target.value }))}
+            placeholder="AirTrunk"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">总包</label>
+          <input
+            type="text"
+            value={form.generalContractor}
+            onChange={(e) => setForm((f) => ({ ...f, generalContractor: e.target.value }))}
+            placeholder="Gamuda Engineering"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">潜在采购公司</label>
+          <input
+            type="text"
+            value={form.potentialBuyers}
+            onChange={(e) => setForm((f) => ({ ...f, potentialBuyers: e.target.value }))}
+            placeholder="EPC / 分包 / 钢构厂，多个用顿号分开"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2 pt-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+          找人跟进
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">投标/跟进截止</label>
@@ -252,7 +349,7 @@ export function ProjectForm({
             type="text"
             value={form.source}
             onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-            placeholder="展会、招标网、客户提到…"
+            placeholder="招标网、客户提到、新闻标题…"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>

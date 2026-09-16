@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PROJECT_PARTY_ROLES, PROJECT_STATUSES } from "@/lib/export-constants";
+import {
+  PROJECT_CONFIDENCE,
+  PROJECT_INDUSTRIES,
+  PROJECT_PARTY_ROLES,
+  PROJECT_STAGES,
+  PROJECT_STATUSES,
+} from "@/lib/export-constants";
 import type { Prisma } from "@prisma/client";
 
 export const PROJECT_LIST_INCLUDE = {
   owner: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
+  parties: { select: { role: true, companyName: true } },
   _count: { select: { parties: true } },
 } satisfies Prisma.ExportProjectInclude;
 
@@ -28,6 +35,18 @@ export const PARTY_INCLUDE = {
 
 export function isProjectStatus(value: string): value is (typeof PROJECT_STATUSES)[number] {
   return (PROJECT_STATUSES as readonly string[]).includes(value);
+}
+
+export function isProjectStage(value: string): value is (typeof PROJECT_STAGES)[number] {
+  return (PROJECT_STAGES as readonly string[]).includes(value);
+}
+
+export function isProjectIndustry(value: string): value is (typeof PROJECT_INDUSTRIES)[number] {
+  return (PROJECT_INDUSTRIES as readonly string[]).includes(value);
+}
+
+export function isProjectConfidence(value: string): value is (typeof PROJECT_CONFIDENCE)[number] {
+  return (PROJECT_CONFIDENCE as readonly string[]).includes(value);
 }
 
 export function isProjectPartyRole(value: string): value is (typeof PROJECT_PARTY_ROLES)[number] {
@@ -67,6 +86,9 @@ export function projectKeywordOrClauses(
     { description: { contains: keyword, mode: "insensitive" } },
     { source: { contains: keyword, mode: "insensitive" } },
     { notes: { contains: keyword, mode: "insensitive" } },
+    { ownerOperator: { contains: keyword, mode: "insensitive" } },
+    { generalContractor: { contains: keyword, mode: "insensitive" } },
+    { potentialBuyers: { contains: keyword, mode: "insensitive" } },
     { parties: { some: { companyName: { contains: keyword, mode: "insensitive" } } } },
     { parties: { some: { contactName: { contains: keyword, mode: "insensitive" } } } },
     { parties: { some: { whatsapp: { contains: keyword, mode: "insensitive" } } } },

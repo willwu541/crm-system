@@ -118,7 +118,7 @@ export const TASK_STATUSES = [
   "overdue",
 ] as const;
 
-/** 外贸项目找人：项目推进状态 */
+/** 外贸项目找人：跟进状态 */
 export const PROJECT_STATUSES = [
   "hunting",
   "contacting",
@@ -126,6 +126,38 @@ export const PROJECT_STATUSES = [
   "won",
   "lost",
   "parked",
+] as const;
+
+/** 项目工程阶段（列表「阶段」列） */
+export const PROJECT_STAGES = [
+  "planning",
+  "tendering",
+  "awarded",
+  "construction",
+  "mep_install",
+  "commissioning",
+  "delayed",
+  "unknown",
+] as const;
+
+/** 项目行业 */
+export const PROJECT_INDUSTRIES = [
+  "data_center",
+  "power_substation",
+  "port_shipyard_offshore",
+  "petrochemical_lng",
+  "chemical_cement_steel",
+  "warehouse_logistics",
+  "municipal_infra",
+  "other",
+] as const;
+
+/** 信息可靠度 */
+export const PROJECT_CONFIDENCE = [
+  "unknown",
+  "low",
+  "medium",
+  "high",
 ] as const;
 
 /** 外贸项目找人：参与方角色 */

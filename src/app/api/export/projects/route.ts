@@ -3,11 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry, extraCountryValues } from "@/lib/export/countries";
-import { PROJECT_STATUSES } from "@/lib/export-constants";
+import {
+  PROJECT_CONFIDENCE,
+  PROJECT_INDUSTRIES,
+  PROJECT_STAGES,
+  PROJECT_STATUSES,
+} from "@/lib/export-constants";
 import {
   PROJECT_LIST_INCLUDE,
   findProjectIdsByPartyPhoneDigits,
+  isProjectConfidence,
+  isProjectIndustry,
   isProjectPartyRole,
+  isProjectStage,
   isProjectStatus,
   parseOptionalDate,
   projectKeywordOrClauses,
@@ -21,9 +29,12 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-  const pageSize = Math.min(50, Math.max(10, parseInt(searchParams.get("pageSize") ?? "20")));
+  const pageSize = Math.min(80, Math.max(10, parseInt(searchParams.get("pageSize") ?? "50")));
   const keyword = searchParams.get("keyword")?.trim();
   const status = searchParams.get("status")?.trim();
+  const stage = searchParams.get("stage")?.trim();
+  const industry = searchParams.get("industry")?.trim();
+  const confidence = searchParams.get("confidence")?.trim();
   const country = searchParams.get("country")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const role = searchParams.get("role")?.trim();
@@ -36,6 +47,9 @@ export async function GET(request: NextRequest) {
   const and: Record<string, unknown>[] = [];
 
   if (status && isProjectStatus(status)) where.status = status;
+  if (stage && isProjectStage(stage)) where.stage = stage;
+  if (industry && isProjectIndustry(industry)) where.industry = industry;
+  if (confidence && isProjectConfidence(confidence)) where.confidence = confidence;
   if (country) where.country = country;
   if (ownerId) where.ownerId = ownerId;
   if (role && isProjectPartyRole(role)) {
@@ -90,6 +104,12 @@ const createSchema = z.object({
   country: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
+  industry: z.enum(PROJECT_INDUSTRIES).optional().nullable(),
+  stage: z.enum(PROJECT_STAGES).optional(),
+  confidence: z.enum(PROJECT_CONFIDENCE).optional(),
+  ownerOperator: z.string().optional().nullable(),
+  generalContractor: z.string().optional().nullable(),
+  potentialBuyers: z.string().optional().nullable(),
   productNeed: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
@@ -134,6 +154,12 @@ export async function POST(request: NextRequest) {
         country: canonicalizeCountry(parsed.data.country ?? "") || parsed.data.country?.trim() || null,
         city: parsed.data.city?.trim() || null,
         location: parsed.data.location?.trim() || null,
+        industry: parsed.data.industry || null,
+        stage: parsed.data.stage ?? "unknown",
+        confidence: parsed.data.confidence ?? "unknown",
+        ownerOperator: parsed.data.ownerOperator?.trim() || null,
+        generalContractor: parsed.data.generalContractor?.trim() || null,
+        potentialBuyers: parsed.data.potentialBuyers?.trim() || null,
         productNeed: parsed.data.productNeed?.trim() || null,
         description: parsed.data.description?.trim() || null,
         source: parsed.data.source?.trim() || null,

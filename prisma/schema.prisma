@@ -939,23 +939,29 @@ model ExportTask {
  * 租户内全员可见，负责人仅表示谁在跟，不限制其他人查看。
  */
 model ExportProject {
-  id          String    @id @default(cuid())
-  tenantId    String    @map("tenant_id")
-  name        String
-  country     String?
-  city        String?
-  location    String?
-  productNeed String?   @map("product_need") @db.Text
-  description String?   @db.Text
-  source      String?
-  tenderUrl   String?   @map("tender_url")
-  status      String    @default("hunting")
-  bidDeadline DateTime? @map("bid_deadline")
-  ownerId     String?   @map("owner_id")
-  createdById String    @map("created_by_id")
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  name               String
+  country            String?
+  city               String?
+  location           String?
+  industry           String?
+  stage              String    @default("unknown")
+  confidence         String    @default("unknown")
+  ownerOperator      String?   @map("owner_operator")
+  generalContractor  String?   @map("general_contractor")
+  potentialBuyers    String?   @map("potential_buyers")
+  productNeed        String?   @map("product_need") @db.Text
+  description        String?   @db.Text
+  source             String?
+  tenderUrl          String?   @map("tender_url")
+  status             String    @default("hunting")
+  bidDeadline        DateTime? @map("bid_deadline")
+  ownerId            String?   @map("owner_id")
+  createdById        String    @map("created_by_id")
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   tenant    ExportTenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   owner     User?                @relation("ExportProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -965,6 +971,8 @@ model ExportProject {
   @@index([tenantId])
   @@index([ownerId])
   @@index([status])
+  @@index([stage])
+  @@index([industry])
   @@index([country])
   @@index([createdAt])
   @@map("export_projects")

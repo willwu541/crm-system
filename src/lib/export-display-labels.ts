@@ -173,6 +173,35 @@ export const projectStatusLabel: Record<string, string> = {
   parked: "暂缓",
 };
 
+export const projectStageLabel: Record<string, string> = {
+  planning: "规划",
+  tendering: "招标",
+  awarded: "已中标",
+  construction: "在建",
+  mep_install: "机电安装",
+  commissioning: "调试",
+  delayed: "推迟",
+  unknown: "未知",
+};
+
+export const projectIndustryLabel: Record<string, string> = {
+  data_center: "数据中心",
+  power_substation: "电厂 / 变电站",
+  port_shipyard_offshore: "港口 / 船厂 / 海工",
+  petrochemical_lng: "石化 / 炼油 / LNG",
+  chemical_cement_steel: "化工 / 水泥 / 钢厂 / 晶圆配套",
+  warehouse_logistics: "仓储 / 物流",
+  municipal_infra: "市政 / 基建",
+  other: "其他",
+};
+
+export const projectConfidenceLabel: Record<string, string> = {
+  unknown: "unknown",
+  low: "low",
+  medium: "medium",
+  high: "high",
+};
+
 export const projectPartyRoleLabel: Record<string, string> = {
   epc: "EPC",
   general_contractor: "总包",
