@@ -51,6 +51,58 @@ export function partyRoleToCustomerType(role: string): string | undefined {
   }
 }
 
+export function extractSearchDigits(keyword: string): string {
+  return keyword.replace(/\D/g, "");
+}
+
+export function projectKeywordOrClauses(
+  keyword: string,
+  extraIds?: string[],
+): Record<string, unknown>[] {
+  const or: Record<string, unknown>[] = [
+    { name: { contains: keyword, mode: "insensitive" } },
+    { city: { contains: keyword, mode: "insensitive" } },
+    { location: { contains: keyword, mode: "insensitive" } },
+    { productNeed: { contains: keyword, mode: "insensitive" } },
+    { description: { contains: keyword, mode: "insensitive" } },
+    { source: { contains: keyword, mode: "insensitive" } },
+    { notes: { contains: keyword, mode: "insensitive" } },
+    { parties: { some: { companyName: { contains: keyword, mode: "insensitive" } } } },
+    { parties: { some: { contactName: { contains: keyword, mode: "insensitive" } } } },
+    { parties: { some: { whatsapp: { contains: keyword, mode: "insensitive" } } } },
+    { parties: { some: { phone: { contains: keyword, mode: "insensitive" } } } },
+    { parties: { some: { email: { contains: keyword, mode: "insensitive" } } } },
+  ];
+  const digits = extractSearchDigits(keyword);
+  if (digits.length >= 6) {
+    or.push({ parties: { some: { whatsapp: { contains: digits } } } });
+    or.push({ parties: { some: { phone: { contains: digits } } } });
+  }
+  if (extraIds?.length) or.push({ id: { in: extraIds } });
+  return or;
+}
+
+export async function findProjectIdsByPartyPhoneDigits(
+  tenantId: string,
+  keyword: string,
+): Promise<string[]> {
+  const digits = extractSearchDigits(keyword);
+  if (digits.length < 6) return [];
+  const pattern = `%${digits}%`;
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT DISTINCT p.id
+    FROM export_projects p
+    INNER JOIN export_project_parties x ON x.project_id = p.id
+    WHERE p.tenant_id = ${tenantId}
+      AND (
+        regexp_replace(COALESCE(x.whatsapp, ''), '[^0-9]', '', 'g') LIKE ${pattern}
+        OR regexp_replace(COALESCE(x.phone, ''), '[^0-9]', '', 'g') LIKE ${pattern}
+      )
+    LIMIT 80
+  `;
+  return rows.map((r) => r.id);
+}
+
 export function parseOptionalDate(value: string | null | undefined): Date | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value.trim() === "") return null;

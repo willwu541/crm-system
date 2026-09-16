@@ -147,7 +147,7 @@ export function ProjectsClient() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="项目/公司/联系人"
+            placeholder="项目/公司/联系人/WhatsApp"
             className="px-3 py-2 text-sm"
           />
           <CountrySelect

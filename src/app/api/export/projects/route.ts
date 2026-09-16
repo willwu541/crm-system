@@ -6,9 +6,11 @@ import { canonicalizeCountry, extraCountryValues } from "@/lib/export/countries"
 import { PROJECT_STATUSES } from "@/lib/export-constants";
 import {
   PROJECT_LIST_INCLUDE,
+  findProjectIdsByPartyPhoneDigits,
   isProjectPartyRole,
   isProjectStatus,
   parseOptionalDate,
+  projectKeywordOrClauses,
   resolveExportOwnerId,
 } from "@/lib/export/projects";
 import { z } from "zod";
@@ -40,19 +42,8 @@ export async function GET(request: NextRequest) {
     and.push({ parties: { some: { role } } });
   }
   if (keyword) {
-    and.push({
-      OR: [
-        { name: { contains: keyword, mode: "insensitive" } },
-        { city: { contains: keyword, mode: "insensitive" } },
-        { location: { contains: keyword, mode: "insensitive" } },
-        { productNeed: { contains: keyword, mode: "insensitive" } },
-        { description: { contains: keyword, mode: "insensitive" } },
-        { source: { contains: keyword, mode: "insensitive" } },
-        { notes: { contains: keyword, mode: "insensitive" } },
-        { parties: { some: { companyName: { contains: keyword, mode: "insensitive" } } } },
-        { parties: { some: { contactName: { contains: keyword, mode: "insensitive" } } } },
-      ],
-    });
+    const phoneMatchIds = await findProjectIdsByPartyPhoneDigits(ctx!.tenantId, keyword);
+    and.push({ OR: projectKeywordOrClauses(keyword, phoneMatchIds) });
   }
   if (and.length) where.AND = and;
 
