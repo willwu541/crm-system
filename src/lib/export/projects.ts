@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   PROJECT_CONFIDENCE,
+  PROJECT_ENTRY_STATUSES,
   PROJECT_INDUSTRIES,
   PROJECT_PARTY_ROLES,
   PROJECT_STAGES,
@@ -35,6 +36,10 @@ export const PARTY_INCLUDE = {
 
 export function isProjectStatus(value: string): value is (typeof PROJECT_STATUSES)[number] {
   return (PROJECT_STATUSES as readonly string[]).includes(value);
+}
+
+export function isProjectEntryStatus(value: string): value is (typeof PROJECT_ENTRY_STATUSES)[number] {
+  return (PROJECT_ENTRY_STATUSES as readonly string[]).includes(value);
 }
 
 export function isProjectStage(value: string): value is (typeof PROJECT_STAGES)[number] {
@@ -94,6 +99,8 @@ export function projectKeywordOrClauses(
     { parties: { some: { whatsapp: { contains: keyword, mode: "insensitive" } } } },
     { parties: { some: { phone: { contains: keyword, mode: "insensitive" } } } },
     { parties: { some: { email: { contains: keyword, mode: "insensitive" } } } },
+    { owner: { name: { contains: keyword, mode: "insensitive" } } },
+    { createdBy: { name: { contains: keyword, mode: "insensitive" } } },
   ];
   const digits = extractSearchDigits(keyword);
   if (digits.length >= 6) {

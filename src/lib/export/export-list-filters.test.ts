@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { resolveListOwnerConstraint } from "../access-policy";
 import {
   collectUniqueEmails,
   collectUniqueWhatsapps,
@@ -17,6 +18,26 @@ import { isLeadFollowUpDue } from "./lead-pace";
 import { companyNameTokenAndWhere, normalizeCompanyName, splitCompanyNameTokens } from "../search-text";
 
 const ctx = { tenantId: "t1" };
+
+describe("resolveListOwnerConstraint", () => {
+  it("lets a scoped viewer pick one salesperson inside the allowed set", () => {
+    assert.equal(
+      resolveListOwnerConstraint({ ownerIds: ["yao", "song", "cheng"] }, "yao"),
+      "yao",
+    );
+  });
+
+  it("returns no one when the selected owner is outside the allowed set", () => {
+    assert.deepEqual(
+      resolveListOwnerConstraint({ ownerIds: ["song"] }, "yao"),
+      { in: [] },
+    );
+  });
+
+  it("uses exact name matches when no dropdown value is set", () => {
+    assert.equal(resolveListOwnerConstraint(undefined, undefined, ["yao"]), "yao");
+  });
+});
 
 describe("contact channel collect", () => {
   it("dedupes emails case-insensitively", () => {
@@ -69,6 +90,30 @@ describe("customer list where", () => {
     );
     assert.equal(where.ownerId, "u9");
     assert.ok("nextFollowUpAt" in where);
+  });
+
+  it("owner dropdown still narrows when viewer already has an owner scope", () => {
+    const where = buildExportCustomerListWhere(
+      { tenantId: "t1", ownerFilter: { ownerIds: ["yao", "song", "cheng"] } },
+      { ownerId: "yao" },
+    );
+    assert.equal(where.ownerId, "yao");
+  });
+
+  it("searching an exact salesperson name does not mix other owners via company fields", () => {
+    const where = buildExportCustomerListWhere(ctx, {
+      keyword: "姚璐译",
+      matchedOwnerIds: ["yao"],
+    });
+    assert.equal(where.ownerId, "yao");
+    assert.equal(where.AND, undefined);
+  });
+
+  it("keyword also matches owner name when it is not an exact salesperson", () => {
+    const where = buildExportCustomerListWhere(ctx, { keyword: "Acme" });
+    const and = where.AND as { OR: Record<string, unknown>[] }[];
+    const or = and.find((c) => Array.isArray(c.OR))?.OR;
+    assert.ok(or?.some((c) => c.owner));
   });
 
   it("WhatsApp maintain requires prior contact", () => {
@@ -137,6 +182,14 @@ describe("customer list where", () => {
 });
 
 describe("lead list where", () => {
+  it("lead owner dropdown narrows a multi-person view scope", () => {
+    const where = buildExportLeadListWhere(
+      { tenantId: "t1", ownerFilter: { ownerIds: ["yao", "song"] } },
+      { ownerId: "yao" },
+    );
+    assert.equal(where.ownerId, "yao");
+  });
+
   it("applies WhatsApp channel without dropping owner", () => {
     const where = buildExportLeadListWhere(ctx, { ownerId: "u2", channel: "whatsapp" });
     assert.equal(where.ownerId, "u2");

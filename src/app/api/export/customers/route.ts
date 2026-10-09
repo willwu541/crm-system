@@ -10,6 +10,7 @@ import {
   collectUniqueWhatsappsFromContacts,
 } from "@/lib/export/customer-list-where";
 import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/export/company-name-search";
+import { findSalesUsersByName } from "@/lib/sales-user-search";
 import { loadUsedExportCountries } from "@/lib/export/used-countries";
 import { z } from "zod";
 
@@ -38,16 +39,23 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
 
+  const salesMatch = keyword
+    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+    : { exactIds: [] as string[] };
+  const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
+
   const where = buildExportCustomerListWhere(
     ctx!,
-    await withNormalizedCompanyIds("export_customers", ctx!.tenantId, {
-      keyword,
-      status,
-      country,
-      ownerId,
-      filter,
-      channel,
-    }),
+    matchedOwnerIds
+      ? { keyword, status, country, ownerId, filter, channel, matchedOwnerIds }
+      : await withNormalizedCompanyIds("export_customers", ctx!.tenantId, {
+          keyword,
+          status,
+          country,
+          ownerId,
+          filter,
+          channel,
+        }),
   );
 
   if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {

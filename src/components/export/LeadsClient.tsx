@@ -343,7 +343,7 @@ export function LeadsClient() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索公司名、邮箱、电话"
+            placeholder="搜索公司名、邮箱、电话、业务员"
             className="px-3 py-2 text-sm"
           />
           <CountrySelect

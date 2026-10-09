@@ -4,7 +4,13 @@ import { requireExportSession } from "@/lib/export/auth";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry } from "@/lib/export/countries";
-import { PROJECT_CONFIDENCE, PROJECT_INDUSTRIES, PROJECT_STAGES, PROJECT_STATUSES } from "@/lib/export-constants";
+import {
+  PROJECT_CONFIDENCE,
+  PROJECT_ENTRY_STATUSES,
+  PROJECT_INDUSTRIES,
+  PROJECT_STAGES,
+  PROJECT_STATUSES,
+} from "@/lib/export-constants";
 import {
   PROJECT_DETAIL_INCLUDE,
   getProjectOrError,
@@ -36,6 +42,7 @@ const updateSchema = z.object({
   ownerOperator: z.string().optional().nullable(),
   generalContractor: z.string().optional().nullable(),
   potentialBuyers: z.string().optional().nullable(),
+  entryStatus: z.enum(PROJECT_ENTRY_STATUSES).optional(),
   productNeed: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
@@ -90,6 +97,7 @@ export async function PATCH(
     if (parsed.data.potentialBuyers !== undefined) {
       data.potentialBuyers = parsed.data.potentialBuyers?.trim() || null;
     }
+    if (parsed.data.entryStatus !== undefined) data.entryStatus = parsed.data.entryStatus;
     if (parsed.data.productNeed !== undefined) data.productNeed = parsed.data.productNeed?.trim() || null;
     if (parsed.data.description !== undefined) data.description = parsed.data.description?.trim() || null;
     if (parsed.data.source !== undefined) data.source = parsed.data.source?.trim() || null;

@@ -11,6 +11,7 @@ import {
 import {
   displayLabel,
   projectConfidenceLabel,
+  projectEntryStatusLabel,
   projectIndustryLabel,
   projectStageLabel,
 } from "@/lib/export-display-labels";
@@ -36,6 +37,7 @@ interface ProjectRow {
   industry: string | null;
   stage: string;
   confidence: string;
+  entryStatus: string;
   ownerOperator: string | null;
   generalContractor: string | null;
   potentialBuyers: string | null;
@@ -51,6 +53,12 @@ interface PaginationInfo {
   pageSize: number;
   total: number;
   totalPages: number;
+}
+
+interface EntryCounts {
+  pending: number;
+  entered: number;
+  all: number;
 }
 
 function stageClass(stage: string) {
@@ -78,6 +86,18 @@ function dash(value: string | null | undefined): string {
   return value?.trim() ? value : "—";
 }
 
+function entryClass(status: string) {
+  return status === "entered"
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+    : "border-amber-300 bg-amber-50 text-amber-800";
+}
+
+const ENTRY_TABS = [
+  { id: "pending", label: "未录入" },
+  { id: "entered", label: "已录入" },
+  { id: "all", label: "全部" },
+] as const;
+
 export function ProjectsClient() {
   const pathname = usePathname();
   const router = useRouter();
@@ -86,14 +106,21 @@ export function ProjectsClient() {
   const industry = searchParams.get("industry") ?? "";
   const confidence = searchParams.get("confidence") ?? "";
   const country = searchParams.get("country") ?? "";
+  const entryStatusRaw = searchParams.get("entryStatus");
+  const entryStatus =
+    entryStatusRaw === "pending" || entryStatusRaw === "entered" || entryStatusRaw === "all"
+      ? entryStatusRaw
+      : "entered";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [countries, setCountries] = useState<string[]>([]);
+  const [entryCounts, setEntryCounts] = useState<EntryCounts>({ pending: 0, entered: 0, all: 0 });
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState(keywordParam);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
     setKeyword(keywordParam);
@@ -106,6 +133,7 @@ export function ProjectsClient() {
         industry: industry || undefined,
         confidence: confidence || undefined,
         country: country || undefined,
+        entryStatus,
         keyword: keyword || undefined,
         page,
         ...updates,
@@ -124,6 +152,7 @@ export function ProjectsClient() {
         if (industry) params.set("industry", industry);
         if (confidence) params.set("confidence", confidence);
         if (country) params.set("country", country);
+        if (entryStatus === "pending" || entryStatus === "entered") params.set("entryStatus", entryStatus);
         if (keywordParam) params.set("keyword", keywordParam);
         const res = await fetch(`/api/export/projects?${params}`);
         const json = await parseResponseJson<{
@@ -131,12 +160,14 @@ export function ProjectsClient() {
           data?: ProjectRow[];
           pagination?: PaginationInfo;
           countries?: string[];
+          entryCounts?: EntryCounts;
         }>(res);
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error ?? "加载失败");
         setProjects(json.data || []);
         setPagination(json.pagination ?? null);
         setCountries(json.countries ?? []);
+        setEntryCounts(json.entryCounts ?? { pending: 0, entered: 0, all: 0 });
       } catch (e) {
         console.error(e);
         if (!cancelled) setProjects([]);
@@ -147,10 +178,66 @@ export function ProjectsClient() {
     return () => {
       cancelled = true;
     };
-  }, [page, stage, industry, confidence, country, keywordParam]);
+  }, [page, stage, industry, confidence, country, entryStatus, keywordParam]);
+
+  async function toggleEntryStatus(project: ProjectRow) {
+    const next = project.entryStatus === "entered" ? "pending" : "entered";
+    setTogglingId(project.id);
+    try {
+      const res = await fetch(`/api/export/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryStatus: next }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "更新失败");
+      setProjects((rows) => {
+        if (entryStatus === "all") {
+          return rows.map((row) => (row.id === project.id ? { ...row, entryStatus: next } : row));
+        }
+        return rows.filter((row) => row.id !== project.id);
+      });
+      setEntryCounts((counts) => {
+        const from = project.entryStatus === "entered" ? "entered" : "pending";
+        const to = next === "entered" ? "entered" : "pending";
+        return {
+          ...counts,
+          [from]: Math.max(0, counts[from] - 1),
+          [to]: counts[to] + 1,
+        };
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {ENTRY_TABS.map((tab) => {
+          const active = entryStatus === tab.id;
+          const count = entryCounts[tab.id];
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => updateUrl({ entryStatus: tab.id, page: 1 })}
+              className={`rounded-full border px-3 py-1 text-sm ${
+                active
+                  ? "border-stone-700 bg-stone-800 text-white"
+                  : "border-stone-300 bg-white text-slate-700 hover:bg-stone-50"
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-1.5 text-xs ${active ? "text-stone-200" : "text-stone-400"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <form
           onSubmit={(e) => {
@@ -227,13 +314,18 @@ export function ProjectsClient() {
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : projects.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            还没有项目。先录入碰到的项目，再让业务员去找业主、总包、分包联系方式。
+            {entryStatus === "entered"
+              ? "还没有已录入的项目。录完后点「已录入」，之后从这里找。"
+              : entryStatus === "pending"
+                ? "没有未录入的项目。先建一条并标成未录入，录完再点已录入。"
+                : "还没有项目。先录入碰到的项目，再让业务员去找业主、总包、分包联系方式。"}
           </div>
         ) : (
           <table className="w-full min-w-[72rem] text-sm">
             <thead className="sticky top-0 z-10 bg-[#f3ece3]">
               <tr className="border-b border-stone-300 text-left text-xs font-medium text-stone-500">
                 <th className="px-4 py-2.5">项目</th>
+                <th className="px-3 py-2.5">录入</th>
                 <th className="px-3 py-2.5">行业</th>
                 <th className="px-3 py-2.5">地点</th>
                 <th className="px-3 py-2.5">阶段</th>
@@ -262,6 +354,17 @@ export function ProjectsClient() {
                           {subtitle}
                         </div>
                       ) : null}
+                    </td>
+                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled={togglingId === p.id}
+                        onClick={() => toggleEntryStatus(p)}
+                        title={p.entryStatus === "entered" ? "点一下改成未录入" : "点一下改成已录入"}
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs disabled:opacity-60 ${entryClass(p.entryStatus)}`}
+                      >
+                        {displayLabel(projectEntryStatusLabel, p.entryStatus || "pending")}
+                      </button>
                     </td>
                     <td className="max-w-[8.5rem] whitespace-pre-line px-3 py-3 align-top leading-5 text-slate-700">
                       {wrapSlashLabel(displayLabel(projectIndustryLabel, p.industry))}

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner } from "@/lib/access-policy";
 import { buildExportOrderListWhere } from "@/lib/export/order-list-where";
+import { findSalesUsersByName } from "@/lib/sales-user-search";
 import { generateOrderNo } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -32,11 +33,17 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "orderDate";
 
+  const salesMatch = keyword
+    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+    : { exactIds: [] as string[] };
+  const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
+
   const where = buildExportOrderListWhere(ctx!, {
     keyword,
     status,
     customerId,
     ownerId,
+    matchedOwnerIds,
     since,
   });
 

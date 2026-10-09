@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner } from "@/lib/access-policy";
 import { buildExportQuoteListWhere } from "@/lib/export/quote-list-where";
+import { findSalesUsersByName } from "@/lib/sales-user-search";
 import { generateQuoteNo } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -30,11 +31,17 @@ export async function GET(request: NextRequest) {
   ]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "quoteDate";
 
+  const salesMatch = keyword
+    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+    : { exactIds: [] as string[] };
+  const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
+
   const where = buildExportQuoteListWhere(ctx!, {
     keyword,
     status,
     customerId,
     ownerId,
+    matchedOwnerIds,
     since,
   });
 

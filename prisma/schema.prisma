@@ -951,6 +951,7 @@ model ExportProject {
   ownerOperator      String?   @map("owner_operator")
   generalContractor  String?   @map("general_contractor")
   potentialBuyers    String?   @map("potential_buyers")
+  entryStatus        String    @default("entered") @map("entry_status")
   productNeed        String?   @map("product_need") @db.Text
   description        String?   @db.Text
   source             String?
@@ -974,6 +975,7 @@ model ExportProject {
   @@index([stage])
   @@index([industry])
   @@index([country])
+  @@index([entryStatus])
   @@index([createdAt])
   @@map("export_projects")
 }

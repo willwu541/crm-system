@@ -118,6 +118,9 @@ export const TASK_STATUSES = [
   "overdue",
 ] as const;
 
+/** 项目录入状态：未录入 / 已录入 */
+export const PROJECT_ENTRY_STATUSES = ["pending", "entered"] as const;
+
 /** 外贸项目找人：跟进状态 */
 export const PROJECT_STATUSES = [
   "hunting",

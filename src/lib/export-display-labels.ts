@@ -164,6 +164,11 @@ export const taskStatusLabel: Record<string, string> = {
   overdue: "超期",
 };
 
+export const projectEntryStatusLabel: Record<string, string> = {
+  pending: "未录入",
+  entered: "已录入",
+};
+
 export const projectStatusLabel: Record<string, string> = {
   hunting: "找联系人",
   contacting: "已联系",

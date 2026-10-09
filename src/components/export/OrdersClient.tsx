@@ -135,7 +135,7 @@ export function OrdersClient() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="订单号/客户"
+            placeholder="订单号/客户/业务员"
             className="px-3 py-2 text-sm"
           />
           <select

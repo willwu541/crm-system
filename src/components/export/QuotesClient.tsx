@@ -176,7 +176,7 @@ export function QuotesClient() {
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="报价号/客户"
+            placeholder="报价号/客户/业务员"
             className="px-3 py-2 text-sm"
           />
           <button type="submit" className="export-btn-secondary rounded-md px-4 py-2 text-sm">

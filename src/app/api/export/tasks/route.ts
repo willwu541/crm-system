@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { canSeeOwner, ownerPrismaValue } from "@/lib/access-policy";
+import { canSeeOwner, resolveListOwnerConstraint } from "@/lib/access-policy";
+import { findSalesUsersByName } from "@/lib/sales-user-search";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
@@ -33,13 +34,19 @@ export async function GET(request: NextRequest) {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
+  const salesMatch = keyword
+    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+    : { exactIds: [] as string[] };
+  const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
+
   const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
-  if (ownerId) where.ownerId = ownerId;
-  else if (ctx!.ownerFilter) where.ownerId = ownerPrismaValue(ctx!.ownerFilter);
-  if (keyword) {
+  const ownerConstraint = resolveListOwnerConstraint(ctx!.ownerFilter, ownerId, matchedOwnerIds);
+  if (ownerConstraint !== undefined) where.ownerId = ownerConstraint;
+  if (keyword && !matchedOwnerIds?.length) {
     where.OR = [
       { title: { contains: keyword, mode: "insensitive" } },
       { notes: { contains: keyword, mode: "insensitive" } },
+      { owner: { name: { contains: keyword, mode: "insensitive" } } },
     ];
   }
   if (due === "today") {

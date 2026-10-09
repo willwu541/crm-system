@@ -5,6 +5,7 @@ import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry, extraCountryValues } from "@/lib/export/countries";
 import {
   PROJECT_CONFIDENCE,
+  PROJECT_ENTRY_STATUSES,
   PROJECT_INDUSTRIES,
   PROJECT_STAGES,
   PROJECT_STATUSES,
@@ -13,6 +14,7 @@ import {
   PROJECT_LIST_INCLUDE,
   findProjectIdsByPartyPhoneDigits,
   isProjectConfidence,
+  isProjectEntryStatus,
   isProjectIndustry,
   isProjectPartyRole,
   isProjectStage,
@@ -22,6 +24,7 @@ import {
   resolveExportOwnerId,
 } from "@/lib/export/projects";
 import { z } from "zod";
+import { findSalesUsersByName } from "@/lib/sales-user-search";
 
 export async function GET(request: NextRequest) {
   const { ctx, error } = await requireExportSession();
@@ -36,6 +39,7 @@ export async function GET(request: NextRequest) {
   const industry = searchParams.get("industry")?.trim();
   const confidence = searchParams.get("confidence")?.trim();
   const country = searchParams.get("country")?.trim();
+  const entryStatus = searchParams.get("entryStatus")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
   const role = searchParams.get("role")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
@@ -51,18 +55,29 @@ export async function GET(request: NextRequest) {
   if (industry && isProjectIndustry(industry)) where.industry = industry;
   if (confidence && isProjectConfidence(confidence)) where.confidence = confidence;
   if (country) where.country = country;
-  if (ownerId) where.ownerId = ownerId;
+  const salesMatch = keyword
+    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+    : { exactIds: [] as string[] };
+  const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
+  if (matchedOwnerIds) {
+    where.ownerId = matchedOwnerIds.length === 1 ? matchedOwnerIds[0] : { in: matchedOwnerIds };
+  } else if (ownerId) {
+    where.ownerId = ownerId;
+  }
   if (role && isProjectPartyRole(role)) {
     and.push({ parties: { some: { role } } });
   }
-  if (keyword) {
+  if (keyword && !matchedOwnerIds) {
     const phoneMatchIds = await findProjectIdsByPartyPhoneDigits(ctx!.tenantId, keyword);
     and.push({ OR: projectKeywordOrClauses(keyword, phoneMatchIds) });
   }
   if (and.length) where.AND = and;
 
+  const countWhere: Record<string, unknown> = { ...where };
+  if (entryStatus && isProjectEntryStatus(entryStatus)) where.entryStatus = entryStatus;
+
   try {
-    const [data, total, countryRows] = await Promise.all([
+    const [data, total, countryRows, entryGroups] = await Promise.all([
       prisma.exportProject.findMany({
         where,
         orderBy: { [sortBy]: sortOrder },
@@ -78,7 +93,20 @@ export async function GET(request: NextRequest) {
           AND: [{ country: { not: null } }, { country: { not: "" } }],
         },
       }),
+      prisma.exportProject.groupBy({
+        by: ["entryStatus"],
+        where: countWhere,
+        _count: { _all: true },
+      }),
     ]);
+
+    const entryCounts = { pending: 0, entered: 0, all: 0 };
+    for (const row of entryGroups) {
+      const key = row.entryStatus;
+      const n = row._count._all;
+      if (key === "pending" || key === "entered") entryCounts[key] = n;
+      entryCounts.all += n;
+    }
 
     return NextResponse.json({
       data,
@@ -89,6 +117,7 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / pageSize),
       },
       countries: extraCountryValues(countryRows.map((row) => row.country)),
+      entryCounts,
     });
   } catch (e) {
     console.error("List export projects error:", e);
@@ -110,6 +139,7 @@ const createSchema = z.object({
   ownerOperator: z.string().optional().nullable(),
   generalContractor: z.string().optional().nullable(),
   potentialBuyers: z.string().optional().nullable(),
+  entryStatus: z.enum(PROJECT_ENTRY_STATUSES).optional(),
   productNeed: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
@@ -160,6 +190,7 @@ export async function POST(request: NextRequest) {
         ownerOperator: parsed.data.ownerOperator?.trim() || null,
         generalContractor: parsed.data.generalContractor?.trim() || null,
         potentialBuyers: parsed.data.potentialBuyers?.trim() || null,
+        entryStatus: parsed.data.entryStatus ?? "entered",
         productNeed: parsed.data.productNeed?.trim() || null,
         description: parsed.data.description?.trim() || null,
         source: parsed.data.source?.trim() || null,

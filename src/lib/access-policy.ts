@@ -86,6 +86,32 @@ export function ownerPrismaValue(filter?: DataOwnerFilter | null) {
   return filter.ownerIds.length === 1 ? filter.ownerIds[0] : { in: filter.ownerIds };
 }
 
+/**
+ * 列表业务员条件：可看范围内，下拉或按姓名命中的人可以再收窄到一个人。
+ * 有查看范围时以前会忽略 ownerId，导致搜「姚璐译」仍出现其他人的数据。
+ */
+export function resolveListOwnerConstraint(
+  ownerFilter: DataOwnerFilter | null | undefined,
+  selectedOwnerId?: string,
+  matchedOwnerIds?: string[],
+): string | { in: string[] } | undefined {
+  const allowed = ownerFilter?.ownerIds;
+  let ids: string[] | undefined;
+
+  if (selectedOwnerId) ids = [selectedOwnerId];
+  if (matchedOwnerIds?.length) {
+    ids = ids ? ids.filter((id) => matchedOwnerIds.includes(id)) : [...matchedOwnerIds];
+  }
+
+  if (ids) {
+    if (allowed?.length) ids = ids.filter((id) => allowed.includes(id));
+    if (!ids.length) return { in: [] };
+    return ids.length === 1 ? ids[0] : { in: ids };
+  }
+
+  return ownerPrismaValue(ownerFilter);
+}
+
 export function canSeeOwner(filter: DataOwnerFilter | undefined | null, ownerId?: string | null) {
   if (!filter) return true;
   return Boolean(ownerId && filter.ownerIds.includes(ownerId));

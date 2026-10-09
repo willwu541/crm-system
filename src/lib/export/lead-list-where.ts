@@ -2,7 +2,7 @@ import { buildLeadPacePrismaWhere, type LeadPaceFilter } from "@/lib/export/lead
 import { collectUniqueEmails, collectUniqueWhatsapps, leadChannelWhere } from "@/lib/export/contact-channel-filter";
 import { countryPrismaWhere } from "@/lib/export/countries";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
-import { ownerPrismaValue, type DataOwnerFilter } from "@/lib/access-policy";
+import { resolveListOwnerConstraint, type DataOwnerFilter } from "@/lib/access-policy";
 import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
 export interface LeadListFilterParams {
@@ -10,6 +10,7 @@ export interface LeadListFilterParams {
   status?: string;
   country?: string;
   ownerId?: string;
+  matchedOwnerIds?: string[];
   since?: string;
   pace?: string;
   sourceChannel?: string;
@@ -69,13 +70,17 @@ export function buildExportLeadListWhere(
   now = new Date(),
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
-  const scopedOwner = ownerPrismaValue(ctx.ownerFilter);
-  if (scopedOwner !== undefined) where.ownerId = scopedOwner;
+  const ownerConstraint = resolveListOwnerConstraint(
+    ctx.ownerFilter,
+    params.ownerId,
+    params.matchedOwnerIds,
+  );
+  if (ownerConstraint !== undefined) where.ownerId = ownerConstraint;
 
   const countryWhere = countryPrismaWhere(params.country);
   if (countryWhere) pushAnd(where, countryWhere);
 
-  if (params.keyword) {
+  if (params.keyword && !params.matchedOwnerIds?.length) {
     const or: Record<string, unknown>[] = [
       companyNameContainsWhere(params.keyword),
       { email: { contains: params.keyword, mode: "insensitive" } },
@@ -90,10 +95,10 @@ export function buildExportLeadListWhere(
     if (params.normalizedCompanyIds?.length) {
       or.push({ id: { in: params.normalizedCompanyIds } });
     }
+    or.push({ owner: { name: { contains: params.keyword, mode: "insensitive" } } });
     pushAnd(where, { OR: or });
   }
 
-  if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
   if (params.status) where.status = params.status;
   if (params.since === "week") {
     const weekStart = new Date(now);

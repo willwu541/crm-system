@@ -76,6 +76,7 @@ export function ProjectForm({
     bidDeadline: dateInputValue(initial?.bidDeadline),
     ownerId: (initial?.owner as { id?: string })?.id ?? (initial?.ownerId as string) ?? "",
     notes: (initial?.notes as string) ?? "",
+    entryStatus: (initial?.entryStatus as string) ?? "entered",
   });
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export function ProjectForm({
         bidDeadline: form.bidDeadline || null,
         ownerId: form.ownerId || null,
         notes: form.notes.trim() || null,
+        entryStatus: form.entryStatus,
       };
       const url = projectId ? `/api/export/projects/${projectId}` : "/api/export/projects";
       const res = await fetch(url, {
@@ -169,6 +171,33 @@ export function ProjectForm({
             placeholder="例如：AirTrunk Sedenak Tech Park Data Center"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">录入状态</label>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["pending", "未录入"],
+                ["entered", "已录入"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, entryStatus: value }))}
+                className={`rounded-full border px-3 py-1 text-sm ${
+                  form.entryStatus === value
+                    ? value === "entered"
+                      ? "border-emerald-600 bg-emerald-600 text-white"
+                      : "border-amber-600 bg-amber-600 text-white"
+                    : "border-slate-300 bg-white text-slate-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">录完标已录入，之后在列表「已录入」里找；还没填完的放未录入。</p>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">国家</label>

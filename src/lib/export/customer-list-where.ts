@@ -1,7 +1,7 @@
 import { customerChannelWhere, collectContactField } from "@/lib/export/contact-channel-filter";
 import { countryPrismaWhere } from "@/lib/export/countries";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
-import { ownerPrismaValue, type DataOwnerFilter } from "@/lib/access-policy";
+import { resolveListOwnerConstraint, type DataOwnerFilter } from "@/lib/access-policy";
 import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
 export interface CustomerListFilterParams {
@@ -11,6 +11,8 @@ export interface CustomerListFilterParams {
   ownerId?: string;
   filter?: string;
   channel?: string;
+  /** 搜索词精确命中业务员姓名时，只看这些人的数据 */
+  matchedOwnerIds?: string[];
   /** 去标点后的公司名命中 id，由 API 层用 SQL 查出后传入 */
   normalizedCompanyIds?: string[];
 }
@@ -69,14 +71,17 @@ export function buildExportCustomerListWhere(
   const sevenDaysAgo = daysAgo(7, now);
 
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
-  // 业务员始终只能看自己的；管理员搜公司名时不沿用上次选的业务员
-  const scopedOwner = ownerPrismaValue(ctx.ownerFilter);
-  if (scopedOwner !== undefined) where.ownerId = scopedOwner;
+  const ownerConstraint = resolveListOwnerConstraint(
+    ctx.ownerFilter,
+    params.ownerId,
+    params.matchedOwnerIds,
+  );
+  if (ownerConstraint !== undefined) where.ownerId = ownerConstraint;
 
   const countryWhere = countryPrismaWhere(params.country);
   if (countryWhere) pushAnd(where, countryWhere);
 
-  if (params.keyword) {
+  if (params.keyword && !params.matchedOwnerIds?.length) {
     const or: Record<string, unknown>[] = [
       companyNameContainsWhere(params.keyword),
       { customerCode: { contains: params.keyword, mode: "insensitive" } },
@@ -99,10 +104,10 @@ export function buildExportCustomerListWhere(
     if (params.normalizedCompanyIds?.length) {
       or.push({ id: { in: params.normalizedCompanyIds } });
     }
+    or.push({ owner: { name: { contains: params.keyword, mode: "insensitive" } } });
     pushAnd(where, { OR: or });
   }
 
-  if (params.ownerId && !ctx.ownerFilter) where.ownerId = params.ownerId;
   if (params.status) where.status = params.status;
 
   if (params.filter === "today") {

@@ -8,6 +8,7 @@ import {
   displayInterestedProductsList,
   displayLabel,
   projectConfidenceLabel,
+  projectEntryStatusLabel,
   projectIndustryLabel,
   projectPartyRoleLabel,
   projectStageLabel,
@@ -56,6 +57,7 @@ interface Project {
   industry: string | null;
   stage: string;
   confidence: string;
+  entryStatus: string;
   ownerOperator: string | null;
   generalContractor: string | null;
   potentialBuyers: string | null;
@@ -95,6 +97,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [partyError, setPartyError] = useState("");
   const [duplicate, setDuplicate] = useState<DuplicateRecord | null>(null);
   const [partyForm, setPartyForm] = useState(emptyParty);
+  const [togglingEntry, setTogglingEntry] = useState(false);
 
   async function fetchProject(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true);
@@ -114,6 +117,28 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   useEffect(() => {
     fetchProject();
   }, [projectId]);
+
+  async function toggleEntryStatus() {
+    if (!project) return;
+    const next = project.entryStatus === "entered" ? "pending" : "entered";
+    setTogglingEntry(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryStatus: next }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "更新失败");
+      if (json.data) setProject(json.data);
+      else setProject({ ...project, entryStatus: next });
+      toast(next === "entered" ? "已标为已录入" : "已标为未录入");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "更新失败");
+    } finally {
+      setTogglingEntry(false);
+    }
+  }
 
   async function handleAddParty(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +225,14 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         <div className="flex gap-2">
           <button
             type="button"
+            disabled={togglingEntry}
+            onClick={toggleEntryStatus}
+            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
+          >
+            {project.entryStatus === "entered" ? "改成未录入" : "标为已录入"}
+          </button>
+          <button
+            type="button"
             onClick={() => setEditing(true)}
             className="export-btn-secondary rounded-md px-4 py-2 text-sm"
           >
@@ -215,9 +248,20 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             <h1 className="text-xl font-semibold text-slate-800">{project.name}</h1>
             <p className="mt-1 text-sm text-slate-500">{formatProjectPlace(project)}</p>
           </div>
-          <span className="inline-flex rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs text-stone-700">
-            {displayLabel(projectStageLabel, project.stage)}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${
+                project.entryStatus === "entered"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-amber-300 bg-amber-50 text-amber-800"
+              }`}
+            >
+              {displayLabel(projectEntryStatusLabel, project.entryStatus || "pending")}
+            </span>
+            <span className="inline-flex rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs text-stone-700">
+              {displayLabel(projectStageLabel, project.stage)}
+            </span>
+          </div>
         </div>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           <div>

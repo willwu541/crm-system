@@ -8,6 +8,7 @@ import {
   collectLeadWhatsapps,
 } from "@/lib/export/lead-list-where";
 import { withNormalizedCompanyIds, findExportRecordsByKeyword } from "@/lib/export/company-name-search";
+import { findSalesUsersByName } from "@/lib/sales-user-search";
 import { loadUsedExportCountries } from "@/lib/export/used-countries";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
@@ -43,19 +44,37 @@ export async function GET(request: NextRequest) {
 
   const pace = searchParams.get("pace")?.trim();
 
+  const salesMatch = keyword
+    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+    : { exactIds: [] as string[] };
+  const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
+
   const where = buildExportLeadListWhere(
     ctx!,
-    await withNormalizedCompanyIds("export_leads", ctx!.tenantId, {
-      keyword,
-      status,
-      country,
-      ownerId,
-      since,
-      pace,
-      sourceChannel,
-      channel,
-      filter,
-    }),
+    matchedOwnerIds
+      ? {
+          keyword,
+          status,
+          country,
+          ownerId,
+          since,
+          pace,
+          sourceChannel,
+          channel,
+          filter,
+          matchedOwnerIds,
+        }
+      : await withNormalizedCompanyIds("export_leads", ctx!.tenantId, {
+          keyword,
+          status,
+          country,
+          ownerId,
+          since,
+          pace,
+          sourceChannel,
+          channel,
+          filter,
+        }),
   );
 
   if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {

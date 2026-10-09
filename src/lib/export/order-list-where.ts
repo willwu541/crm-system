@@ -1,10 +1,11 @@
-import { ownerPrismaValue, type DataOwnerFilter } from "@/lib/access-policy";
+import { resolveListOwnerConstraint, type DataOwnerFilter } from "@/lib/access-policy";
 
 export interface OrderListFilterParams {
   keyword?: string;
   status?: string;
   customerId?: string;
   ownerId?: string;
+  matchedOwnerIds?: string[];
   since?: string;
 }
 
@@ -19,8 +20,12 @@ export function buildExportOrderListWhere(
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
   if (params.customerId) where.customerId = params.customerId;
-  if (params.ownerId) where.customer = { ownerId: params.ownerId };
-  else if (ctx.ownerFilter) where.customer = { ownerId: ownerPrismaValue(ctx.ownerFilter) };
+  const ownerConstraint = resolveListOwnerConstraint(
+    ctx.ownerFilter,
+    params.ownerId,
+    params.matchedOwnerIds,
+  );
+  if (ownerConstraint !== undefined) where.customer = { ownerId: ownerConstraint };
   if (params.status) {
     if (["unpaid", "partial_paid", "paid"].includes(params.status)) where.paymentStatus = params.status;
     else if (["pending", "in_production", "completed"].includes(params.status)) {
@@ -35,10 +40,11 @@ export function buildExportOrderListWhere(
     monthStart.setHours(0, 0, 0, 0);
     where.createdAt = { gte: monthStart };
   }
-  if (params.keyword) {
+  if (params.keyword && !params.matchedOwnerIds?.length) {
     where.OR = [
       { orderNo: { contains: params.keyword, mode: "insensitive" } },
       { customer: { companyName: { contains: params.keyword, mode: "insensitive" } } },
+      { customer: { owner: { name: { contains: params.keyword, mode: "insensitive" } } } },
     ];
   }
   return where;
