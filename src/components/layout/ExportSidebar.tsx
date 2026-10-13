@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 const NAV_ITEMS = [
   { href: "/export/dashboard", label: "工作台" },
   { href: "/export/live-chat", label: "网站询盘" },
+  { href: "/export/website-forms", label: "官网表单" },
   { href: "/export/inbox", label: "统一收件箱" },
   { href: "/export/leads", label: "线索" },
   { href: "/export/projects", label: "项目" },
@@ -21,31 +22,52 @@ const NAV_ITEMS = [
 export function ExportSidebar() {
   const pathname = usePathname();
   const [chatUnread, setChatUnread] = useState(0);
+  const [formUnread, setFormUnread] = useState(0);
 
   useEffect(() => {
     let active = true;
 
     async function loadUnread() {
       try {
-        const response = await fetch("/api/export/live-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "list" }),
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const data = await response.json() as {
-          conversations?: Array<{ unread?: number }>;
-        };
-        if (!active) return;
-        setChatUnread(
-          (data.conversations ?? []).reduce(
-            (total, conversation) => total + Number(conversation.unread || 0),
-            0,
-          ),
-        );
+        const [chatRes, formRes] = await Promise.all([
+          fetch("/api/export/live-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "list" }),
+            cache: "no-store",
+          }),
+          fetch("/api/export/website-forms", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "list" }),
+            cache: "no-store",
+          }),
+        ]);
+        if (chatRes.ok) {
+          const data = await chatRes.json() as {
+            conversations?: Array<{ unread?: number }>;
+          };
+          if (active) {
+            setChatUnread(
+              (data.conversations ?? []).reduce(
+                (total, conversation) => total + Number(conversation.unread || 0),
+                0,
+              ),
+            );
+          }
+        }
+        if (formRes.ok) {
+          const data = await formRes.json() as {
+            forms?: Array<{ unread?: number }>;
+          };
+          if (active) {
+            setFormUnread(
+              (data.forms ?? []).reduce((total, item) => total + Number(item.unread || 0), 0),
+            );
+          }
+        }
       } catch {
-        // Keep the navigation usable while the website chat service is unavailable.
+        // Keep the navigation usable while the website services are unavailable.
       }
     }
 
@@ -75,13 +97,15 @@ export function ExportSidebar() {
               className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                 isActive
                   ? "bg-blue-500/20 text-blue-100 shadow-[inset_0_0_0_1px_rgba(96,165,250,0.65),0_8px_16px_rgba(30,64,175,0.2)]"
-                  : item.href === "/export/live-chat" && chatUnread > 0
+                  : (item.href === "/export/live-chat" && chatUnread > 0) ||
+                      (item.href === "/export/website-forms" && formUnread > 0)
                     ? "bg-rose-500/15 text-white shadow-[inset_0_0_0_1px_rgba(251,113,133,0.7),0_0_22px_rgba(244,63,94,0.2)]"
                   : "text-slate-300 hover:bg-white/10 hover:text-white"
               }`}
             >
               <span className="flex items-center gap-2">
-                {item.href === "/export/live-chat" && chatUnread > 0 && (
+                {((item.href === "/export/live-chat" && chatUnread > 0) ||
+                  (item.href === "/export/website-forms" && formUnread > 0)) && (
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
@@ -92,6 +116,11 @@ export function ExportSidebar() {
               {item.href === "/export/live-chat" && chatUnread > 0 && (
                 <span className="min-w-6 animate-pulse rounded-full bg-rose-500 px-2 py-0.5 text-center text-xs font-bold text-white shadow-lg shadow-rose-950/40">
                   {chatUnread > 99 ? "99+" : chatUnread}
+                </span>
+              )}
+              {item.href === "/export/website-forms" && formUnread > 0 && (
+                <span className="min-w-6 animate-pulse rounded-full bg-rose-500 px-2 py-0.5 text-center text-xs font-bold text-white shadow-lg shadow-rose-950/40">
+                  {formUnread > 99 ? "99+" : formUnread}
                 </span>
               )}
             </Link>
