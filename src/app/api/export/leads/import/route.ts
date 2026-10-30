@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
           priority: data.priority || undefined,
           notes: data.notes || undefined,
           ownerId: null,
+          claimedAt: null,
           status: "new",
         },
       });

@@ -221,6 +221,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   const owner = lead.inPool ? "公海" : (lead.owner?.name ?? "-");
   const locked = Boolean(lead.contactsLocked);
   const canWork = lead.canWork ?? !locked;
+  const canStart = canWork || Boolean(lead.canClaim);
   const websiteUrl = normalizeWebsiteUrl(lead.website);
   const websiteHost = getWebsiteHost(lead.website);
 
@@ -265,7 +266,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
           )}
           {locked && (
             <p className="mt-1 text-sm text-amber-800">
-              联系方式已隐藏。认领后归你负责，其他业务员就看不到这条线索。
+              联系方式已隐藏。认领、记第一次跟进、补联系方式或转客户后归你负责，其他业务员就看不到这条线索。
               {lead.hasEmail ? " 这家有邮箱。" : ""}
               {lead.hasWhatsapp ? " 这家有 WhatsApp。" : ""}
             </p>
@@ -292,7 +293,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               放回公海
             </button>
           )}
-          {canWork && lead.status !== "converted" && (
+          {canStart && lead.status !== "converted" && (
             <>
               <button
                 type="button"
@@ -327,7 +328,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               打开官网
             </a>
           ) : null}
-          {canWork && lead.status !== "converted" && (
+          {canStart && lead.status !== "converted" && (
             <button
               onClick={() => setConvertOpen(true)}
               disabled={converting}

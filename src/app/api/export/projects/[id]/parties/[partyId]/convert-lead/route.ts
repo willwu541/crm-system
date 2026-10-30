@@ -64,7 +64,8 @@ export async function POST(
     const lead = await prisma.exportLead.create({
       data: {
         tenantId: ctx!.tenantId,
-        ownerId: user!.id,
+        ownerId: null,
+        claimedAt: null,
         companyName: party.companyName,
         website: party.website,
         country: party.country ?? project!.country,

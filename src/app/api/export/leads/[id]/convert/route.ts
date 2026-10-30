@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { canWorkExportLead } from "@/lib/export/lead-pool";
+import { canStartUsingExportLead, EXPORT_OWNED_BY_OTHER } from "@/lib/export/lead-pool";
+import { ExportLeadTakeError, assertLeadTaken, takeExportLeadFromPool } from "@/lib/export/take-lead";
 import { generateCustomerCode } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -39,15 +40,30 @@ export async function POST(
     include: { owner: true },
   });
   if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-  if (!canWorkExportLead(user!, lead.ownerId)) {
-    return NextResponse.json({ error: "请先认领这条线索，再转成客户" }, { status: 403 });
+  if (!canStartUsingExportLead(user!, lead.ownerId)) {
+    return NextResponse.json(
+      { error: lead.ownerId ? EXPORT_OWNED_BY_OTHER : "请先认领这条线索，再转成客户" },
+      { status: 403 },
+    );
   }
   if (lead.convertedToCustomerId) {
     return NextResponse.json({ error: "该线索已转化", customerId: lead.convertedToCustomerId });
   }
 
   const customerCode = await generateCustomerCode(ctx!.tenantId);
+  try {
   const customer = await prisma.$transaction(async (tx) => {
+    const taken = await takeExportLeadFromPool(tx, {
+      tenantId: ctx!.tenantId,
+      leadId,
+      user: user!,
+    });
+    assertLeadTaken(taken);
+    const owned = await tx.exportLead.findUnique({
+      where: { id: leadId },
+      select: { ownerId: true },
+    });
+    const ownerId = owned?.ownerId ?? user!.id;
     const c = await tx.exportCustomer.create({
       data: {
         tenantId: ctx!.tenantId,
@@ -65,7 +81,7 @@ export async function POST(
               .filter(Boolean)
           : [],
         sourceChannel: lead.sourceChannel,
-        ownerId: lead.ownerId ?? user!.id,
+        ownerId,
         status: payload.customerStatus ?? "to_develop",
         fitEvidence: lead.fitEvidence,
         lastOutcome: lead.lastOutcome,
@@ -117,7 +133,7 @@ export async function POST(
           customerId: c.id,
           title: payload.createTaskTitle.trim(),
           dueDate: payload.createTaskDueAt ? new Date(payload.createTaskDueAt) : undefined,
-          ownerId: lead.ownerId ?? user!.id,
+          ownerId,
           status: "todo",
           priority: "high",
           notes: `由线索「${lead.companyName}」转化时自动创建`,
@@ -128,4 +144,11 @@ export async function POST(
   });
 
   return NextResponse.json({ data: customer });
+  } catch (e) {
+    if (e instanceof ExportLeadTakeError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    console.error("Convert lead error:", e);
+    return NextResponse.json({ error: "转化失败，请稍后重试" }, { status: 500 });
+  }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exportDataOwnerIds, prismaOwnerWhere } from "@/lib/access-policy";
 import { requireExportSession } from "@/lib/export/auth";
-import { isExportAdmin, leadVisibilityWhere, presentExportLead, DAILY_LEAD_CLAIM_LIMIT, startOfLocalDay } from "@/lib/export/lead-pool";
+import { isExportAdmin, leadVisibilityWhere, newExportLeadAssignment, presentExportLead, DAILY_LEAD_CLAIM_LIMIT, startOfLocalDay } from "@/lib/export/lead-pool";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import {
   buildExportLeadListWhere,
@@ -72,9 +72,15 @@ export async function GET(request: NextRequest) {
   );
 
   if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {
-    const copyWhere = isExportAdmin(user!)
-      ? where
-      : { AND: [where, { ownerId: { in: exportDataOwnerIds(user!) ?? [user!.id] } }] };
+    const copyWhere = {
+      AND: [
+        where,
+        { ownerId: { not: null } },
+        ...(isExportAdmin(user!)
+          ? []
+          : [{ ownerId: { in: exportDataOwnerIds(user!) ?? [user!.id] } }]),
+      ],
+    };
     const field = searchParams.get("whatsapps") === "1" ? "whatsapp" : "email";
     const leads = await prisma.exportLead.findMany({
       where: copyWhere,
@@ -142,7 +148,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "加载线索失败。若刚更新过代码，请在服务器执行：npx prisma migrate deploy（或 npx prisma db push）使数据库与代码一致。",
+          "加载线索失败。若刚更新过代码，请在服务器执行：npx prisma migrate deploy，使数据库与代码一致。",
       },
       { status: 500 }
     );
@@ -171,8 +177,6 @@ const createSchema = z.object({
   notes: z.string().optional(),
   fitEvidence: z.string().optional(),
   nextFollowUpAt: z.string().datetime().optional().nullable(),
-  /** 管理员：分配给业务员；空则进入公海 */
-  ownerId: z.string().nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -195,15 +199,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { ownerId: bodyOwnerId, nextFollowUpAt, ...rest } = nullifyBlankFields(parsed.data);
-    let ownerId: string | null = isExportAdmin(user!) ? null : user!.id;
-    if (isExportAdmin(user!) && bodyOwnerId) {
-      const assignee = await prisma.user.findFirst({
-        where: { id: bodyOwnerId, tenant: "export", tenantId: ctx!.tenantId },
-        select: { id: true },
-      });
-      if (assignee) ownerId = assignee.id;
-    }
+    const { nextFollowUpAt, ...rest } = nullifyBlankFields(parsed.data);
+    const assignment = newExportLeadAssignment();
 
     const duplicate = await findExportDuplicate({
       tenantId: ctx!.tenantId,
@@ -220,8 +217,8 @@ export async function POST(request: NextRequest) {
       data: {
         ...rest,
         tenantId: ctx!.tenantId,
-        ownerId,
-        claimedAt: ownerId ? new Date() : null,
+        ownerId: assignment.ownerId,
+        claimedAt: assignment.claimedAt,
         status: parsed.data.status ?? "new",
         nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : undefined,
       },

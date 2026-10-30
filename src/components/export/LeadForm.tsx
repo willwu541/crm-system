@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,7 +14,6 @@ import {
   interestedProductLabel,
   leadStatusLabel,
 } from "@/lib/export-display-labels";
-import type { SessionUser } from "@/lib/auth";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { normalizeWebsiteUrl } from "@/lib/website";
 import { DuplicateErrorAlert, type DuplicateRecord } from "./DuplicateErrorAlert";
@@ -33,12 +32,6 @@ interface LeadFormProps {
   onNotesValueChange?: (value: string) => void;
 }
 
-interface ExportUser {
-  id: string;
-  name: string;
-  email: string;
-}
-
 export function LeadForm({
   initial,
   leadId,
@@ -53,8 +46,6 @@ export function LeadForm({
   const [error, setError] = useState("");
   const [duplicate, setDuplicate] = useState<DuplicateRecord | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [me, setMe] = useState<SessionUser | null>(null);
-  const [users, setUsers] = useState<ExportUser[]>([]);
 
   const [form, setForm] = useState({
     companyName: (initial?.companyName as string) ?? "",
@@ -93,38 +84,8 @@ export function LeadForm({
     priority: (initial?.priority as string) ?? "",
     status: (initial?.status as string) ?? "new",
     notes: (initial?.notes as string) ?? "",
-    ownerId: (initial?.owner as { id?: string })?.id ?? (initial?.ownerId as string) ?? "",
   });
   const websitePreviewUrl = normalizeWebsiteUrl(form.website);
-
-  useEffect(() => {
-    if (initial?.owner && typeof initial.owner === "object" && "id" in (initial.owner as object)) {
-      setForm((f) => ({ ...f, ownerId: String((initial.owner as { id: string }).id) }));
-    }
-  }, [initial]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch("/api/auth/me");
-        const j = await parseResponseJson<{ user?: SessionUser }>(r);
-        if (j.user) setMe(j.user);
-      } catch {
-        /* ignore */
-      }
-    })();
-    (async () => {
-      try {
-        const r = await fetch("/api/export/users");
-        const j = await parseResponseJson<{ data?: ExportUser[] }>(r);
-        if (j.data) setUsers(j.data);
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, []);
-
-  const isAdmin = me?.role === "ADMIN";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -166,9 +127,6 @@ export function LeadForm({
         status: form.status,
         notes: (hideNotes && notesValue !== undefined ? notesValue : form.notes) || undefined,
       };
-      if (isAdmin) {
-        body.ownerId = form.ownerId || null;
-      }
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -223,23 +181,10 @@ export function LeadForm({
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
-        {isAdmin && users.length > 0 && (
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">负责人（业务员）</label>
-            <select
-              value={form.ownerId}
-              onChange={(e) => setForm((f) => ({ ...f, ownerId: e.target.value }))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
-            >
-              <option value="">放入公海，不指定负责人</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">不选负责人就进公海。指定业务员后，只有该业务员和管理员能看到。</p>
-          </div>
+        {!leadId && (
+          <p className="sm:col-span-2 text-xs text-slate-500">
+            保存后进入公海，不指定负责人。认领、记跟进、补联系方式或转成客户后，才归到使用的人名下。
+          </p>
         )}
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">网站</label>

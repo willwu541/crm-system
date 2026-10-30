@@ -385,7 +385,7 @@ export function LeadsClient() {
         <div className="mb-3">
           <h1 className="text-lg font-semibold text-slate-800">线索开发中心</h1>
           <p className="text-xs text-slate-500">
-            公海大家都能看到公司。认领后只归自己。管理者看全部；经理要管理者允许才能看别人的；业务员只看自己的。
+            线索默认都在公海，没有负责人。认领、记跟进、补联系方式或转客户后才归本人。管理者看全部；经理要被允许才能看别人已经在用的；业务员看不到别人的。
             {claimRemaining != null && !isAdmin ? ` 今天还能认领 ${claimRemaining} 条。` : ""}
           </p>
         </div>
@@ -670,6 +670,7 @@ export function LeadsClient() {
                 const badge = getLeadPaceBadge(l);
                 const locked = Boolean(l.contactsLocked);
                 const canWork = l.canWork ?? !locked;
+                const canStart = canWork || Boolean(l.canClaim);
                 const waStage = resolveWhatsappStage({
                   hasWhatsapp: Boolean(l.hasWhatsapp || l.whatsapp?.trim()),
                   status: l.status,
@@ -781,7 +782,7 @@ export function LeadsClient() {
                             {claimingId === l.id ? "认领中..." : "认领"}
                           </button>
                         )}
-                        {canWork && !l.whatsapp?.trim() && l.status !== "converted" && (
+                        {canStart && !l.hasWhatsapp && !l.whatsapp?.trim() && l.status !== "converted" && (
                           <button
                             type="button"
                             onClick={() =>
@@ -796,7 +797,7 @@ export function LeadsClient() {
                             补填 WhatsApp
                           </button>
                         )}
-                        {canWork && l.status !== "converted" && (
+                        {canStart && l.status !== "converted" && (
                           <button
                             type="button"
                             onClick={() =>
@@ -815,7 +816,7 @@ export function LeadsClient() {
                             标记联系
                           </button>
                         )}
-                        {canWork && l.status !== "converted" && (
+                        {canStart && l.status !== "converted" && (
                           <button
                             type="button"
                             onClick={() =>
@@ -840,7 +841,7 @@ export function LeadsClient() {
                         >
                           详情
                         </Link>
-                        {canWork && l.status !== "converted" && (
+                        {canStart && l.status !== "converted" && (
                           <button
                             onClick={() => setConvertLead(l)}
                             disabled={!!converting}

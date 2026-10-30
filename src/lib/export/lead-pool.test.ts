@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { resetAccessPolicyCache, saveAccessPolicy } from "../access-policy";
-import { canSeeExportCustomer, canSeeExportLeadContacts, canViewExportLead, canWorkExportCustomer, canWorkExportLead, presentExportLead } from "./lead-pool";
+import {
+  canSeeExportCustomer,
+  canSeeExportLeadContacts,
+  canStartUsingExportLead,
+  canViewExportLead,
+  canWorkExportCustomer,
+  canWorkExportLead,
+  isUnusedOwnedLead,
+  newExportLeadAssignment,
+  patchClaimsExportLead,
+  presentExportLead,
+} from "./lead-pool";
 
 const sales = { id: "sales", role: "SALES" as const };
 const admin = { id: "admin", role: "ADMIN" as const };
@@ -68,5 +79,46 @@ describe("export lead pool visibility", () => {
     resetAccessPolicyCache();
     assert.equal(canViewExportLead(sales, "other"), false);
     assert.equal(canSeeExportLeadContacts(sales, "other"), false);
+  });
+
+  it("creates every new lead in the pool, with no owner", () => {
+    assert.deepEqual(newExportLeadAssignment(), { ownerId: null, claimedAt: null });
+  });
+
+  it("lets a salesperson start using a pool lead, but not someone else's", () => {
+    assert.equal(canStartUsingExportLead(sales, null), true);
+    assert.equal(canStartUsingExportLead(sales, "sales"), true);
+    assert.equal(canStartUsingExportLead(sales, "other"), false);
+    assert.equal(canWorkExportLead(sales, null), false);
+  });
+
+  it("treats filling a contact method as starting to use the lead", () => {
+    assert.equal(patchClaimsExportLead({ whatsapp: "+1 555" }), true);
+    assert.equal(patchClaimsExportLead({ email: "a@x.com" }), true);
+    assert.equal(patchClaimsExportLead({ phone: "  " }), false);
+    assert.equal(patchClaimsExportLead({ companyName: "Acme" }), false);
+  });
+
+  it("returns unused owned leads to the pool and keeps contacted or converted ones", () => {
+    assert.equal(
+      isUnusedOwnedLead({ ownerId: "sales", contactCount: 0, lastContactAt: null, convertedToCustomerId: null }),
+      true,
+    );
+    assert.equal(
+      isUnusedOwnedLead({ ownerId: "sales", contactCount: 1, lastContactAt: null, convertedToCustomerId: null }),
+      false,
+    );
+    assert.equal(
+      isUnusedOwnedLead({ ownerId: "sales", contactCount: 0, lastContactAt: "2026-01-01", convertedToCustomerId: null }),
+      false,
+    );
+    assert.equal(
+      isUnusedOwnedLead({ ownerId: "sales", contactCount: 0, lastContactAt: null, convertedToCustomerId: "cust" }),
+      false,
+    );
+    assert.equal(
+      isUnusedOwnedLead({ ownerId: null, contactCount: 0, lastContactAt: null, convertedToCustomerId: null }),
+      false,
+    );
   });
 });

@@ -57,21 +57,24 @@ export async function GET(request: NextRequest) {
     "createdAt",
   ];
 
-  const rows = leads.map((l) => [
-    l.companyName,
-    l.email,
-    l.phone,
-    l.whatsapp,
-    l.linkedin,
-    l.country,
-    l.sourceChannel,
-    l.status,
-    l.owner?.name ?? "公海",
-    l.lastContactAt?.toISOString(),
-    String(l.contactCount),
-    l.notes,
-    l.createdAt?.toISOString(),
-  ]);
+  const rows = leads.map((l) => {
+    const inPool = !l.ownerId;
+    return [
+      l.companyName,
+      inPool ? "" : l.email,
+      inPool ? "" : l.phone,
+      inPool ? "" : l.whatsapp,
+      inPool ? "" : l.linkedin,
+      l.country,
+      l.sourceChannel,
+      l.status,
+      l.owner?.name ?? "公海",
+      l.lastContactAt?.toISOString(),
+      String(l.contactCount),
+      inPool ? "" : l.notes,
+      l.createdAt?.toISOString(),
+    ];
+  });
 
   return csvDownloadResponse(`leads_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
 }
