@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { resetAccessPolicyCache, saveAccessPolicy } from "../access-policy";
 import {
+  canAssignExportWork,
   canSeeExportCustomer,
   canSeeExportLeadContacts,
   canStartUsingExportLead,
@@ -78,6 +79,15 @@ describe("export lead pool visibility", () => {
     resetAccessPolicyCache();
     assert.equal(canViewExportLead(sales, "other"), false);
     assert.equal(canSeeExportLeadContacts(sales, "other"), false);
+  });
+
+  it("lets only the manager assign work, not the sales director", () => {
+    saveAccessPolicy({ directorUserId: "director", canView: {} });
+    resetAccessPolicyCache();
+    assert.equal(canAssignExportWork({ id: "boss", role: "ADMIN" }), true);
+    assert.equal(canAssignExportWork({ id: "director", role: "ADMIN" }), false);
+    assert.equal(canAssignExportWork({ id: "sales", role: "SALES" }), false);
+    assert.equal(canAssignExportWork({ id: "mgr", role: "MANAGER" }), false);
   });
 
   it("creates every new lead in the pool, with no owner", () => {

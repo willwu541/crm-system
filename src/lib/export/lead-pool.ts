@@ -26,6 +26,11 @@ export function isExportAdmin(user: Pick<SessionUser, "id" | "role">) {
   return user.role === "ADMIN" || isDirector(user);
 }
 
+/** 只有管理者可以分配线索和项目。业务经理只接收分配，不能再分给别人。 */
+export function canAssignExportWork(user: Pick<SessionUser, "id" | "role">) {
+  return user.role === "ADMIN" && !isDirector(user);
+}
+
 function grantedOwnerIds(user: Pick<SessionUser, "id" | "role">) {
   return exportDataOwnerIds(user) ?? [user.id];
 }

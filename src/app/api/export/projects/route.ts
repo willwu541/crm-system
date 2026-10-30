@@ -21,14 +21,17 @@ import {
   isProjectStatus,
   parseOptionalDate,
   projectKeywordOrClauses,
+  denyUnlessProjectManager,
   resolveExportOwnerId,
 } from "@/lib/export/projects";
 import { z } from "zod";
 import { findSalesUsersByName } from "@/lib/sales-user-search";
 
 export async function GET(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyUnlessProjectManager(user!);
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -153,6 +156,8 @@ const createSchema = z.object({
 export async function POST(request: NextRequest) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyUnlessProjectManager(user!);
+  if (denied) return denied;
 
   let body: unknown;
   try {

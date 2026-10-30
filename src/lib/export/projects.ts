@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { SessionUser } from "@/lib/auth";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
+import { findAssignableExportUser } from "@/lib/export/assignees";
 import {
   PROJECT_CONFIDENCE,
   PROJECT_ENTRY_STATUSES,
@@ -145,6 +148,11 @@ export function parseOptionalDate(value: string | null | undefined): Date | null
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
+export function denyUnlessProjectManager(user: Pick<SessionUser, "id" | "role">) {
+  if (canAssignExportWork(user)) return null;
+  return NextResponse.json({ error: "只有管理者可以查看和分配项目" }, { status: 403 });
+}
+
 export async function getProjectOrError(id: string, tenantId: string) {
   const project = await prisma.exportProject.findUnique({
     where: { id, tenantId },
@@ -162,9 +170,6 @@ export async function resolveExportOwnerId(
 ): Promise<string | null | undefined> {
   if (ownerId === undefined) return undefined;
   if (!ownerId) return null;
-  const assignee = await prisma.user.findFirst({
-    where: { id: ownerId, tenant: "export", tenantId, isActive: true },
-    select: { id: true },
-  });
+  const assignee = await findAssignableExportUser(tenantId, ownerId);
   return assignee?.id ?? null;
 }

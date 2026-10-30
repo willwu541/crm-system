@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exportDataOwnerIds, prismaOwnerWhere } from "@/lib/access-policy";
 import { requireExportSession } from "@/lib/export/auth";
-import { isExportAdmin, leadVisibilityWhere, newExportLeadAssignment, presentExportLead, DAILY_LEAD_CLAIM_LIMIT, startOfLocalDay } from "@/lib/export/lead-pool";
+import { canAssignExportWork, isExportAdmin, leadVisibilityWhere, newExportLeadAssignment, presentExportLead, DAILY_LEAD_CLAIM_LIMIT, startOfLocalDay } from "@/lib/export/lead-pool";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import {
   buildExportLeadListWhere,
@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
             where: {
               tenantId: ctx!.tenantId,
               userId: user!.id,
+              assignedById: null,
               createdAt: { gte: startOfLocalDay() },
             },
           }),
@@ -129,6 +130,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       data: data.map((lead) => presentExportLead(lead, user!)),
+      canAssign: canAssignExportWork(user!),
       claim: {
         limit: DAILY_LEAD_CLAIM_LIMIT,
         used: claimedToday,

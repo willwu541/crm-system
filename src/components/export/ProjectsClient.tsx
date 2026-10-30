@@ -25,6 +25,7 @@ import {
   projectSubtitle,
   wrapSlashLabel,
 } from "@/lib/export/project-board";
+import { useToast } from "@/components/ui/Toast";
 import { Pagination } from "./shared/Pagination";
 import { CountrySelect } from "./CountrySelect";
 
@@ -46,6 +47,7 @@ interface ProjectRow {
   description: string | null;
   bidDeadline: string | null;
   parties: { role: string; companyName: string }[];
+  owner: { id: string; name: string } | null;
 }
 
 interface PaginationInfo {
@@ -59,6 +61,12 @@ interface EntryCounts {
   pending: number;
   entered: number;
   all: number;
+}
+
+interface Assignee {
+  id: string;
+  name: string;
+  roleLabel?: string;
 }
 
 function stageClass(stage: string) {
@@ -120,6 +128,9 @@ export function ProjectsClient() {
   const [entryCounts, setEntryCounts] = useState<EntryCounts>({ pending: 0, entered: 0, all: 0 });
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState(keywordParam);
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const { toast } = useToast();
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -139,6 +150,46 @@ export function ProjectsClient() {
         ...updates,
       }),
     );
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/export/users?assignable=1");
+        const json = await parseResponseJson<{ data?: Assignee[] }>(res);
+        if (!cancelled && res.ok && json.data) setAssignees(json.data);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function assignProject(id: string, userId: string) {
+    setAssigningId(id);
+    try {
+      const res = await fetch(`/api/export/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerId: userId }),
+      });
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: { owner?: { id: string; name: string } | null };
+      }>(res);
+      if (!res.ok) throw new Error(json.error ?? "分配失败");
+      setProjects((rows) =>
+        rows.map((row) => (row.id === id ? { ...row, owner: json.data?.owner ?? null } : row)),
+      );
+      toast("已分配");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "分配失败", "error");
+    } finally {
+      setAssigningId(null);
+    }
   }
 
   useEffect(() => {
@@ -333,6 +384,7 @@ export function ProjectsClient() {
                 <th className="px-3 py-2.5">总包</th>
                 <th className="px-3 py-2.5">潜在采购公司</th>
                 <th className="px-3 py-2.5">可靠度</th>
+                <th className="px-3 py-2.5">分配</th>
                 <th className="px-3 py-2.5" />
               </tr>
             </thead>
@@ -390,6 +442,26 @@ export function ProjectsClient() {
                     </td>
                     <td className="px-3 py-3 align-top text-stone-500">
                       {displayLabel(projectConfidenceLabel, p.confidence)}
+                    </td>
+                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={p.owner?.id ?? ""}
+                        disabled={assigningId === p.id}
+                        onChange={(e) => {
+                          if (e.target.value && e.target.value !== p.owner?.id) assignProject(p.id, e.target.value);
+                        }}
+                        className="max-w-[10rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs"
+                      >
+                        {!p.owner && <option value="">分配</option>}
+                        {p.owner && !assignees.some((u) => u.id === p.owner?.id) && (
+                          <option value={p.owner.id}>{p.owner.name}</option>
+                        )}
+                        {assignees.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                       <Link

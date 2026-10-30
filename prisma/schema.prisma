@@ -127,7 +127,8 @@ model User {
   orderPayments        OrderPayment[]             @relation("OrderPaymentRecorder")
   exportTenant         ExportTenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   exportLeads          ExportLead[]
-  exportLeadClaims     ExportLeadClaim[]
+  exportLeadClaims           ExportLeadClaim[]    @relation("ExportLeadClaimUser")
+  exportLeadClaimsAssigned   ExportLeadClaim[]    @relation("ExportLeadClaimAssigner")
   exportCustomers      ExportCustomer[]
   exportActivities     ExportActivity[]
   exportTasks          ExportTask[]
@@ -686,16 +687,18 @@ model ExportLead {
   @@map("export_leads")
 }
 
-/// 从公海认领线索的记录。用来限制每人每天能拿走多少条，离职后记录仍在。
+/// 从公海认领或由管理者分配的记录。自己认领的才计入每天限额。
 model ExportLeadClaim {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id")
-  leadId    String   @map("lead_id")
-  userId    String   @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  leadId       String   @map("lead_id")
+  userId       String   @map("user_id")
+  assignedById String?  @map("assigned_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  lead ExportLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead       ExportLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user       User       @relation("ExportLeadClaimUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User?      @relation("ExportLeadClaimAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
 
   @@index([tenantId, userId, createdAt])
   @@map("export_lead_claims")
@@ -957,8 +960,7 @@ model ExportTask {
 }
 
 /**
- * 外贸项目找人板：录入碰到的项目，业务员去找 EPC / 总包 / 分包等联系方式。
- * 租户内全员可见，负责人仅表示谁在跟，不限制其他人查看。
+ * 外贸项目找人板。只有管理者能看全部并分配给业务员或业务经理。
  */
 model ExportProject {
   id                 String    @id @default(cuid())

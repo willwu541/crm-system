@@ -67,6 +67,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  roleLabel?: string;
 }
 
 interface PaginationData {
@@ -122,6 +123,9 @@ export function LeadsClient() {
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [releasingPool, setReleasingPool] = useState(false);
   const [claimRemaining, setClaimRemaining] = useState<number | null>(null);
+  const [canAssign, setCanAssign] = useState(false);
+  const [assignees, setAssignees] = useState<User[]>([]);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   async function fetchUsers() {
@@ -194,6 +198,7 @@ export function LeadsClient() {
       if (Array.isArray(json.countries)) setCountries(json.countries as string[]);
       const claim = json.claim as { remaining?: number } | undefined;
       if (typeof claim?.remaining === "number") setClaimRemaining(claim.remaining);
+      setCanAssign(json.canAssign === true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
       setLeads([]);
@@ -346,6 +351,42 @@ export function LeadsClient() {
       return new Date(lead.updatedAt).toLocaleDateString("zh-CN");
     }
     return new Date(lead.createdAt).toLocaleDateString("zh-CN");
+  }
+
+  useEffect(() => {
+    if (!canAssign) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/export/users?assignable=1");
+        const json = await parseResponseJson<{ data?: User[] }>(res);
+        if (!cancelled && res.ok && json.data) setAssignees(json.data);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canAssign]);
+
+  async function assignLead(id: string, userId: string) {
+    setAssigningId(id);
+    try {
+      const res = await fetch(`/api/export/leads/${id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "分配失败");
+      toast("已分配");
+      fetchLeads({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "分配失败", "error");
+    } finally {
+      setAssigningId(null);
+    }
   }
 
   async function claimLead(id: string) {
@@ -767,7 +808,30 @@ export function LeadsClient() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-700">{l.contactCount}</td>
-                    <td className="px-4 py-3 text-slate-600">{l.inPool || !l.owner ? "公海" : l.owner.name}</td>
+                    <td className="px-4 py-3 text-slate-600" onClick={(e) => e.stopPropagation()}>
+                      {canAssign && l.status !== "converted" ? (
+                        <select
+                          value={l.owner?.id ?? ""}
+                          disabled={assigningId === l.id}
+                          onChange={(e) => {
+                            if (e.target.value && e.target.value !== l.owner?.id) assignLead(l.id, e.target.value);
+                          }}
+                          className="max-w-[10rem] rounded border border-slate-300 bg-white px-1 py-0.5 text-xs"
+                        >
+                          {!l.owner && <option value="">分配</option>}
+                          {l.owner && !assignees.some((u) => u.id === l.owner?.id) && (
+                            <option value={l.owner.id}>{l.owner.name}</option>
+                          )}
+                          {assignees.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        l.inPool || !l.owner ? "公海" : l.owner.name
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{renderTime(l)}</td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <span className="flex gap-3">

@@ -19,6 +19,7 @@ interface ExportUser {
   id: string;
   name: string;
   email: string;
+  roleLabel?: string;
 }
 
 function dateInputValue(value: unknown): string {
@@ -88,7 +89,7 @@ export function ProjectForm({
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/export/users");
+        const r = await fetch("/api/export/users?assignable=1");
         const j = await parseResponseJson<{ data?: ExportUser[] }>(r);
         if (j.data) setUsers(j.data);
       } catch {
@@ -328,16 +329,16 @@ export function ProjectForm({
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-slate-700">跟进业务员</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">分配给</label>
           <select
             value={form.ownerId}
             onChange={(e) => setForm((f) => ({ ...f, ownerId: e.target.value }))}
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           >
-            <option value="">暂不指定（大家一起找）</option>
+            <option value="">暂不分配</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} ({u.email})
+                {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
               </option>
             ))}
           </select>

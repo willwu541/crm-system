@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
-import { PARTY_INCLUDE, getProjectOrError, partyRoleToCustomerType } from "@/lib/export/projects";
+import { PARTY_INCLUDE, denyUnlessProjectManager, getProjectOrError, partyRoleToCustomerType } from "@/lib/export/projects";
 import { projectPartyRoleLabel } from "@/lib/export-display-labels";
 
 export async function POST(
@@ -12,6 +12,8 @@ export async function POST(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyUnlessProjectManager(user!);
+  if (denied) return denied;
   const { id, partyId } = await params;
   const { project, error: projectErr } = await getProjectOrError(id, ctx!.tenantId);
   if (projectErr) return projectErr;

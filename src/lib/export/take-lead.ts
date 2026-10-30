@@ -42,6 +42,7 @@ export async function takeExportLeadFromPool(
       where: {
         tenantId: args.tenantId,
         userId: args.user.id,
+        assignedById: null,
         createdAt: { gte: startOfLocalDay() },
       },
     });
@@ -68,4 +69,37 @@ export async function takeExportLeadFromPool(
 
 export function assertLeadTaken(result: TakeExportLeadResult): asserts result is { ok: true } {
   if (!result.ok) throw new ExportLeadTakeError(result.error, result.status);
+}
+
+/** 管理者把线索分给业务员或业务经理。不占用对方每天的认领额度。 */
+export async function assignExportLead(
+  tx: Prisma.TransactionClient,
+  args: {
+    tenantId: string;
+    leadId: string;
+    assigneeId: string;
+    assignedById: string;
+  },
+): Promise<TakeExportLeadResult> {
+  const current = await tx.exportLead.findUnique({
+    where: { id: args.leadId, tenantId: args.tenantId },
+    select: { id: true, ownerId: true, convertedToCustomerId: true },
+  });
+  if (!current) return { ok: false, error: "线索不存在", status: 404 };
+  if (current.convertedToCustomerId) return { ok: false, error: "已转化的线索不能再分配", status: 400 };
+  if (current.ownerId === args.assigneeId) return { ok: true };
+
+  await tx.exportLead.update({
+    where: { id: args.leadId, tenantId: args.tenantId },
+    data: { ownerId: args.assigneeId, claimedAt: new Date() },
+  });
+  await tx.exportLeadClaim.create({
+    data: {
+      tenantId: args.tenantId,
+      leadId: args.leadId,
+      userId: args.assigneeId,
+      assignedById: args.assignedById,
+    },
+  });
+  return { ok: true };
 }

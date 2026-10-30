@@ -13,6 +13,7 @@ import {
 } from "@/lib/export-constants";
 import {
   PROJECT_DETAIL_INCLUDE,
+  denyUnlessProjectManager,
   getProjectOrError,
   parseOptionalDate,
   resolveExportOwnerId,
@@ -23,8 +24,10 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyUnlessProjectManager(user!);
+  if (denied) return denied;
   const { id } = await params;
   const { project, error: err } = await getProjectOrError(id, ctx!.tenantId);
   if (err) return err;
@@ -57,8 +60,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyUnlessProjectManager(user!);
+  if (denied) return denied;
   const { id } = await params;
   const { error: err } = await getProjectOrError(id, ctx!.tenantId);
   if (err) return err;
@@ -136,6 +141,8 @@ export async function DELETE(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyUnlessProjectManager(user!);
+  if (denied) return denied;
   const { id } = await params;
   const { project, error: err } = await getProjectOrError(id, ctx!.tenantId);
   if (err) return err;

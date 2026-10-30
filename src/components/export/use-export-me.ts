@@ -6,6 +6,7 @@ export interface ExportMe {
   id: string;
   name: string;
   role: "ADMIN" | "MANAGER" | "SALES";
+  canAssign?: boolean;
 }
 
 export function useExportMe() {
