@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Pagination } from "./shared/Pagination";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { buildListUrl } from "@/lib/export/url-params";
+import { useExportMe } from "./use-export-me";
 
 interface Quote {
   id: string;
@@ -31,6 +32,7 @@ interface PaginationData {
 
 export function QuotesClient() {
   const { toast } = useToast();
+  const isAdmin = useExportMe()?.role === "ADMIN";
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -224,6 +226,7 @@ export function QuotesClient() {
         >
           新建报价
         </Link>
+        {isAdmin && (
         <a
           href={`/api/export/quotes/export?${new URLSearchParams({
             ...(keywordParam ? { keyword: keywordParam } : {}),
@@ -236,6 +239,7 @@ export function QuotesClient() {
         >
           导出 CSV
         </a>
+        )}
       </div>
 
       <div className="export-card overflow-x-auto overflow-hidden">

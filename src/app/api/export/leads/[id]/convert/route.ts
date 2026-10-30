@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { canSeeOwner } from "@/lib/access-policy";
+import { canWorkExportLead } from "@/lib/export/lead-pool";
 import { generateCustomerCode } from "@/lib/export/number-generator";
 import { z } from "zod";
 
@@ -16,7 +16,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id: leadId } = await params;
   let payload: z.infer<typeof convertSchema> = {};
@@ -39,8 +39,8 @@ export async function POST(
     include: { owner: true },
   });
   if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-  if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  if (!canWorkExportLead(user!, lead.ownerId)) {
+    return NextResponse.json({ error: "请先认领这条线索，再转成客户" }, { status: 403 });
   }
   if (lead.convertedToCustomerId) {
     return NextResponse.json({ error: "该线索已转化", customerId: lead.convertedToCustomerId });
@@ -65,7 +65,7 @@ export async function POST(
               .filter(Boolean)
           : [],
         sourceChannel: lead.sourceChannel,
-        ownerId: lead.ownerId,
+        ownerId: lead.ownerId ?? user!.id,
         status: payload.customerStatus ?? "to_develop",
         fitEvidence: lead.fitEvidence,
         lastOutcome: lead.lastOutcome,
@@ -117,7 +117,7 @@ export async function POST(
           customerId: c.id,
           title: payload.createTaskTitle.trim(),
           dueDate: payload.createTaskDueAt ? new Date(payload.createTaskDueAt) : undefined,
-          ownerId: lead.ownerId,
+          ownerId: lead.ownerId ?? user!.id,
           status: "todo",
           priority: "high",
           notes: `由线索「${lead.companyName}」转化时自动创建`,

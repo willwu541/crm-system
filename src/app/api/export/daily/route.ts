@@ -135,7 +135,7 @@ export async function GET() {
       href: `/export/leads/${item.id}`,
       companyName: item.companyName,
       country: countryLabel(item.country),
-      ownerName: item.owner.name,
+      ownerName: item.owner?.name ?? "公海",
       reason: "到期",
       lastOutcome: item.lastOutcome,
     })),

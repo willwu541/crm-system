@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
+import { canWorkExportCustomer, EXPORT_OWNED_BY_OTHER } from "@/lib/export/lead-pool";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { z } from "zod";
 
@@ -51,11 +52,14 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
   const { quote, error: err } = await getQuoteOrError(id, ctx!.tenantId, ctx!.ownerFilter);
   if (err) return err;
+  if (!canWorkExportCustomer(user!, quote!.customer.ownerId)) {
+    return NextResponse.json({ error: EXPORT_OWNED_BY_OTHER }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -94,8 +98,11 @@ export async function DELETE(
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
-  const { error: err } = await getQuoteOrError(id, ctx!.tenantId, ctx!.ownerFilter);
+  const { quote, error: err } = await getQuoteOrError(id, ctx!.tenantId, ctx!.ownerFilter);
   if (err) return err;
+  if (!canWorkExportCustomer(user!, quote!.customer.ownerId)) {
+    return NextResponse.json({ error: EXPORT_OWNED_BY_OTHER }, { status: 403 });
+  }
 
   const full = await prisma.exportQuote.findUnique({
     where: { id, tenantId: ctx!.tenantId },

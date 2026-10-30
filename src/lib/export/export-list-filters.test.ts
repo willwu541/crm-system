@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveListOwnerConstraint } from "../access-policy";
+import { resetAccessPolicyCache, resolveListOwnerConstraint, saveAccessPolicy } from "../access-policy";
 import {
   collectUniqueEmails,
   collectUniqueWhatsapps,
@@ -182,6 +182,42 @@ describe("customer list where", () => {
 });
 
 describe("lead list where", () => {
+  it("non-admins see the pool plus their own leads", () => {
+    const where = buildExportLeadListWhere(
+      { tenantId: "t1", user: { id: "me", role: "SALES" } },
+      {},
+    );
+    const and = where.AND as Record<string, unknown>[];
+    assert.deepEqual(and[0], { OR: [{ ownerId: null }, { ownerId: "me" }] });
+    assert.equal(where.ownerId, undefined);
+  });
+
+  it("a granted manager also sees that salesperson's claimed leads", () => {
+    saveAccessPolicy({ directorUserId: null, canView: { mgr: ["sales"] } });
+    resetAccessPolicyCache();
+    const where = buildExportLeadListWhere(
+      {
+        tenantId: "t1",
+        user: { id: "mgr", role: "MANAGER" },
+        ownerFilter: { ownerIds: ["mgr", "sales"] },
+      },
+      {},
+    );
+    const and = where.AND as Record<string, unknown>[];
+    assert.deepEqual(and[0], { OR: [{ ownerId: null }, { ownerId: { in: ["mgr", "sales"] } }] });
+    saveAccessPolicy({ directorUserId: null, canView: {} });
+    resetAccessPolicyCache();
+  });
+
+  it("pool scope hides claimed leads", () => {
+    const where = buildExportLeadListWhere(
+      { tenantId: "t1", user: { id: "me", role: "SALES" } },
+      { scope: "pool" },
+    );
+    const and = where.AND as Record<string, unknown>[];
+    assert.deepEqual(and[0], { ownerId: null });
+  });
+
   it("lead owner dropdown narrows a multi-person view scope", () => {
     const where = buildExportLeadListWhere(
       { tenantId: "t1", ownerFilter: { ownerIds: ["yao", "song"] } },

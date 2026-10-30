@@ -1,4 +1,6 @@
+import type { SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canSeeExportCustomer, canViewExportLead } from "@/lib/export/lead-pool";
 import { getWebsiteHost } from "@/lib/website";
 import { normalizeCompanyName } from "@/lib/search-text";
 
@@ -23,6 +25,7 @@ export interface DuplicateMatchInfo {
   id: string;
   companyName: string;
   field: DuplicateField;
+  ownerId: string | null;
   ownerName: string;
   href: string;
 }
@@ -56,6 +59,7 @@ function toMatch(
   id: string,
   companyName: string,
   field: DuplicateField,
+  ownerId: string | null,
   ownerName: string,
 ): DuplicateMatchInfo {
   return {
@@ -63,6 +67,7 @@ function toMatch(
     id,
     companyName,
     field,
+    ownerId,
     ownerName,
     href: entityType === "customer" ? `/export/customers/${id}` : `/export/leads/${id}`,
   };
@@ -90,6 +95,7 @@ export async function findExportDuplicate(input: DuplicateCheckInput): Promise<D
         id: true,
         companyName: true,
         website: true,
+        ownerId: true,
         owner: { select: { name: true } },
         contacts: { select: { email: true, phone: true, whatsapp: true } },
       },
@@ -107,6 +113,7 @@ export async function findExportDuplicate(input: DuplicateCheckInput): Promise<D
         phone: true,
         whatsapp: true,
         convertedToCustomerId: true,
+        ownerId: true,
         owner: { select: { name: true } },
       },
     }),
@@ -126,16 +133,16 @@ export async function findExportDuplicate(input: DuplicateCheckInput): Promise<D
     const ownerName = customer.owner.name;
 
     if (normalized.website && website === normalized.website) {
-      return toMatch("customer", customer.id, customer.companyName, "website", ownerName);
+      return toMatch("customer", customer.id, customer.companyName, "website", customer.ownerId, ownerName);
     }
     if (normalized.email && emails.includes(normalized.email)) {
-      return toMatch("customer", customer.id, customer.companyName, "email", ownerName);
+      return toMatch("customer", customer.id, customer.companyName, "email", customer.ownerId, ownerName);
     }
     if (normalized.phone && phones.includes(normalized.phone)) {
-      return toMatch("customer", customer.id, customer.companyName, "phone", ownerName);
+      return toMatch("customer", customer.id, customer.companyName, "phone", customer.ownerId, ownerName);
     }
     if (normalized.companyName && companyName === normalized.companyName) {
-      return toMatch("customer", customer.id, customer.companyName, "companyName", ownerName);
+      return toMatch("customer", customer.id, customer.companyName, "companyName", customer.ownerId, ownerName);
     }
   }
 
@@ -148,19 +155,19 @@ export async function findExportDuplicate(input: DuplicateCheckInput): Promise<D
     const website = getWebsiteHost(lead.website);
     const emails = [normalizeEmail(lead.email)].filter(Boolean);
     const phones = [normalizePhone(lead.phone), normalizePhone(lead.whatsapp)].filter(Boolean);
-    const ownerName = lead.owner.name;
+    const ownerName = lead.owner?.name ?? "公海";
 
     if (normalized.website && website === normalized.website) {
-      return toMatch("lead", lead.id, lead.companyName, "website", ownerName);
+      return toMatch("lead", lead.id, lead.companyName, "website", lead.ownerId, ownerName);
     }
     if (normalized.email && emails.includes(normalized.email)) {
-      return toMatch("lead", lead.id, lead.companyName, "email", ownerName);
+      return toMatch("lead", lead.id, lead.companyName, "email", lead.ownerId, ownerName);
     }
     if (normalized.phone && phones.includes(normalized.phone)) {
-      return toMatch("lead", lead.id, lead.companyName, "phone", ownerName);
+      return toMatch("lead", lead.id, lead.companyName, "phone", lead.ownerId, ownerName);
     }
     if (normalized.companyName && companyName === normalized.companyName) {
-      return toMatch("lead", lead.id, lead.companyName, "companyName", ownerName);
+      return toMatch("lead", lead.id, lead.companyName, "companyName", lead.ownerId, ownerName);
     }
   }
 
@@ -172,7 +179,21 @@ export async function getExportDuplicateMessage(input: DuplicateCheckInput): Pro
   return match ? formatExportDuplicateMessage(match) : null;
 }
 
-export function exportDuplicateConflictBody(match: DuplicateMatchInfo) {
+export function exportDuplicateConflictBody(
+  match: DuplicateMatchInfo,
+  user?: Pick<SessionUser, "id" | "role">,
+) {
+  const visible = !user
+    ? true
+    : match.entityType === "lead"
+      ? canViewExportLead(user, match.ownerId)
+      : canSeeExportCustomer(user as SessionUser, match.ownerId);
+  if (!visible) {
+    return {
+      error: "发现重复：该公司或联系方式已在系统中，不能重复录入。",
+      duplicate: null,
+    };
+  }
   return {
     error: formatExportDuplicateMessage(match),
     duplicate: match,

@@ -40,11 +40,26 @@ export function UserList() {
   const [editing, setEditing] = useState<User | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [offboardingId, setOffboardingId] = useState<string | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
+  const [meRole, setMeRole] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<"ADMIN" | "MANAGER" | "SALES">("SALES");
   const [editTenant, setEditTenant] = useState<"domestic" | "export">("domestic");
   const [editIsActive, setEditIsActive] = useState(true);
   const [editPassword, setEditPassword] = useState("");
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((j: { user?: { id: string; role: string } }) => {
+        if (j.user) {
+          setMeId(j.user.id);
+          setMeRole(j.user.role);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function fetchUsers() {
     setLoading(true);
@@ -179,6 +194,28 @@ export function UserList() {
     }
   }
 
+  async function handleOffboard(user: User) {
+    if (!confirm(`办理 ${user.name} 的离职交接？账号会立即停用。未转化的外贸线索退回公海，客户和已经在跟的资料交给在职管理员，不会删除。`)) return;
+    setOffboardingId(user.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/offboard`, { method: "POST" });
+      const json = await parseResponseJson<{ error?: string; data?: { releasedLeads: number; reassignedCustomers: number; heirName: string } }>(res);
+      if (!res.ok) throw new Error(json.error ?? "交接失败");
+      const d = json.data;
+      toast(
+        d
+          ? `已停用。公海退回 ${d.releasedLeads} 条线索，${d.reassignedCustomers} 个客户交给 ${d.heirName}`
+          : "已办理离职",
+      );
+      fetchUsers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "交接失败");
+    } finally {
+      setOffboardingId(null);
+    }
+  }
+
   async function handleDelete(user: User) {
     if (!confirm(`确认删除用户 ${user.name}（${user.email}）？`)) return;
     setDeletingId(user.id);
@@ -226,7 +263,9 @@ export function UserList() {
       {policy?.canEdit && (
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="mb-2 text-sm font-medium text-slate-800">谁可以看谁的资料</p>
-          <p className="mb-2 text-xs text-slate-500">只有你能勾。没勾的人只能看自己的。</p>
+          <p className="mb-2 text-xs text-slate-500">
+            外贸里，管理者看全部。经理默认只看自己的线索和客户，勾上某个人之后才能看那个人的。业务员只看自己的。
+          </p>
           <div className="space-y-3">
             {(["domestic", "export"] as const).map((tenant) => {
               const group = users.filter((item) => item.tenant === tenant && item.isActive);
@@ -412,6 +451,16 @@ export function UserList() {
                       >
                         编辑
                       </button>
+                      {meRole === "ADMIN" && u.isActive && u.id !== meId && (
+                        <button
+                          type="button"
+                          onClick={() => handleOffboard(u)}
+                          disabled={offboardingId === u.id}
+                          className="text-amber-700 hover:underline disabled:opacity-50"
+                        >
+                          {offboardingId === u.id ? "交接中..." : "离职交接"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDelete(u)}

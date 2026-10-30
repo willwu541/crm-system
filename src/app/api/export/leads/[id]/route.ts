@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { canSeeOwner, type DataOwnerFilter } from "@/lib/access-policy";
+import type { SessionUser } from "@/lib/auth";
+import { canViewExportLead, canWorkExportLead, isExportAdmin, presentExportLead } from "@/lib/export/lead-pool";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { z } from "zod";
 import { nullifyBlankFields } from "@/lib/export/blank-to-null";
 
-async function getLeadOrError(id: string, tenantId: string, ownerFilter?: DataOwnerFilter) {
+async function getLeadOrError(
+  id: string,
+  tenantId: string,
+  user: Pick<SessionUser, "id" | "role">,
+  mode: "view" | "work",
+) {
   const lead = await prisma.exportLead.findUnique({
     where: { id, tenantId },
     include: { owner: { select: { id: true, name: true } }, customer: true },
   });
   if (!lead) return { lead: null, error: NextResponse.json({ error: "线索不存在" }, { status: 404 }) };
-  if (!canSeeOwner(ownerFilter, lead.ownerId)) {
-    return { lead: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
+  const allowed = mode === "work" ? canWorkExportLead(user, lead.ownerId) : canViewExportLead(user, lead.ownerId);
+  if (!allowed) {
+    return {
+      lead: null,
+      error: NextResponse.json(
+        { error: mode === "work" ? "请先认领这条线索，再进行开发" : "无权限" },
+        { status: 403 },
+      ),
+    };
   }
   return { lead, error: null };
 }
@@ -24,12 +37,12 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
-  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
+  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, user!, "view");
   if (err) return err;
-  return NextResponse.json({ data: lead });
+  return NextResponse.json({ data: presentExportLead(lead!, user!) });
 }
 
 const updateSchema = z.object({
@@ -54,8 +67,8 @@ const updateSchema = z.object({
   status: z.string().optional(),
   notes: z.string().optional(),
   fitEvidence: z.string().optional(),
-  /** 仅管理员：改派负责人 */
-  ownerId: z.string().optional(),
+  /** 管理员：指定负责人；传空字符串则放回公海 */
+  ownerId: z.string().nullable().optional(),
 });
 
 export async function PATCH(
@@ -65,7 +78,7 @@ export async function PATCH(
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
-  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
+  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, user!, "work");
   if (err) return err;
 
   let body: unknown;
@@ -90,7 +103,7 @@ export async function PATCH(
       data.nextFollowUpAt = nextFollowUpAt ? new Date(nextFollowUpAt) : null;
     }
 
-    if (user!.role === "ADMIN" && nextOwnerId !== undefined) {
+    if (isExportAdmin(user!) && nextOwnerId !== undefined) {
       if (nextOwnerId) {
         const assignee = await prisma.user.findFirst({
           where: { id: nextOwnerId, tenant: "export", tenantId: ctx!.tenantId },
@@ -100,6 +113,12 @@ export async function PATCH(
           return NextResponse.json({ error: "负责人不存在或不属于本租户" }, { status: 400 });
         }
         data.ownerId = nextOwnerId;
+        data.claimedAt = new Date();
+      } else if (lead!.convertedToCustomerId) {
+        return NextResponse.json({ error: "已转化的线索不能放回公海" }, { status: 400 });
+      } else {
+        data.ownerId = null;
+        data.claimedAt = null;
       }
     }
 
@@ -115,7 +134,7 @@ export async function PATCH(
       },
     });
     if (duplicate) {
-      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
+      return NextResponse.json(exportDuplicateConflictBody(duplicate, user!), { status: 400 });
     }
 
     const updated = await prisma.exportLead.update({
@@ -123,7 +142,7 @@ export async function PATCH(
       data,
       include: { owner: { select: { id: true, name: true } } },
     });
-    return NextResponse.json({ data: updated });
+    return NextResponse.json({ data: presentExportLead(updated, user!) });
   } catch (e) {
     console.error("Update lead error:", e);
     const msg = prismaErrorToUserMessage(e, "更新失败，请稍后重试。");
@@ -138,7 +157,7 @@ export async function DELETE(
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
-  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, ctx!.ownerFilter);
+  const { lead, error: err } = await getLeadOrError(id, ctx!.tenantId, user!, "work");
   if (err) return err;
 
   const full = await prisma.exportLead.findUnique({

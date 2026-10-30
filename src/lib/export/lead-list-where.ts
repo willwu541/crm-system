@@ -3,6 +3,8 @@ import { collectUniqueEmails, collectUniqueWhatsapps, leadChannelWhere } from "@
 import { countryPrismaWhere } from "@/lib/export/countries";
 import { daysAgo, endOfLocalDay, WHATSAPP_MAINTAIN_DAYS } from "@/lib/export/follow-up";
 import { resolveListOwnerConstraint, type DataOwnerFilter } from "@/lib/access-policy";
+import { isExportAdmin, leadVisibilityWhere } from "@/lib/export/lead-pool";
+import type { SessionUser } from "@/lib/auth";
 import { companyNameContainsWhere, companyNameTokenAndWhere } from "@/lib/search-text";
 
 export interface LeadListFilterParams {
@@ -16,11 +18,13 @@ export interface LeadListFilterParams {
   sourceChannel?: string;
   channel?: string;
   filter?: string;
+  scope?: string;
   normalizedCompanyIds?: string[];
 }
 
 export interface LeadListContext {
   tenantId: string;
+  user?: Pick<SessionUser, "id" | "role"> | null;
   ownerFilter?: DataOwnerFilter | null;
 }
 
@@ -70,11 +74,26 @@ export function buildExportLeadListWhere(
   now = new Date(),
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { tenantId: ctx.tenantId };
-  const ownerConstraint = resolveListOwnerConstraint(
-    ctx.ownerFilter,
-    params.ownerId,
-    params.matchedOwnerIds,
-  );
+  if (ctx.user) {
+    const visibility = leadVisibilityWhere(ctx.user, params.scope);
+    if (visibility) pushAnd(where, visibility);
+  } else if (params.scope === "pool") {
+    pushAnd(where, { ownerId: null });
+  } else if (params.scope === "mine") {
+    pushAnd(where, { ownerId: { in: [] } });
+  }
+
+  const seesAll = ctx.user ? isExportAdmin(ctx.user) : true;
+  const narrowingToSomeone =
+    Boolean(params.ownerId) || Boolean(params.matchedOwnerIds?.length);
+  const visibleOwners = seesAll
+    ? ctx.ownerFilter
+    : (ctx.ownerFilter ?? { ownerIds: ctx.user ? [ctx.user.id] : [] });
+  const ownerConstraint = narrowingToSomeone
+    ? resolveListOwnerConstraint(visibleOwners, params.ownerId, params.matchedOwnerIds)
+    : seesAll
+      ? resolveListOwnerConstraint(ctx.ownerFilter, undefined, undefined)
+      : undefined;
   if (ownerConstraint !== undefined) where.ownerId = ownerConstraint;
 
   const countryWhere = countryPrismaWhere(params.country);

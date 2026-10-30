@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner } from "@/lib/access-policy";
+import { canSeeExportLeadContacts, canViewExportLead, canWorkExportCustomer, canWorkExportLead, EXPORT_OWNED_BY_OTHER } from "@/lib/export/lead-pool";
 import { ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
 import { ACTIVITY_OUTCOMES, validateWorkLog } from "@/lib/export/work-outcomes";
 import { renderTemplate, type TemplateVarsInput } from "@/lib/export/template-vars";
 import { z } from "zod";
 
 export async function GET(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -34,8 +35,11 @@ export async function GET(request: NextRequest) {
       where: { id: leadId, tenantId: ctx!.tenantId },
     });
     if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-    if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
+    if (!canViewExportLead(user!, lead.ownerId)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
+    }
+    if (!canSeeExportLeadContacts(user!, lead.ownerId)) {
+      return NextResponse.json({ data: [] });
     }
   }
 
@@ -129,8 +133,8 @@ export async function POST(request: NextRequest) {
         include: { contacts: true },
       });
       if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-      if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
-        return NextResponse.json({ error: "无权限" }, { status: 403 });
+      if (!canWorkExportCustomer(user!, customer.ownerId)) {
+        return NextResponse.json({ error: EXPORT_OWNED_BY_OTHER }, { status: 403 });
       }
     }
 
@@ -139,8 +143,8 @@ export async function POST(request: NextRequest) {
         where: { id: input.leadId, tenantId: ctx!.tenantId },
       });
       if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-      if (!canSeeOwner(ctx!.ownerFilter, lead.ownerId)) {
-        return NextResponse.json({ error: "无权限" }, { status: 403 });
+      if (!canWorkExportLead(user!, lead.ownerId)) {
+        return NextResponse.json({ error: "请先认领这条线索，再记录跟进" }, { status: 403 });
       }
     }
 

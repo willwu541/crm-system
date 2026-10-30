@@ -49,7 +49,7 @@ export async function POST(
           duplicate,
         });
       }
-      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
+      return NextResponse.json(exportDuplicateConflictBody(duplicate, user!), { status: 400 });
     }
 
     const roleLabel = projectPartyRoleLabel[party.role] ?? party.role;

@@ -127,6 +127,7 @@ model User {
   orderPayments        OrderPayment[]             @relation("OrderPaymentRecorder")
   exportTenant         ExportTenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   exportLeads          ExportLead[]
+  exportLeadClaims     ExportLeadClaim[]
   exportCustomers      ExportCustomer[]
   exportActivities     ExportActivity[]
   exportTasks          ExportTask[]
@@ -648,7 +649,11 @@ model ExportLead {
   fitEvidence           String?   @map("fit_evidence")
   lastOutcome           String?   @map("last_outcome")
   priority              String?
-  ownerId               String    @map("owner_id")
+  /**
+   * 空表示在公海，任何人可见但看不到联系方式。认领后只对负责人和管理员可见。
+   */
+  ownerId               String?   @map("owner_id")
+  claimedAt             DateTime? @map("claimed_at")
   status                String    @default("new")
   notes                 String?
   lastContactAt         DateTime? @map("last_contact_at")
@@ -664,11 +669,12 @@ model ExportLead {
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
   tenant     ExportTenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  owner      User?            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   customer   ExportCustomer?  @relation(fields: [convertedToCustomerId], references: [id], onDelete: SetNull)
   activities     ExportActivity[]
   tasks          ExportTask[]
   projectParties ExportProjectParty[]
+  claims         ExportLeadClaim[]
 
   @@index([tenantId])
   @@index([ownerId])
@@ -676,7 +682,23 @@ model ExportLead {
   @@index([createdAt])
   @@index([lastContactAt])
   @@index([nextFollowUpAt])
+  @@index([claimedAt])
   @@map("export_leads")
+}
+
+/// 从公海认领线索的记录。用来限制每人每天能拿走多少条，离职后记录仍在。
+model ExportLeadClaim {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  leadId    String   @map("lead_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead ExportLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, createdAt])
+  @@map("export_lead_claims")
 }
 
 model ExportCustomer {

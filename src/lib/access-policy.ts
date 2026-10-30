@@ -144,8 +144,26 @@ export function canClaimDirector(user: SessionUser) {
   return user.role === "ADMIN" && !getAccessPolicy().directorUserId;
 }
 
-export function canEditAccessPolicy(user: SessionUser) {
-  return isDirector(user);
+export function canEditAccessPolicy(user: Pick<SessionUser, "id" | "role">) {
+  return user.role === "ADMIN" || isDirector(user);
+}
+
+/**
+ * 外贸数据范围。管理者看全部；经理只看自己和管理者勾选的人；业务员只看自己。
+ * 未认领的公海线索另外对所有人可见，不在这个名单里。
+ */
+export function exportDataOwnerIds(user: Pick<SessionUser, "id" | "role">): string[] | null {
+  if (user.role === "ADMIN" || isDirector(user)) return null;
+  if (user.role === "MANAGER") {
+    const extra = getAccessPolicy().canView[user.id] ?? [];
+    return uniqueIds([user.id, ...extra]);
+  }
+  return [user.id];
+}
+
+export function exportDataOwnerFilter(user: Pick<SessionUser, "id" | "role">): DataOwnerFilter | undefined {
+  const ids = exportDataOwnerIds(user);
+  return ids ? { ownerIds: ids } : undefined;
 }
 
 export function resetAccessPolicyCache() {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { canSeeOwner } from "@/lib/access-policy";
+import { canWorkExportCustomer, EXPORT_OWNED_BY_OTHER } from "@/lib/export/lead-pool";
 import { buildExportQuoteListWhere } from "@/lib/export/quote-list-where";
 import { findSalesUsersByName } from "@/lib/sales-user-search";
 import { generateQuoteNo } from "@/lib/export/number-generator";
@@ -85,7 +85,7 @@ const createSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
   try {
@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
       where: { id: parsed.data.customerId, tenantId: ctx!.tenantId },
     });
     if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
-    if (!canSeeOwner(ctx!.ownerFilter, customer.ownerId)) {
-      return NextResponse.json({ error: "无权限" }, { status: 403 });
+    if (!canWorkExportCustomer(user!, customer.ownerId)) {
+      return NextResponse.json({ error: EXPORT_OWNED_BY_OTHER }, { status: 403 });
     }
 
     const quoteNo = await generateQuoteNo(ctx!.tenantId);

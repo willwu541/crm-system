@@ -65,7 +65,14 @@ interface Lead {
   notes: string | null;
   fitEvidence: string | null;
   lastOutcome: string | null;
-  owner: { id: string; name: string };
+  owner: { id: string; name: string } | null;
+  inPool?: boolean;
+  contactsLocked?: boolean;
+  canClaim?: boolean;
+  canWork?: boolean;
+  canRelease?: boolean;
+  hasEmail?: boolean;
+  hasWhatsapp?: boolean;
 }
 
 export function LeadDetailClient({ leadId }: { leadId: string }) {
@@ -81,6 +88,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   const [notes, setNotes] = useState("");
   const [onboard, setOnboard] = useState<{ customerId: string; companyName: string } | null>(null);
   const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
   const sortedActivities = useMemo(
     () =>
@@ -176,10 +184,43 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
     }
   }
 
+  async function claimLead() {
+    setClaiming(true);
+    try {
+      const res = await fetch(`/api/export/leads/${leadId}/claim`, { method: "POST" });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "认领失败");
+      toast("已领到你名下");
+      fetchAll({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "认领失败", "error");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  async function releaseLead() {
+    if (!confirm("放回公海后，其他业务员又能看到这家公司，但看不到你已经记下的联系方式，直到有人重新认领。")) return;
+    setClaiming(true);
+    try {
+      const res = await fetch(`/api/export/leads/${leadId}/release`, { method: "POST" });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "放回失败");
+      toast("已放回公海");
+      fetchAll({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "放回失败", "error");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
   if (loading) return <div className="p-8 text-center text-slate-500">加载中...</div>;
   if (!lead) return <div className="p-8 text-center text-slate-500">线索不存在</div>;
 
-  const owner = lead.owner?.name ?? "-";
+  const owner = lead.inPool ? "公海" : (lead.owner?.name ?? "-");
+  const locked = Boolean(lead.contactsLocked);
+  const canWork = lead.canWork ?? !locked;
   const websiteUrl = normalizeWebsiteUrl(lead.website);
   const websiteHost = getWebsiteHost(lead.website);
 
@@ -212,6 +253,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               </>
             )}
           </p>
+          {!locked && (
           <SocialLinksBar
             email={lead.email}
             phone={lead.phone}
@@ -220,9 +262,37 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
             facebook={lead.facebook}
             tiktok={lead.tiktok}
           />
+          )}
+          {locked && (
+            <p className="mt-1 text-sm text-amber-800">
+              联系方式已隐藏。认领后归你负责，其他业务员就看不到这条线索。
+              {lead.hasEmail ? " 这家有邮箱。" : ""}
+              {lead.hasWhatsapp ? " 这家有 WhatsApp。" : ""}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {lead.status !== "converted" && (
+          {lead.canClaim && (
+            <button
+              type="button"
+              onClick={claimLead}
+              disabled={claiming}
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {claiming ? "认领中..." : "认领到我名下"}
+            </button>
+          )}
+          {lead.canRelease && (
+            <button
+              type="button"
+              onClick={releaseLead}
+              disabled={claiming}
+              className="export-btn-secondary rounded-md px-4 py-2 text-sm disabled:opacity-50"
+            >
+              放回公海
+            </button>
+          )}
+          {canWork && lead.status !== "converted" && (
             <>
               <button
                 type="button"
@@ -257,7 +327,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               打开官网
             </a>
           ) : null}
-          {lead.status !== "converted" && (
+          {canWork && lead.status !== "converted" && (
             <button
               onClick={() => setConvertOpen(true)}
               disabled={converting}
@@ -274,12 +344,14 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               查看客户
             </Link>
           ) : null}
+          {canWork && (
           <ExportDeleteButton
             apiPath={`/api/export/leads/${leadId}`}
             redirectTo={listHref("/export/leads")}
             label="删除线索"
             className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
           />
+          )}
           <ListBackLink
             listPath="/export/leads"
             className="export-btn-secondary rounded-md px-4 py-2 text-sm"
@@ -287,7 +359,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
       </div>
 
-      {lead.whatsapp?.trim() && lead.status !== "converted" && resolveWhatsappStage({
+      {canWork && lead.whatsapp?.trim() && lead.status !== "converted" && resolveWhatsappStage({
         hasWhatsapp: true,
         status: lead.status,
         lastContactAt: lead.lastContactAt,
@@ -315,7 +387,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
       )}
 
-      {lead.whatsapp?.trim() && lead.status !== "converted" && resolveWhatsappStage({
+      {canWork && lead.whatsapp?.trim() && lead.status !== "converted" && resolveWhatsappStage({
         hasWhatsapp: true,
         status: lead.status,
         lastContactAt: lead.lastContactAt,
@@ -370,8 +442,14 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
         <div>
           <p className="text-slate-500">联系方式</p>
-          <p className="font-medium text-slate-800">{lead.phone ?? lead.whatsapp ?? "-"}</p>
-          <p className="text-slate-500">{lead.email ?? "未填写邮箱"}</p>
+          {locked ? (
+            <p className="font-medium text-slate-800">认领后可见</p>
+          ) : (
+            <>
+              <p className="font-medium text-slate-800">{lead.phone ?? lead.whatsapp ?? "-"}</p>
+              <p className="text-slate-500">{lead.email ?? "未填写邮箱"}</p>
+            </>
+          )}
         </div>
         <div>
           <p className="text-slate-500">国家 / 类型</p>
@@ -402,18 +480,25 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
         </div>
       </div>
 
+      {!locked && (
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <div className="export-card export-detail-group p-4">
             <h2 className="mb-2 font-medium text-slate-700">备注</h2>
-            <p className="mb-2 text-xs text-slate-500">与右侧「保存」一并提交；可在此展开查看与编辑。</p>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={10}
-              placeholder="客户背景、沟通要点、下次跟进计划…"
-              className="min-h-[220px] w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed"
-            />
+            {canWork ? (
+              <>
+                <p className="mb-2 text-xs text-slate-500">与右侧「保存」一并提交；可在此展开查看与编辑。</p>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={10}
+                  placeholder="客户背景、沟通要点、下次跟进计划…"
+                  className="min-h-[220px] w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed"
+                />
+              </>
+            ) : (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{notes || "没有备注"}</p>
+            )}
           </div>
           <div className="export-card export-timeline-group p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -467,12 +552,14 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
                           <span className="text-slate-400">
                             {new Date(a.createdAt).toLocaleString("zh-CN")}
                           </span>
+                          {canWork && (
                           <ExportDeleteButton
                             apiPath={`/api/export/activities/${a.id}`}
                             onDeleted={() => fetchAll({ silent: true })}
                             label="删除"
                             className="text-xs text-red-600 hover:underline"
                           />
+                          )}
                         </div>
                         {a.subject && (
                           <p className="font-medium text-slate-800">{a.subject}</p>
@@ -510,9 +597,10 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               </ul>
             )}
           </div>
-          {lead.status !== "converted" && <LeadTasksPanel leadId={leadId} />}
+          {canWork && lead.status !== "converted" && <LeadTasksPanel leadId={leadId} />}
         </div>
 
+        {canWork && (
         <div className="space-y-6">
           <LeadForm
             initial={lead as unknown as Record<string, unknown>}
@@ -523,7 +611,9 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
             onSuccess={() => fetchAll({ silent: true })}
           />
         </div>
+        )}
       </div>
+      )}
 
       <QuickContactModal
         open={quickOpen}

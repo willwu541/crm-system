@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
-import { canSeeOwner } from "@/lib/access-policy";
+import { canWorkExportCustomer, EXPORT_OWNED_BY_OTHER } from "@/lib/export/lead-pool";
 import { generateOrderNo } from "@/lib/export/number-generator";
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id: quoteId } = await params;
 
@@ -17,8 +17,8 @@ export async function POST(
     include: { customer: true, items: { orderBy: { sortOrder: "asc" } } },
   });
   if (!quote) return NextResponse.json({ error: "报价不存在" }, { status: 404 });
-  if (!canSeeOwner(ctx!.ownerFilter, quote.customer.ownerId)) {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  if (!canWorkExportCustomer(user!, quote.customer.ownerId)) {
+    return NextResponse.json({ error: EXPORT_OWNED_BY_OTHER }, { status: 403 });
   }
 
   const existingOrder = await prisma.exportOrder.findFirst({

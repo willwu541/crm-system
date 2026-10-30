@@ -49,7 +49,7 @@ const updateSchema = z.object({
 export async function PATCH(request: NextRequest) {
   const user = await getSession();
   if (!user || !canEditAccessPolicy(user)) {
-    return NextResponse.json({ error: "只有业务经理可以改这项权限" }, { status: 403 });
+    return NextResponse.json({ error: "只有管理者可以改这项权限" }, { status: 403 });
   }
 
   const parsed = updateSchema.safeParse(await request.json());

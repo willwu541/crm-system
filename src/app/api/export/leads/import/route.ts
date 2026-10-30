@@ -50,7 +50,7 @@ const FIELD_MAP: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const { user, ctx, error } = await requireExportSession();
+  const { ctx, error } = await requireExportSession();
   if (error) return error;
 
   try {
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
           productInterest: data.productInterest || undefined,
           priority: data.priority || undefined,
           notes: data.notes || undefined,
-          ownerId: user!.id,
+          ownerId: null,
           status: "new",
         },
       });

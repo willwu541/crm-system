@@ -30,6 +30,7 @@ import { ListBackLink } from "./shared/ListBackLink";
 import { countryLabel } from "@/lib/export/countries";
 import { NextFollowUpModal } from "./NextFollowUpModal";
 import { listHref } from "@/lib/export/list-filter-storage";
+import { useExportMe } from "./use-export-me";
 import { resolveWhatsappStage } from "@/lib/export/follow-up";
 
 interface Customer {
@@ -47,7 +48,7 @@ interface Customer {
   interestedProducts: string[];
   sourceChannel: string | null;
   status: string;
-  owner: { name: string };
+  owner: { id: string; name: string };
   lastFollowUpAt: string | null;
   nextFollowUpAt: string | null;
   lastStageChangedAt: string | null;
@@ -74,6 +75,7 @@ interface Customer {
 
 export function CustomerDetailClient({ customerId }: { customerId: string }) {
   const { toast } = useToast();
+  const me = useExportMe();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,6 +171,8 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
   if (loading) return <div className="p-12 text-center text-slate-500">加载中...</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
   if (!customer) return <div className="p-8 text-center text-slate-500">客户不存在</div>;
+
+  const canWork = me?.role === "ADMIN" || me?.id === customer.owner.id;
 
   const editingContact = editingContactId ? customer.contacts.find((c) => c.id === editingContactId) : null;
 
@@ -269,42 +273,54 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
               打开官网
             </a>
           )}
+          {canWork && (
           <button
             onClick={() => setDrawer("contact")}
             className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新增联系人
           </button>
+          )}
+          {canWork && (
           <button
             onClick={() => setDrawer("activity")}
             className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新增跟进
           </button>
+          )}
+          {canWork && (
           <button
             onClick={() => setDrawer("quote")}
             className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新建报价
           </button>
+          )}
+          {canWork && (
           <button
             onClick={() => setDrawer("task")}
             className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
           >
             新建任务
           </button>
+          )}
+          {canWork && (
           <button
             onClick={() => setDrawer("edit")}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
           >
             编辑客户
           </button>
+          )}
+          {canWork && (
           <ExportDeleteButton
             apiPath={`/api/export/customers/${customerId}`}
             redirectTo={listHref("/export/customers")}
             label="删除客户"
             className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:opacity-50"
           />
+          )}
           <ListBackLink
             listPath="/export/customers"
             className="export-btn-secondary rounded-md px-4 py-2 text-sm"
@@ -568,12 +584,14 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                       </span>
                       <span className="text-slate-500">{a.owner.name}</span>
                       <span className="text-slate-400">{new Date(a.createdAt).toLocaleString("zh-CN")}</span>
+                      {canWork && (
                       <ExportDeleteButton
                         apiPath={`/api/export/activities/${a.id}`}
                         onDeleted={() => fetchCustomer({ silent: true })}
                         label="删除"
                         className="ml-auto text-xs text-red-600 hover:underline disabled:opacity-50"
                       />
+                      )}
                     </div>
                     {a.subject && <p className="mt-1 font-medium text-slate-700">{a.subject}</p>}
                     {a.content && <p className="mt-1 text-sm text-slate-600">{a.content}</p>}
@@ -694,6 +712,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                         {c.email ?? "未填邮箱"} · {c.phone ?? c.whatsapp ?? "未填电话"}
                       </div>
                     </div>
+                    {canWork && (
                     <span className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
@@ -712,6 +731,7 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
                         className="text-xs text-red-600 hover:underline disabled:opacity-50"
                       />
                     </span>
+                    )}
                   </li>
                 ))
               )}
@@ -721,12 +741,14 @@ export function CustomerDetailClient({ customerId }: { customerId: string }) {
           <div className="export-card p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-medium text-slate-700">任务</h2>
+              {canWork && (
               <button
                 onClick={() => setDrawer("task")}
                 className="text-sm text-teal-600 hover:underline"
               >
                 新建任务
               </button>
+              )}
             </div>
             <ul className="space-y-2">
               {customer.tasks.length === 0 ? (

@@ -62,10 +62,14 @@ export interface ExportNameHit {
   href: string;
 }
 
-/** 不限业务员、客户/线索一起找，用于列表搜空时提示「其实在系统里」。 */
+/** 列表搜空时提示「其实在系统里」。传入的 where 用来挡住别人已经认领的资料。 */
 export async function findExportRecordsByKeyword(
   tenantId: string,
   keyword: string,
+  access?: {
+    leadWhere?: Record<string, unknown>;
+    customerWhere?: Record<string, unknown>;
+  },
 ): Promise<ExportNameHit[]> {
   const [customerIds, leadIds] = await Promise.all([
     findExportIdsByNormalizedCompanyName("export_customers", tenantId, keyword),
@@ -76,6 +80,7 @@ export async function findExportRecordsByKeyword(
     prisma.exportCustomer.findMany({
       where: {
         tenantId,
+        ...access?.customerWhere,
         OR: [
           { companyName: { contains: keyword, mode: "insensitive" } },
           { customerCode: { contains: keyword, mode: "insensitive" } },
@@ -90,11 +95,16 @@ export async function findExportRecordsByKeyword(
     prisma.exportLead.findMany({
       where: {
         tenantId,
-        OR: [
-          { companyName: { contains: keyword, mode: "insensitive" } },
-          { email: { contains: keyword, mode: "insensitive" } },
-          ...(tokenAnd ? [tokenAnd] : []),
-          ...(leadIds.length ? [{ id: { in: leadIds } }] : []),
+        AND: [
+          ...(access?.leadWhere ? [access.leadWhere] : []),
+          {
+            OR: [
+              { companyName: { contains: keyword, mode: "insensitive" } },
+              { email: { contains: keyword, mode: "insensitive" } },
+              ...(tokenAnd ? [tokenAnd] : []),
+              ...(leadIds.length ? [{ id: { in: leadIds } }] : []),
+            ],
+          },
         ],
       },
       select: { id: true, companyName: true, owner: { select: { name: true } } },
@@ -114,7 +124,7 @@ export async function findExportRecordsByKeyword(
       entityType: "lead" as const,
       id: l.id,
       companyName: l.companyName,
-      ownerName: l.owner.name,
+      ownerName: l.owner?.name ?? "公海",
       href: `/export/leads/${l.id}`,
     })),
   ];

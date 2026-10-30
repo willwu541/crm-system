@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { denyBulkExport } from "@/lib/export/bulk-guard";
 import { buildExportCustomerListWhere } from "@/lib/export/customer-list-where";
 import { withNormalizedCompanyIds } from "@/lib/export/company-name-search";
 import { csvDownloadResponse } from "@/lib/export/csv";
@@ -17,8 +18,10 @@ function parseListParams(searchParams: URLSearchParams) {
 }
 
 export async function GET(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyBulkExport(user);
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const filters = await withNormalizedCompanyIds(

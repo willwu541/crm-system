@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { prismaOwnerWhere } from "@/lib/access-policy";
+import { isExportAdmin } from "@/lib/export/lead-pool";
 import { getLeadSopSuggestion } from "@/lib/export/sop";
 
 const bodySchema = z.object({
@@ -11,7 +12,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
   const raw = await request.json().catch(() => ({}));
@@ -26,11 +27,14 @@ export async function POST(request: NextRequest) {
   const dryRun = parsed.data.dryRun ?? false;
   const limit = parsed.data.limit ?? 200;
 
+  const ownerWhere = isExportAdmin(user!)
+    ? prismaOwnerWhere(ctx!.ownerFilter)
+    : { ownerId: user!.id };
   const leads = await prisma.exportLead.findMany({
     where: {
       tenantId: ctx!.tenantId,
-      ...prismaOwnerWhere(ctx!.ownerFilter),
       status: { notIn: ["converted", "invalid"] },
+      ...("ownerId" in ownerWhere ? ownerWhere : { ownerId: { not: null } }),
     },
     select: {
       id: true,

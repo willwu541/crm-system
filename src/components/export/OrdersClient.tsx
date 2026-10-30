@@ -7,6 +7,7 @@ import { Pagination } from "./shared/Pagination";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { paymentStatusLabel, productionStatusLabel, shippingStatusLabel } from "@/lib/export-display-labels";
 import { buildListUrl } from "@/lib/export/url-params";
+import { useExportMe } from "./use-export-me";
 
 interface Order {
   id: string;
@@ -30,6 +31,7 @@ interface PaginationData {
 }
 
 export function OrdersClient() {
+  const isAdmin = useExportMe()?.role === "ADMIN";
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -181,6 +183,7 @@ export function OrdersClient() {
         >
           新建订单
         </Link>
+        {isAdmin && (
         <a
           href={`/api/export/orders/export?${new URLSearchParams({
             ...(keywordParam ? { keyword: keywordParam } : {}),
@@ -193,6 +196,7 @@ export function OrdersClient() {
         >
           导出 CSV
         </a>
+        )}
       </div>
 
       <div className="export-card overflow-x-auto overflow-hidden">

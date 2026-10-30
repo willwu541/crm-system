@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
       website: parsed.data.website,
     });
     if (duplicate) {
-      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
+      return NextResponse.json(exportDuplicateConflictBody(duplicate, user!), { status: 400 });
     }
 
     const { interestedProducts, ...rest } = parsed.data;

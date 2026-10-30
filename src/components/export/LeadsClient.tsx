@@ -23,6 +23,7 @@ import { ElsewhereHits, type ElsewhereHit } from "./ElsewhereHits";
 import { FillWhatsappModal, type FillWhatsappTarget } from "./FillWhatsappModal";
 import { CountrySelect } from "./CountrySelect";
 import { countryLabel } from "@/lib/export/countries";
+import { useExportMe } from "./use-export-me";
 
 interface Lead {
   id: string;
@@ -38,7 +39,13 @@ interface Lead {
   sourceChannel: string | null;
   notes: string | null;
   status: string;
-  owner: { id: string; name: string };
+  owner: { id: string; name: string } | null;
+  inPool?: boolean;
+  contactsLocked?: boolean;
+  hasEmail?: boolean;
+  hasWhatsapp?: boolean;
+  canClaim?: boolean;
+  canWork?: boolean;
   createdAt: string;
   updatedAt: string;
   lastContactAt: string | null;
@@ -71,6 +78,8 @@ interface PaginationData {
 
 export function LeadsClient() {
   const { toast } = useToast();
+  const me = useExportMe();
+  const isAdmin = me?.role === "ADMIN";
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,6 +91,7 @@ export function LeadsClient() {
   const sourceChannel = searchParams.get("sourceChannel") ?? "";
   const channel = searchParams.get("channel") ?? "";
   const filter = searchParams.get("filter") ?? "";
+  const scope = searchParams.get("scope") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "lastContactAt";
@@ -109,6 +119,9 @@ export function LeadsClient() {
     defaultDirection: "outbound",
   });
   const [fillWhatsapp, setFillWhatsapp] = useState<FillWhatsappTarget | null>(null);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [releasingPool, setReleasingPool] = useState(false);
+  const [claimRemaining, setClaimRemaining] = useState<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   async function fetchUsers() {
@@ -169,6 +182,7 @@ export function LeadsClient() {
       if (sourceChannel) params.set("sourceChannel", sourceChannel);
       if (channel) params.set("channel", channel);
       if (filter) params.set("filter", filter);
+      if (scope) params.set("scope", scope);
       if (sortBy) params.set("sortBy", sortBy);
       if (sortOrder) params.set("sortOrder", sortOrder);
       const res = await fetch(`/api/export/leads?${params}`);
@@ -178,6 +192,8 @@ export function LeadsClient() {
       setElsewhere((json.elsewhere as ElsewhereHit[]) || []);
       setPagination(json.pagination as PaginationData);
       if (Array.isArray(json.countries)) setCountries(json.countries as string[]);
+      const claim = json.claim as { remaining?: number } | undefined;
+      if (typeof claim?.remaining === "number") setClaimRemaining(claim.remaining);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
       setLeads([]);
@@ -204,6 +220,7 @@ export function LeadsClient() {
       sourceChannel: sourceChannel || undefined,
       channel: channel || undefined,
       filter: filter || undefined,
+      scope: scope || undefined,
       keyword: keywordParam || undefined,
       sortBy,
       sortOrder,
@@ -221,7 +238,7 @@ export function LeadsClient() {
   useEffect(() => {
     if (!hydrated) return;
     fetchLeads();
-  }, [hydrated, page, status, country, ownerId, since, pace, sourceChannel, channel, filter, keywordParam, sortBy, sortOrder]);
+  }, [hydrated, page, status, country, ownerId, since, pace, sourceChannel, channel, filter, scope, keywordParam, sortBy, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -244,6 +261,7 @@ export function LeadsClient() {
     if (sourceChannel) params.set("sourceChannel", sourceChannel);
     if (channel) params.set("channel", channel);
     if (filter) params.set("filter", filter);
+    if (scope) params.set("scope", scope);
     return params;
   }
 
@@ -330,12 +348,46 @@ export function LeadsClient() {
     return new Date(lead.createdAt).toLocaleDateString("zh-CN");
   }
 
+  async function claimLead(id: string) {
+    setClaimingId(id);
+    try {
+      const res = await fetch(`/api/export/leads/${id}/claim`, { method: "POST" });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "认领失败");
+      toast("已领到你名下，其他人看不到这条线索了");
+      fetchLeads({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "认领失败", "error");
+    } finally {
+      setClaimingId(null);
+    }
+  }
+
+  async function releaseUntouched() {
+    if (!confirm("把还没有联系过的线索放回公海？已经在跟进的不会动。")) return;
+    setReleasingPool(true);
+    try {
+      const res = await fetch("/api/export/leads/release-untouched", { method: "POST" });
+      const json = await parseResponseJson<{ error?: string; data?: { released: number } }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      toast(`已放回公海 ${json.data?.released ?? 0} 条`);
+      fetchLeads({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setReleasingPool(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="export-filter-shell">
         <div className="mb-3">
           <h1 className="text-lg font-semibold text-slate-800">线索开发中心</h1>
-          <p className="text-xs text-slate-500">管理获客渠道、联系节奏、转化进度</p>
+          <p className="text-xs text-slate-500">
+            公海大家都能看到公司。认领后只归自己。管理者看全部；经理要管理者允许才能看别人的；业务员只看自己的。
+            {claimRemaining != null && !isAdmin ? ` 今天还能认领 ${claimRemaining} 条。` : ""}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
@@ -374,6 +426,7 @@ export function LeadsClient() {
             <option value="">全部时间</option>
             <option value="week">本周新增</option>
           </select>
+          {isAdmin && (
           <select
             value={ownerId}
             onChange={(e) => updateUrl({ ownerId: e.target.value || undefined, page: 1 })}
@@ -386,6 +439,7 @@ export function LeadsClient() {
               </option>
             ))}
           </select>
+          )}
           <select
             value={channel}
             onChange={(e) => updateUrl({ channel: e.target.value || undefined, page: 1 })}
@@ -420,6 +474,24 @@ export function LeadsClient() {
           </button>
         </form>
 
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              { key: "", label: "公海和我的" },
+              { key: "pool", label: "公海" },
+              { key: "mine", label: "我的" },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.key || "visible"}
+              type="button"
+              onClick={() => updateUrl({ scope: item.key || undefined, page: 1 })}
+              className={`export-chip px-3 py-1 ${scope === item.key ? "export-chip-active" : "hover:bg-slate-50"}`}
+            >
+              {isAdmin && item.key === "" ? "全部" : item.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-1">
           {(
             [
@@ -485,6 +557,17 @@ export function LeadsClient() {
         >
           {importing ? "导入中..." : "导入 CSV"}
         </button>
+        {isAdmin && (
+        <button
+          type="button"
+          onClick={releaseUntouched}
+          disabled={releasingPool}
+          className="export-btn-secondary rounded-md px-4 py-2 text-sm disabled:opacity-50"
+        >
+          {releasingPool ? "处理中..." : "未联系的放回公海"}
+        </button>
+        )}
+        {isAdmin && (
         <a
           href={`/api/export/leads/export?${buildListFilterParams().toString()}`}
           download
@@ -492,7 +575,8 @@ export function LeadsClient() {
         >
           导出 CSV
         </a>
-        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5 shadow-sm">
+        )}
+        <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5 shadow-sm" title="只复制当前筛选里你能看到联系方式的线索。公海里还没认领的不会带出来。">
           <select
             value={emailCopyFormat}
             onChange={(e) => setEmailCopyFormat(e.target.value as "newline" | "comma")}
@@ -584,8 +668,10 @@ export function LeadsClient() {
             <tbody>
               {leads.map((l) => {
                 const badge = getLeadPaceBadge(l);
+                const locked = Boolean(l.contactsLocked);
+                const canWork = l.canWork ?? !locked;
                 const waStage = resolveWhatsappStage({
-                  hasWhatsapp: !!l.whatsapp?.trim(),
+                  hasWhatsapp: Boolean(l.hasWhatsapp || l.whatsapp?.trim()),
                   status: l.status,
                   lastContactAt: l.lastContactAt,
                   nextFollowUpAt: l.nextFollowUpAt,
@@ -616,7 +702,9 @@ export function LeadsClient() {
                       </div>
                     </td>
                     <td className="max-w-md px-4 py-3 align-top text-slate-600">
-                      {l.notes ? (
+                      {locked ? (
+                        <span className="text-xs text-slate-400">认领后可见</span>
+                      ) : l.notes ? (
                         <p className="whitespace-pre-wrap text-xs leading-relaxed" title={l.notes}>
                           {l.notes}
                         </p>
@@ -626,7 +714,10 @@ export function LeadsClient() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">{countryLabel(l.country)}</td>
                     <td className="px-4 py-3 text-slate-600" onClick={(e) => e.stopPropagation()}>
-                      <div className="text-xs">{l.email ?? "未填邮箱"}</div>
+                      <div className="text-xs">
+                        {locked ? (l.hasEmail ? "有邮箱，认领后可见" : "未填邮箱") : (l.email ?? "未填邮箱")}
+                      </div>
+                      {!locked && (
                       <SocialLinksBar
                         compact
                         email={l.email}
@@ -636,6 +727,7 @@ export function LeadsClient() {
                         facebook={l.facebook}
                         tiktok={l.tiktok}
                       />
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -675,11 +767,21 @@ export function LeadsClient() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-700">{l.contactCount}</td>
-                    <td className="px-4 py-3 text-slate-600">{l.owner.name}</td>
+                    <td className="px-4 py-3 text-slate-600">{l.inPool || !l.owner ? "公海" : l.owner.name}</td>
                     <td className="px-4 py-3 text-slate-500">{renderTime(l)}</td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <span className="flex gap-3">
-                        {!l.whatsapp?.trim() && l.status !== "converted" && (
+                        {l.canClaim && (
+                          <button
+                            type="button"
+                            onClick={() => claimLead(l.id)}
+                            disabled={claimingId === l.id}
+                            className="text-teal-700 hover:underline disabled:opacity-50"
+                          >
+                            {claimingId === l.id ? "认领中..." : "认领"}
+                          </button>
+                        )}
+                        {canWork && !l.whatsapp?.trim() && l.status !== "converted" && (
                           <button
                             type="button"
                             onClick={() =>
@@ -694,7 +796,7 @@ export function LeadsClient() {
                             补填 WhatsApp
                           </button>
                         )}
-                        {l.status !== "converted" && (
+                        {canWork && l.status !== "converted" && (
                           <button
                             type="button"
                             onClick={() =>
@@ -713,7 +815,7 @@ export function LeadsClient() {
                             标记联系
                           </button>
                         )}
-                        {l.status !== "converted" && (
+                        {canWork && l.status !== "converted" && (
                           <button
                             type="button"
                             onClick={() =>
@@ -738,7 +840,7 @@ export function LeadsClient() {
                         >
                           详情
                         </Link>
-                        {l.status !== "converted" && (
+                        {canWork && l.status !== "converted" && (
                           <button
                             onClick={() => setConvertLead(l)}
                             disabled={!!converting}

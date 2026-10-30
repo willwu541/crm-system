@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
+import { denyBulkExport } from "@/lib/export/bulk-guard";
 import { buildExportLeadListWhere } from "@/lib/export/lead-list-where";
 import { withNormalizedCompanyIds } from "@/lib/export/company-name-search";
 import { csvDownloadResponse } from "@/lib/export/csv";
@@ -20,8 +21,10 @@ function parseListParams(searchParams: URLSearchParams) {
 }
 
 export async function GET(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
+  const denied = denyBulkExport(user);
+  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const filters = await withNormalizedCompanyIds(
@@ -29,7 +32,7 @@ export async function GET(request: NextRequest) {
     ctx!.tenantId,
     parseListParams(searchParams),
   );
-  const where = buildExportLeadListWhere(ctx!, filters);
+  const where = buildExportLeadListWhere({ ...ctx!, user }, filters);
 
   const leads = await prisma.exportLead.findMany({
     where,
@@ -63,7 +66,7 @@ export async function GET(request: NextRequest) {
     l.country,
     l.sourceChannel,
     l.status,
-    l.owner?.name,
+    l.owner?.name ?? "公海",
     l.lastContactAt?.toISOString(),
     String(l.contactCount),
     l.notes,

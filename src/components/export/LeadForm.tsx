@@ -166,8 +166,8 @@ export function LeadForm({
         status: form.status,
         notes: (hideNotes && notesValue !== undefined ? notesValue : form.notes) || undefined,
       };
-      if (isAdmin && form.ownerId) {
-        body.ownerId = form.ownerId;
+      if (isAdmin) {
+        body.ownerId = form.ownerId || null;
       }
       const res = await fetch(url, {
         method,
@@ -231,14 +231,14 @@ export function LeadForm({
               onChange={(e) => setForm((f) => ({ ...f, ownerId: e.target.value }))}
               className="w-full rounded-md border border-slate-300 px-3 py-2"
             >
-              <option value="">默认（自己）</option>
+              <option value="">放入公海，不指定负责人</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name} ({u.email})
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-500">管理员可将线索分配给外贸业务员跟进</p>
+            <p className="mt-1 text-xs text-slate-500">不选负责人就进公海。指定业务员后，只有该业务员和管理员能看到。</p>
           </div>
         )}
         <div>

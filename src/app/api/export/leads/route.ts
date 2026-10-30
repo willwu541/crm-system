@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { exportDataOwnerIds, prismaOwnerWhere } from "@/lib/access-policy";
 import { requireExportSession } from "@/lib/export/auth";
+import { isExportAdmin, leadVisibilityWhere, presentExportLead, DAILY_LEAD_CLAIM_LIMIT, startOfLocalDay } from "@/lib/export/lead-pool";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import {
   buildExportLeadListWhere,
@@ -15,7 +17,7 @@ import { z } from "zod";
 import { nullifyBlankFields } from "@/lib/export/blank-to-null";
 
 export async function GET(request: NextRequest) {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
   const sourceChannel = searchParams.get("sourceChannel")?.trim();
   const channel = searchParams.get("channel")?.trim();
   const filter = searchParams.get("filter")?.trim();
+  const scope = searchParams.get("scope")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "lastContactAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
   const allowedSort = new Set([
@@ -49,38 +52,32 @@ export async function GET(request: NextRequest) {
     : { exactIds: [] as string[] };
   const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
 
+  const listParams = {
+    keyword,
+    status,
+    country,
+    ownerId,
+    since,
+    pace,
+    sourceChannel,
+    channel,
+    filter,
+    scope,
+  };
   const where = buildExportLeadListWhere(
-    ctx!,
+    { ...ctx!, user },
     matchedOwnerIds
-      ? {
-          keyword,
-          status,
-          country,
-          ownerId,
-          since,
-          pace,
-          sourceChannel,
-          channel,
-          filter,
-          matchedOwnerIds,
-        }
-      : await withNormalizedCompanyIds("export_leads", ctx!.tenantId, {
-          keyword,
-          status,
-          country,
-          ownerId,
-          since,
-          pace,
-          sourceChannel,
-          channel,
-          filter,
-        }),
+      ? { ...listParams, matchedOwnerIds }
+      : await withNormalizedCompanyIds("export_leads", ctx!.tenantId, listParams),
   );
 
   if (searchParams.get("emails") === "1" || searchParams.get("whatsapps") === "1") {
+    const copyWhere = isExportAdmin(user!)
+      ? where
+      : { AND: [where, { ownerId: { in: exportDataOwnerIds(user!) ?? [user!.id] } }] };
     const field = searchParams.get("whatsapps") === "1" ? "whatsapp" : "email";
     const leads = await prisma.exportLead.findMany({
-      where,
+      where: copyWhere,
       orderBy: { companyName: "asc" },
       take: 5000,
       select: { email: true, whatsapp: true },
@@ -95,7 +92,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [data, total, countries] = await Promise.all([
+    const [data, total, countries, claimedToday] = await Promise.all([
       prisma.exportLead.findMany({
         where,
         orderBy: { [sortBy]: sortOrder },
@@ -104,16 +101,33 @@ export async function GET(request: NextRequest) {
         include: { owner: { select: { id: true, name: true } } },
       }),
       prisma.exportLead.count({ where }),
-      loadUsedExportCountries(ctx!.tenantId, ctx!.ownerFilter?.ownerIds),
+      loadUsedExportCountries(ctx!.tenantId, isExportAdmin(user!) ? ctx!.ownerFilter?.ownerIds : undefined),
+      isExportAdmin(user!)
+        ? Promise.resolve(0)
+        : prisma.exportLeadClaim.count({
+            where: {
+              tenantId: ctx!.tenantId,
+              userId: user!.id,
+              createdAt: { gte: startOfLocalDay() },
+            },
+          }),
     ]);
 
     const elsewhere =
       keyword && total === 0
-        ? await findExportRecordsByKeyword(ctx!.tenantId, keyword)
+        ? await findExportRecordsByKeyword(ctx!.tenantId, keyword, {
+            leadWhere: leadVisibilityWhere(user!) ?? undefined,
+            customerWhere: prismaOwnerWhere(ctx!.ownerFilter),
+          })
         : [];
 
     return NextResponse.json({
-      data,
+      data: data.map((lead) => presentExportLead(lead, user!)),
+      claim: {
+        limit: DAILY_LEAD_CLAIM_LIMIT,
+        used: claimedToday,
+        remaining: Math.max(0, DAILY_LEAD_CLAIM_LIMIT - claimedToday),
+      },
       elsewhere,
       countries,
       pagination: {
@@ -157,8 +171,8 @@ const createSchema = z.object({
   notes: z.string().optional(),
   fitEvidence: z.string().optional(),
   nextFollowUpAt: z.string().datetime().optional().nullable(),
-  /** 仅管理员：分配给业务员 */
-  ownerId: z.string().optional(),
+  /** 管理员：分配给业务员；空则进入公海 */
+  ownerId: z.string().nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -182,8 +196,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { ownerId: bodyOwnerId, nextFollowUpAt, ...rest } = nullifyBlankFields(parsed.data);
-    let ownerId = user!.id;
-    if (user!.role === "ADMIN" && bodyOwnerId) {
+    let ownerId: string | null = isExportAdmin(user!) ? null : user!.id;
+    if (isExportAdmin(user!) && bodyOwnerId) {
       const assignee = await prisma.user.findFirst({
         where: { id: bodyOwnerId, tenant: "export", tenantId: ctx!.tenantId },
         select: { id: true },
@@ -199,7 +213,7 @@ export async function POST(request: NextRequest) {
       phone: parsed.data.phone ?? parsed.data.whatsapp,
     });
     if (duplicate) {
-      return NextResponse.json(exportDuplicateConflictBody(duplicate), { status: 400 });
+      return NextResponse.json(exportDuplicateConflictBody(duplicate, user!), { status: 400 });
     }
 
     const lead = await prisma.exportLead.create({
@@ -207,6 +221,7 @@ export async function POST(request: NextRequest) {
         ...rest,
         tenantId: ctx!.tenantId,
         ownerId,
+        claimedAt: ownerId ? new Date() : null,
         status: parsed.data.status ?? "new",
         nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : undefined,
       },

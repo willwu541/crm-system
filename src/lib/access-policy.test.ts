@@ -3,6 +3,7 @@ import { after, describe, it } from "node:test";
 import {
   canSeeOwner,
   createdByScope,
+  exportDataOwnerFilter,
   exportOwnerFilter,
   isOwnDataOnly,
   ownerScope,
@@ -46,5 +47,18 @@ describe("person-level visibility", () => {
     const manager = user("MANAGER", "manager1");
     assert.deepEqual(createdByScope(manager), { createdById: { in: ["manager1", "sales1"] } });
     assert.equal(canSeeOwner(exportOwnerFilter(manager), "sales2"), false);
+  });
+
+  it("export managers only see people an admin checked, and sales stay on their own book", () => {
+    saveAccessPolicy({
+      directorUserId: null,
+      canView: { manager1: ["sales1"], sales1: ["manager1"] },
+    });
+    const manager = user("MANAGER", "manager1");
+    const sales = user("SALES", "sales1");
+    const admin = user("ADMIN", "boss");
+    assert.deepEqual(exportDataOwnerFilter(manager), { ownerIds: ["manager1", "sales1"] });
+    assert.deepEqual(exportDataOwnerFilter(sales), { ownerIds: ["sales1"] });
+    assert.equal(exportDataOwnerFilter(admin), undefined);
   });
 });

@@ -22,6 +22,7 @@ import { ElsewhereHits, type ElsewhereHit } from "./ElsewhereHits";
 import { FillWhatsappModal, type FillWhatsappTarget } from "./FillWhatsappModal";
 import { CountrySelect } from "./CountrySelect";
 import { countryLabel } from "@/lib/export/countries";
+import { useExportMe } from "./use-export-me";
 
 interface Customer {
   id: string;
@@ -126,6 +127,8 @@ interface PaginationData {
 
 export function CustomersClient() {
   const { toast } = useToast();
+  const me = useExportMe();
+  const isAdmin = me?.role === "ADMIN";
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -390,6 +393,7 @@ export function CustomersClient() {
         >
           新建客户
         </button>
+        {isAdmin && (
         <a
           href={`/api/export/customers/export?${buildListFilterParams().toString()}`}
           download
@@ -397,6 +401,7 @@ export function CustomersClient() {
         >
           导出 CSV
         </a>
+        )}
         <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-0.5">
           <select
             value={emailCopyFormat}
