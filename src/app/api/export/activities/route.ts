@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { canSeeOwner } from "@/lib/access-policy";
 import { canSeeExportLeadContacts, canStartUsingExportLead, canViewExportLead, canWorkExportCustomer, EXPORT_OWNED_BY_OTHER } from "@/lib/export/lead-pool";
-import { ExportLeadTakeError, assertLeadTaken, takeExportLeadFromPool } from "@/lib/export/take-lead";
 import { ACTIVITY_DIRECTIONS } from "@/lib/export-constants";
 import { ACTIVITY_OUTCOMES, validateWorkLog } from "@/lib/export/work-outcomes";
 import { renderTemplate, type TemplateVarsInput } from "@/lib/export/template-vars";
@@ -144,8 +143,12 @@ export async function POST(request: NextRequest) {
         where: { id: input.leadId, tenantId: ctx!.tenantId },
       });
       if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
-      if (!canStartUsingExportLead(user!, lead.ownerId)) {
-        return NextResponse.json({ error: lead.ownerId ? EXPORT_OWNED_BY_OTHER : "请先认领这条线索，再记录跟进" }, { status: 403 });
+      const poolResearch = !lead.ownerId && input.type === "research";
+      if (!poolResearch && !lead.ownerId) {
+        return NextResponse.json({ error: "请先认领这条线索，再记录跟进" }, { status: 403 });
+      }
+      if (lead.ownerId && !canStartUsingExportLead(user!, lead.ownerId)) {
+        return NextResponse.json({ error: EXPORT_OWNED_BY_OTHER }, { status: 403 });
       }
     }
 
@@ -209,15 +212,6 @@ export async function POST(request: NextRequest) {
     }
 
     const activity = await prisma.$transaction(async (tx) => {
-      if (input.leadId && lead && !lead.ownerId) {
-        const taken = await takeExportLeadFromPool(tx, {
-          tenantId: ctx!.tenantId,
-          leadId: input.leadId,
-          user: user!,
-        });
-        assertLeadTaken(taken);
-      }
-
       const a = await tx.exportActivity.create({
         data: {
           tenantId: ctx!.tenantId,
@@ -298,9 +292,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: activity });
   } catch (e) {
-    if (e instanceof ExportLeadTakeError) {
-      return NextResponse.json({ error: e.message }, { status: e.status });
-    }
     console.error("Create activity error:", e);
     return NextResponse.json({ error: "创建失败" }, { status: 500 });
   }

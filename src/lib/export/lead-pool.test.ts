@@ -8,9 +8,8 @@ import {
   canViewExportLead,
   canWorkExportCustomer,
   canWorkExportLead,
-  isUnusedOwnedLead,
+  isUndevelopedOwnedLead,
   newExportLeadAssignment,
-  patchClaimsExportLead,
   presentExportLead,
 } from "./lead-pool";
 
@@ -92,32 +91,21 @@ describe("export lead pool visibility", () => {
     assert.equal(canWorkExportLead(sales, null), false);
   });
 
-  it("treats filling a contact method as starting to use the lead", () => {
-    assert.equal(patchClaimsExportLead({ whatsapp: "+1 555" }), true);
-    assert.equal(patchClaimsExportLead({ email: "a@x.com" }), true);
-    assert.equal(patchClaimsExportLead({ phone: "  " }), false);
-    assert.equal(patchClaimsExportLead({ companyName: "Acme" }), false);
-  });
-
-  it("returns unused owned leads to the pool and keeps contacted or converted ones", () => {
+  it("treats an unconverted lead as undeveloped even if it still has an old owner", () => {
     assert.equal(
-      isUnusedOwnedLead({ ownerId: "sales", contactCount: 0, lastContactAt: null, convertedToCustomerId: null }),
+      isUndevelopedOwnedLead({ ownerId: "finder", convertedToCustomerId: null, status: "new" }),
       true,
     );
     assert.equal(
-      isUnusedOwnedLead({ ownerId: "sales", contactCount: 1, lastContactAt: null, convertedToCustomerId: null }),
+      isUndevelopedOwnedLead({ ownerId: "sales", convertedToCustomerId: "cust", status: "converted" }),
       false,
     );
     assert.equal(
-      isUnusedOwnedLead({ ownerId: "sales", contactCount: 0, lastContactAt: "2026-01-01", convertedToCustomerId: null }),
+      isUndevelopedOwnedLead({ ownerId: "sales", convertedToCustomerId: null, status: "converted" }),
       false,
     );
     assert.equal(
-      isUnusedOwnedLead({ ownerId: "sales", contactCount: 0, lastContactAt: null, convertedToCustomerId: "cust" }),
-      false,
-    );
-    assert.equal(
-      isUnusedOwnedLead({ ownerId: null, contactCount: 0, lastContactAt: null, convertedToCustomerId: null }),
+      isUndevelopedOwnedLead({ ownerId: null, convertedToCustomerId: null, status: "new" }),
       false,
     );
   });

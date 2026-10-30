@@ -43,8 +43,8 @@ export function canWorkExportLead(user: Pick<SessionUser, "id" | "role">, ownerI
 }
 
 /**
- * 认领、第一次跟进、补联系方式、转客户。公海线索做这些动作时才写入负责人。
- * 已经归别人的线索，其他人不能接手。
+ * 公海线索谁都可以开始用。已经归别人的线索，其他人不能接手。
+ * 找线索、补联系方式、记深挖都不写负责人。只有认领和转成客户才写。
  */
 export function canStartUsingExportLead(user: Pick<SessionUser, "id" | "role">, ownerId?: string | null) {
   if (isExportAdmin(user)) return true;
@@ -57,25 +57,19 @@ export function newExportLeadAssignment(): { ownerId: null; claimedAt: null } {
   return { ownerId: null, claimedAt: null };
 }
 
-export const EXPORT_LEAD_CONTACT_KEYS = ["email", "phone", "whatsapp", "linkedin", "facebook", "tiktok"] as const;
-
-/** 补上邮箱、电话、WhatsApp 等联系方式，算开始用这条线索。 */
-export function patchClaimsExportLead(patch: object) {
-  const record = patch as Record<string, unknown>;
-  return EXPORT_LEAD_CONTACT_KEYS.some((key) => {
-    const value = record[key];
-    return typeof value === "string" && value.trim().length > 0;
-  });
-}
-
-/** 有负责人，但还没联系过、也没转成客户。这些旧数据要回到公海。 */
-export function isUnusedOwnedLead(lead: {
+/**
+ * 还挂在某人名下，但没有转成客户。
+ * 找线索时写下的联系方式和深挖不算开发。调用方还要排除已经有认领记录的线索。
+ */
+export function isUndevelopedOwnedLead(lead: {
   ownerId?: string | null;
-  contactCount?: number | null;
-  lastContactAt?: Date | string | null;
   convertedToCustomerId?: string | null;
+  status?: string | null;
 }) {
-  return Boolean(lead.ownerId) && (lead.contactCount ?? 0) === 0 && !lead.lastContactAt && !lead.convertedToCustomerId;
+  if (!lead.ownerId) return false;
+  if (lead.convertedToCustomerId) return false;
+  if (lead.status === "converted") return false;
+  return true;
 }
 
 /** 公海联系方式认领前不给看。已归某人的线索，本人、管理者，以及被允许的经理可以看到。 */

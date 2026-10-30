@@ -181,11 +181,6 @@ export function LeadForm({
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
-        {!leadId && (
-          <p className="sm:col-span-2 text-xs text-slate-500">
-            保存后进入公海，不指定负责人。认领、记跟进、补联系方式或转成客户后，才归到使用的人名下。
-          </p>
-        )}
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">网站</label>
           <input

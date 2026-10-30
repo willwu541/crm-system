@@ -264,10 +264,9 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
             tiktok={lead.tiktok}
           />
           )}
-          {locked && (
+          {locked && (lead.hasEmail || lead.hasWhatsapp) && (
             <p className="mt-1 text-sm text-amber-800">
-              联系方式已隐藏。认领、记第一次跟进、补联系方式或转客户后归你负责，其他业务员就看不到这条线索。
-              {lead.hasEmail ? " 这家有邮箱。" : ""}
+              {lead.hasEmail ? "这家有邮箱。" : ""}
               {lead.hasWhatsapp ? " 这家有 WhatsApp。" : ""}
             </p>
           )}

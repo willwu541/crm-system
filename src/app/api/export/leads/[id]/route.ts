@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import type { SessionUser } from "@/lib/auth";
-import { canViewExportLead, canWorkExportLead, patchClaimsExportLead, presentExportLead } from "@/lib/export/lead-pool";
-import { ExportLeadTakeError, assertLeadTaken, takeExportLeadFromPool } from "@/lib/export/take-lead";
+import { canViewExportLead, canWorkExportLead, presentExportLead } from "@/lib/export/lead-pool";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
@@ -97,9 +96,8 @@ export async function PATCH(
     }
 
     const { nextFollowUpAt, ...rest } = parsed.data;
-    const fillsContact = patchClaimsExportLead(rest);
     const inPool = !lead!.ownerId;
-    if (!canWorkExportLead(user!, lead!.ownerId) && !(inPool && fillsContact)) {
+    if (!inPool && !canWorkExportLead(user!, lead!.ownerId)) {
       return NextResponse.json({ error: "请先认领这条线索，再进行开发" }, { status: 403 });
     }
 
@@ -123,26 +121,13 @@ export async function PATCH(
       return NextResponse.json(exportDuplicateConflictBody(duplicate, user!), { status: 400 });
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      if (inPool && fillsContact) {
-        const taken = await takeExportLeadFromPool(tx, {
-          tenantId: ctx!.tenantId,
-          leadId: id,
-          user: user!,
-        });
-        assertLeadTaken(taken);
-      }
-      return tx.exportLead.update({
-        where: { id, tenantId: ctx!.tenantId },
-        data,
-        include: { owner: { select: { id: true, name: true } } },
-      });
+    const updated = await prisma.exportLead.update({
+      where: { id, tenantId: ctx!.tenantId },
+      data,
+      include: { owner: { select: { id: true, name: true } } },
     });
     return NextResponse.json({ data: presentExportLead(updated, user!) });
   } catch (e) {
-    if (e instanceof ExportLeadTakeError) {
-      return NextResponse.json({ error: e.message }, { status: e.status });
-    }
     console.error("Update lead error:", e);
     const msg = prismaErrorToUserMessage(e, "更新失败，请稍后重试。");
     return NextResponse.json({ error: msg }, { status: 500 });

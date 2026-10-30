@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import { isExportAdmin } from "@/lib/export/lead-pool";
 
-/** 把还没人联系过的线索放回公海，已经在跟的不动。 */
+/** 还没被业务员认领、也没转成客户的线索回到公海。已经认领或已转客户的不动。 */
 export async function POST() {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
@@ -16,8 +16,8 @@ export async function POST() {
       tenantId: ctx!.tenantId,
       ownerId: { not: null },
       convertedToCustomerId: null,
-      contactCount: 0,
-      lastContactAt: null,
+      status: { not: "converted" },
+      claims: { none: {} },
     },
     data: { ownerId: null, claimedAt: null },
   });

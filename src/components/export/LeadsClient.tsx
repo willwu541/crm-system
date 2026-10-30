@@ -364,7 +364,7 @@ export function LeadsClient() {
   }
 
   async function releaseUntouched() {
-    if (!confirm("把还没有联系过的线索放回公海？已经在跟进的不会动。")) return;
+    if (!confirm("把还没被业务员认领、也没转成客户的线索放回公海？已经认领或已转客户的不会动。")) return;
     setReleasingPool(true);
     try {
       const res = await fetch("/api/export/leads/release-untouched", { method: "POST" });
@@ -384,10 +384,9 @@ export function LeadsClient() {
       <div className="export-filter-shell">
         <div className="mb-3">
           <h1 className="text-lg font-semibold text-slate-800">线索开发中心</h1>
-          <p className="text-xs text-slate-500">
-            线索默认都在公海，没有负责人。认领、记跟进、补联系方式或转客户后才归本人。管理者看全部；经理要被允许才能看别人已经在用的；业务员看不到别人的。
-            {claimRemaining != null && !isAdmin ? ` 今天还能认领 ${claimRemaining} 条。` : ""}
-          </p>
+          {claimRemaining != null && !isAdmin && (
+            <p className="text-xs text-slate-500">今天还能认领 {claimRemaining} 条。</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
@@ -564,7 +563,7 @@ export function LeadsClient() {
           disabled={releasingPool}
           className="export-btn-secondary rounded-md px-4 py-2 text-sm disabled:opacity-50"
         >
-          {releasingPool ? "处理中..." : "未联系的放回公海"}
+          {releasingPool ? "处理中..." : "未开发的放回公海"}
         </button>
         )}
         {isAdmin && (
