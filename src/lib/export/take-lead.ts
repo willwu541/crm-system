@@ -16,7 +16,7 @@ export type TakeExportLeadResult = { ok: true } | { ok: false; error: string; st
 
 /**
  * 公海线索被真正使用时写入负责人。已经归本人的不重复计数；
- * 已经归别人的不能抢走。非管理员每天最多领 20 条。
+ * 已经归别人的不能抢走。非管理员每天最多领 50 条。
  */
 export async function takeExportLeadFromPool(
   tx: Prisma.TransactionClient,

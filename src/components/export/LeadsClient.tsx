@@ -405,7 +405,7 @@ export function LeadsClient() {
   }
 
   async function releaseUntouched() {
-    if (!confirm("把还没被业务员认领、也没转成客户的线索放回公海？已经认领或已转客户的不会动。")) return;
+    if (!confirm("把还没联系过、也没转成客户的线索放回公海？已经联系或已转客户的不会动。")) return;
     setReleasingPool(true);
     try {
       const res = await fetch("/api/export/leads/release-untouched", { method: "POST" });

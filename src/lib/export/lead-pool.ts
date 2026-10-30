@@ -2,7 +2,7 @@ import type { SessionUser } from "@/lib/auth";
 import { canSeeOwner, exportDataOwnerFilter, exportDataOwnerIds, isDirector } from "@/lib/access-policy";
 
 /** 每人每天最多从公海认领的条数。管理员分配不受此限制。 */
-export const DAILY_LEAD_CLAIM_LIMIT = 20;
+export const DAILY_LEAD_CLAIM_LIMIT = 50;
 
 const LOCKED_KEYS = [
   "email",
@@ -49,7 +49,7 @@ export function canWorkExportLead(user: Pick<SessionUser, "id" | "role">, ownerI
 
 /**
  * 公海线索谁都可以开始用。已经归别人的线索，其他人不能接手。
- * 找线索、补联系方式、记深挖都不写负责人。只有认领和转成客户才写。
+ * 找线索、补联系方式、记深挖不写负责人。认领、记真正跟进或转成客户才写。
  */
 export function canStartUsingExportLead(user: Pick<SessionUser, "id" | "role">, ownerId?: string | null) {
   if (isExportAdmin(user)) return true;
