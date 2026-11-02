@@ -303,19 +303,23 @@ export function UserList() {
         </div>
       )}
 
-      {policy?.canEditPool && (
-        <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-4">
-          <p className="mb-1 text-sm font-medium text-slate-800">外贸公海</p>
-          <p className="mb-3 text-xs text-slate-500">
-            打开后可看公海并认领；关掉后只能看自己的线索。管理者始终可用，不用关。
-          </p>
-          <div className="space-y-2">
-            {users
-              .filter((item) => item.tenant === "export" && item.isActive)
-              .map((viewer) => {
+      {policy?.canEditPool && (() => {
+        const poolTargets = users.filter((item) => {
+          if (item.tenant !== "export" || !item.isActive) return false;
+          const isDirectorUser = item.id === policy.directorUserId;
+          // 管理者自己始终可用，不出现在开关列表；只控制业务员 / 经理 / 业务经理
+          return !(item.role === "ADMIN" && !isDirectorUser);
+        });
+        return (
+          <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-4">
+            <p className="mb-1 text-sm font-medium text-slate-800">外贸公海权限</p>
+            <p className="mb-3 text-xs text-slate-500">
+              你作为管理者，可单独开关每个业务员、业务经理能否看到并认领公海线索。关闭后对方只能看自己的。
+            </p>
+            <div className="space-y-2">
+              {poolTargets.map((viewer) => {
                 const isDirectorUser = viewer.id === policy.directorUserId;
-                const isBossUser = viewer.role === "ADMIN" && !isDirectorUser;
-                const poolOn = isBossUser || policy.canUsePool[viewer.id] !== false;
+                const poolOn = policy.canUsePool[viewer.id] !== false;
                 return (
                   <div
                     key={viewer.id}
@@ -327,33 +331,28 @@ export function UserList() {
                         {formatRole(viewer.role, isDirectorUser)}
                       </span>
                     </span>
-                    {isBossUser ? (
-                      <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs text-teal-800">
-                        始终可用
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={savingPolicy}
-                        onClick={() => void toggleCanUsePool(viewer.id)}
-                        className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
-                          poolOn
-                            ? "bg-teal-600 text-white hover:bg-teal-700"
-                            : "bg-slate-200 text-slate-600 hover:bg-slate-300"
-                        }`}
-                      >
-                        {poolOn ? "已开启 · 点击关闭" : "已关闭 · 点击开启"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={savingPolicy}
+                      onClick={() => void toggleCanUsePool(viewer.id)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
+                        poolOn
+                          ? "bg-teal-600 text-white hover:bg-teal-700"
+                          : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                      }`}
+                    >
+                      {poolOn ? "可看公海 · 点击关闭" : "不可看公海 · 点击开启"}
+                    </button>
                   </div>
                 );
               })}
-            {users.filter((item) => item.tenant === "export" && item.isActive).length === 0 ? (
-              <p className="text-xs text-slate-400">还没有外贸账号</p>
-            ) : null}
+              {poolTargets.length === 0 ? (
+                <p className="text-xs text-slate-400">还没有可配置的业务员或业务经理</p>
+              ) : null}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {policy?.canEdit && (
         <div className="rounded-lg border border-slate-200 bg-white p-4">

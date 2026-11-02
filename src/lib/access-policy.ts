@@ -158,14 +158,14 @@ export function canEditAccessPolicy(user: Pick<SessionUser, "id" | "role">) {
   return user.role === "ADMIN" || isDirector(user);
 }
 
-/** 管理员账号可改公海开关（含仍是 ADMIN 的业务经理）。 */
-export function canEditPoolAccess(user: Pick<SessionUser, "id" | "role">) {
-  return user.role === "ADMIN";
-}
-
 /** 真正的管理者：ADMIN 且不是业务经理。公海对他们始终可用。 */
 export function isExportBoss(user: Pick<SessionUser, "id" | "role">) {
   return user.role === "ADMIN" && !isDirector(user);
+}
+
+/** 只有管理者能改业务员 / 业务经理的公海开关。 */
+export function canEditPoolAccess(user: Pick<SessionUser, "id" | "role">) {
+  return isExportBoss(user);
 }
 
 /**
