@@ -1,5 +1,12 @@
 import type { SessionUser } from "@/lib/auth";
-import { canSeeOwner, canUseExportPool, exportDataOwnerFilter, exportDataOwnerIds, isDirector } from "@/lib/access-policy";
+import {
+  canSeeOwner,
+  canUseExportPool,
+  exportDataOwnerFilter,
+  exportDataOwnerIds,
+  isDirector,
+  isExportBoss,
+} from "@/lib/access-policy";
 export { canUseExportPool };
 
 /** 每人每天最多从公海认领的条数。管理员分配不受此限制。 */
@@ -29,7 +36,7 @@ export function isExportAdmin(user: Pick<SessionUser, "id" | "role">) {
 
 /** 只有管理者可以分配线索和项目。业务经理只接收分配，不能再分给别人。 */
 export function canAssignExportWork(user: Pick<SessionUser, "id" | "role">) {
-  return user.role === "ADMIN" && !isDirector(user);
+  return isExportBoss(user);
 }
 
 function grantedOwnerIds(user: Pick<SessionUser, "id" | "role">) {

@@ -142,15 +142,33 @@ export function UserList() {
     });
   }
 
-  function toggleCanUsePool(userId: string) {
+  async function toggleCanUsePool(userId: string) {
     if (!policy?.canEditPool) return;
     const current = policy.canUsePool[userId] !== false;
-    void savePolicyPatch({
-      canUsePool: {
-        ...policy.canUsePool,
-        [userId]: !current,
-      },
-    });
+    const next = {
+      ...policy.canUsePool,
+      [userId]: !current,
+    };
+    setPolicy({ ...policy, canUsePool: next });
+    setSavingPolicy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/access-policy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canUsePool: next }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      await fetchPolicy();
+      toast(current ? "已关闭公海" : "已打开公海");
+    } catch (e) {
+      setPolicy({ ...policy, canUsePool: policy.canUsePool });
+      setError(e instanceof Error ? e.message : "保存失败");
+      toast(e instanceof Error ? e.message : "保存失败", "error");
+    } finally {
+      setSavingPolicy(false);
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -289,17 +307,17 @@ export function UserList() {
         <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-4">
           <p className="mb-1 text-sm font-medium text-slate-800">外贸公海</p>
           <p className="mb-3 text-xs text-slate-500">
-            打开后，这个人能看公海线索并认领。关掉就只能看自己的。只有管理者能改。
+            打开后可看公海并认领；关掉后只能看自己的线索。管理者始终可用，不用关。
           </p>
           <div className="space-y-2">
             {users
               .filter((item) => item.tenant === "export" && item.isActive)
               .map((viewer) => {
                 const isDirectorUser = viewer.id === policy.directorUserId;
-                const poolLockedOn = viewer.role === "ADMIN" && !isDirectorUser;
-                const poolOn = poolLockedOn || policy.canUsePool[viewer.id] !== false;
+                const isBossUser = viewer.role === "ADMIN" && !isDirectorUser;
+                const poolOn = isBossUser || policy.canUsePool[viewer.id] !== false;
                 return (
-                  <label
+                  <div
                     key={viewer.id}
                     className="flex items-center justify-between gap-3 rounded-md border border-teal-100 bg-white px-3 py-2"
                   >
@@ -308,21 +326,26 @@ export function UserList() {
                       <span className="ml-1 text-xs text-slate-400">
                         {formatRole(viewer.role, isDirectorUser)}
                       </span>
-                      {poolLockedOn ? (
-                        <span className="ml-2 text-xs text-teal-700">管理者，始终可用</span>
-                      ) : null}
                     </span>
-                    <span className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={poolOn}
-                        disabled={savingPolicy || poolLockedOn}
-                        onChange={() => toggleCanUsePool(viewer.id)}
-                      />
-                      可用公海
-                    </span>
-                  </label>
+                    {isBossUser ? (
+                      <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs text-teal-800">
+                        始终可用
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={savingPolicy}
+                        onClick={() => void toggleCanUsePool(viewer.id)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
+                          poolOn
+                            ? "bg-teal-600 text-white hover:bg-teal-700"
+                            : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                        }`}
+                      >
+                        {poolOn ? "已开启 · 点击关闭" : "已关闭 · 点击开启"}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             {users.filter((item) => item.tenant === "export" && item.isActive).length === 0 ? (

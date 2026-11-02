@@ -158,8 +158,13 @@ export function canEditAccessPolicy(user: Pick<SessionUser, "id" | "role">) {
   return user.role === "ADMIN" || isDirector(user);
 }
 
-/** 只有管理者能改公海开关。业务经理不行。 */
+/** 管理员账号可改公海开关（含仍是 ADMIN 的业务经理）。 */
 export function canEditPoolAccess(user: Pick<SessionUser, "id" | "role">) {
+  return user.role === "ADMIN";
+}
+
+/** 真正的管理者：ADMIN 且不是业务经理。公海对他们始终可用。 */
+export function isExportBoss(user: Pick<SessionUser, "id" | "role">) {
   return user.role === "ADMIN" && !isDirector(user);
 }
 
@@ -176,9 +181,9 @@ export function exportDataOwnerIds(user: Pick<SessionUser, "id" | "role">): stri
   return [user.id];
 }
 
-/** 只有管理者始终可用公海。其他人按权限开关，未设置时默认可用。 */
+/** 管理者始终可用公海。其他人按权限开关，未设置时默认可用。 */
 export function canUseExportPool(user: Pick<SessionUser, "id" | "role">) {
-  if (canEditPoolAccess(user)) return true;
+  if (isExportBoss(user)) return true;
   const flagged = getAccessPolicy().canUsePool[user.id];
   return flagged !== false;
 }
