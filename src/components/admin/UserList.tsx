@@ -45,23 +45,39 @@ export function UserList() {
   const [offboardingId, setOffboardingId] = useState<string | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
   const [meRole, setMeRole] = useState<string | null>(null);
+  const [meTenant, setMeTenant] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<"ADMIN" | "MANAGER" | "SALES">("SALES");
   const [editTenant, setEditTenant] = useState<"domestic" | "export">("domestic");
   const [editIsActive, setEditIsActive] = useState(true);
   const [editPassword, setEditPassword] = useState("");
+  const [poolLeadDays, setPoolLeadDays] = useState(30);
+  const [poolCustomerDays, setPoolCustomerDays] = useState(60);
+  const [savingPoolRules, setSavingPoolRules] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((j: { user?: { id: string; role: string } }) => {
+      .then((j: { user?: { id: string; role: string; tenant?: string } }) => {
         if (j.user) {
           setMeId(j.user.id);
           setMeRole(j.user.role);
+          setMeTenant(j.user.tenant ?? null);
         }
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (meTenant !== "domestic") return;
+    fetch("/api/admin/pool-settings")
+      .then((r) => r.json())
+      .then((j: { data?: { leadDays?: number; customerDays?: number } }) => {
+        if (j.data?.leadDays) setPoolLeadDays(j.data.leadDays);
+        if (j.data?.customerDays) setPoolCustomerDays(j.data.customerDays);
+      })
+      .catch(() => {});
+  }, [meTenant]);
 
   async function fetchUsers() {
     setLoading(true);
@@ -168,6 +184,27 @@ export function UserList() {
       toast(e instanceof Error ? e.message : "保存失败", "error");
     } finally {
       setSavingPolicy(false);
+    }
+  }
+
+  async function saveDomesticPoolRules(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingPoolRules(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/pool-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadDays: poolLeadDays, customerDays: poolCustomerDays }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      toast("公海规则已保存");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "保存失败");
+      toast(err instanceof Error ? err.message : "保存失败", "error");
+    } finally {
+      setSavingPoolRules(false);
     }
   }
 
@@ -301,6 +338,49 @@ export function UserList() {
             </button>
           </div>
         </div>
+      )}
+
+      {meTenant === "domestic" && meRole === "ADMIN" && (
+        <form
+          onSubmit={(e) => void saveDomesticPoolRules(e)}
+          className="rounded-lg border border-amber-200 bg-amber-50/40 p-4"
+        >
+          <p className="mb-1 text-sm font-medium text-slate-800">内贸公海规则</p>
+          <p className="mb-3 text-xs text-slate-500">
+            超过设定天数未联系的线索/客户将自动进入公海。跑单需手动标记，不受此规则影响。
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">线索未联系天数</label>
+              <input
+                type="number"
+                min={7}
+                max={365}
+                value={poolLeadDays}
+                onChange={(e) => setPoolLeadDays(Number(e.target.value))}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">客户未联系天数</label>
+              <input
+                type="number"
+                min={7}
+                max={365}
+                value={poolCustomerDays}
+                onChange={(e) => setPoolCustomerDays(Number(e.target.value))}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={savingPoolRules}
+            className="mt-3 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {savingPoolRules ? "保存中..." : "保存公海规则"}
+          </button>
+        </form>
       )}
 
       {policy?.canEdit && (

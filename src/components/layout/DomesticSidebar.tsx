@@ -31,7 +31,6 @@ const NAV_ITEMS = [
 
 const ADMIN_ITEMS = [
   { href: "/suppliers", label: "加工户", Icon: Factory },
-  { href: "/admin/pool-settings", label: "公海规则", Icon: Settings },
   { href: "/customers/reactivation", label: "私域唤醒", Icon: BellRing },
   { href: "/admin/users", label: "用户管理", Icon: Settings },
   { href: "/admin/logs", label: "操作日志", Icon: ScrollText },
