@@ -123,18 +123,18 @@ export function ExportDashboardClient() {
 
   return (
     <div className="space-y-6">
-      {me?.canAssign && (
       <Link
         href="/export/projects"
         className="export-card flex items-center justify-between gap-3 p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
       >
         <div>
           <p className="text-sm font-semibold text-slate-800">项目找人</p>
-          <p className="mt-0.5 text-xs text-slate-500">录入碰到的项目，分配给业务员或业务经理去找联系方式</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {me?.canAssign ? "录入碰到的项目，分配给业务员或业务经理去找联系方式" : "查看分配给你的项目，去找联系方式"}
+          </p>
         </div>
         <span className="export-soft-link text-sm">打开 →</span>
       </Link>
-      )}
       {/* 线索开发待办 */}
       <div className="export-card bg-gradient-to-r from-blue-50 to-slate-50 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

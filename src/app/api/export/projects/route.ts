@@ -21,7 +21,9 @@ import {
   isProjectStatus,
   parseOptionalDate,
   projectKeywordOrClauses,
-  denyUnlessProjectManager,
+  canManageExportProjects,
+  denyUnlessCanManageProjects,
+  projectListOwnerWhere,
   resolveExportOwnerId,
 } from "@/lib/export/projects";
 import { z } from "zod";
@@ -30,8 +32,6 @@ import { findSalesUsersByName } from "@/lib/sales-user-search";
 export async function GET(request: NextRequest) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -50,22 +50,29 @@ export async function GET(request: NextRequest) {
   const allowedSort = new Set(["createdAt", "updatedAt", "name", "status", "bidDeadline", "country"]);
   const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
 
-  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
+  const where: Record<string, unknown> = {
+    tenantId: ctx!.tenantId,
+    ...projectListOwnerWhere(user!),
+  };
   const and: Record<string, unknown>[] = [];
+  const manageAll = canManageExportProjects(user!);
 
   if (status && isProjectStatus(status)) where.status = status;
   if (stage && isProjectStage(stage)) where.stage = stage;
   if (industry && isProjectIndustry(industry)) where.industry = industry;
   if (confidence && isProjectConfidence(confidence)) where.confidence = confidence;
   if (country) where.country = country;
-  const salesMatch = keyword
-    ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
-    : { exactIds: [] as string[] };
+  const salesMatch =
+    manageAll && keyword
+      ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
+      : { exactIds: [] as string[] };
   const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
-  if (matchedOwnerIds) {
-    where.ownerId = matchedOwnerIds.length === 1 ? matchedOwnerIds[0] : { in: matchedOwnerIds };
-  } else if (ownerId) {
-    where.ownerId = ownerId;
+  if (manageAll) {
+    if (matchedOwnerIds) {
+      where.ownerId = matchedOwnerIds.length === 1 ? matchedOwnerIds[0] : { in: matchedOwnerIds };
+    } else if (ownerId) {
+      where.ownerId = ownerId;
+    }
   }
   if (role && isProjectPartyRole(role)) {
     and.push({ parties: { some: { role } } });
@@ -93,6 +100,7 @@ export async function GET(request: NextRequest) {
         by: ["country"],
         where: {
           tenantId: ctx!.tenantId,
+          ...projectListOwnerWhere(user!),
           AND: [{ country: { not: null } }, { country: { not: "" } }],
         },
       }),
@@ -156,7 +164,7 @@ const createSchema = z.object({
 export async function POST(request: NextRequest) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
+  const denied = denyUnlessCanManageProjects(user!);
   if (denied) return denied;
 
   let body: unknown;

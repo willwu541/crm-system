@@ -19,8 +19,10 @@ type PolicyState = {
   directorUserId: string | null;
   directorName: string | null;
   canView: Record<string, string[]>;
+  canUsePool: Record<string, boolean>;
   canClaim: boolean;
   canEdit: boolean;
+  canEditPool: boolean;
 };
 
 export function UserList() {
@@ -75,7 +77,14 @@ export function UserList() {
   async function fetchPolicy() {
     const res = await fetch("/api/admin/access-policy");
     const json = await parseResponseJson<{ data?: PolicyState }>(res);
-    if (res.ok && json.data) setPolicy(json.data);
+    if (res.ok && json.data) {
+      setPolicy({
+        ...json.data,
+        canView: json.data.canView ?? {},
+        canUsePool: json.data.canUsePool ?? {},
+        canEditPool: json.data.canEditPool === true,
+      });
+    }
   }
 
   useEffect(() => {
@@ -98,13 +107,16 @@ export function UserList() {
     }
   }
 
-  async function saveCanView(canView: Record<string, string[]>) {
+  async function savePolicyPatch(body: {
+    canView?: Record<string, string[]>;
+    canUsePool?: Record<string, boolean>;
+  }) {
     setSavingPolicy(true);
     try {
       const res = await fetch("/api/admin/access-policy", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canView }),
+        body: JSON.stringify(body),
       });
       const json = await parseResponseJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error ?? "保存失败");
@@ -122,9 +134,22 @@ export function UserList() {
     const current = new Set(policy.canView[viewerId] ?? []);
     if (current.has(ownerId)) current.delete(ownerId);
     else current.add(ownerId);
-    void saveCanView({
-      ...policy.canView,
-      [viewerId]: Array.from(current),
+    void savePolicyPatch({
+      canView: {
+        ...policy.canView,
+        [viewerId]: Array.from(current),
+      },
+    });
+  }
+
+  function toggleCanUsePool(userId: string) {
+    if (!policy?.canEditPool) return;
+    const current = policy.canUsePool[userId] !== false;
+    void savePolicyPatch({
+      canUsePool: {
+        ...policy.canUsePool,
+        [userId]: !current,
+      },
     });
   }
 
@@ -264,7 +289,7 @@ export function UserList() {
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="mb-2 text-sm font-medium text-slate-800">谁可以看谁的资料</p>
           <p className="mb-2 text-xs text-slate-500">
-            外贸里，管理者看全部。经理默认只看自己的线索和客户，勾上某个人之后才能看那个人的。业务员只看自己的。
+            外贸里，管理者看全部。经理默认只看自己的线索和客户，勾上某个人之后才能看那个人的。业务员只看自己的。公海开关只有管理者能改。
           </p>
           <div className="space-y-3">
             {(["domestic", "export"] as const).map((tenant) => {
@@ -276,16 +301,31 @@ export function UserList() {
                   <div className="space-y-2">
                     {group.map((viewer) => {
                       const others = group.filter((item) => item.id !== viewer.id);
-                      const isBoss = viewer.id === policy.directorUserId;
+                      const isDirectorUser = viewer.id === policy.directorUserId;
+                      const poolLockedOn = viewer.role === "ADMIN" && !isDirectorUser;
+                      const poolOn = poolLockedOn || policy.canUsePool[viewer.id] !== false;
                       return (
                         <div key={viewer.id} className="rounded-md bg-slate-50 px-3 py-2">
-                          <p className="text-sm text-slate-800">
-                            {viewer.name}
-                            <span className="ml-1 text-xs text-slate-400">
-                              {formatRole(viewer.role, isBoss)}
-                            </span>
-                          </p>
-                          {isBoss ? (
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm text-slate-800">
+                              {viewer.name}
+                              <span className="ml-1 text-xs text-slate-400">
+                                {formatRole(viewer.role, isDirectorUser)}
+                              </span>
+                            </p>
+                            {tenant === "export" && (
+                              <label className="flex items-center gap-1 text-xs text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={poolOn}
+                                  disabled={!policy.canEditPool || savingPolicy || poolLockedOn}
+                                  onChange={() => toggleCanUsePool(viewer.id)}
+                                />
+                                公海
+                              </label>
+                            )}
+                          </div>
+                          {isDirectorUser || viewer.role === "ADMIN" ? (
                             <p className="mt-1 text-xs text-slate-500">可看全部</p>
                           ) : (
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">

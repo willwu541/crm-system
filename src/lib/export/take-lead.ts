@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { SessionUser } from "@/lib/auth";
-import { DAILY_LEAD_CLAIM_LIMIT, isExportAdmin, startOfLocalDay } from "@/lib/export/lead-pool";
+import { canUseExportPool, DAILY_LEAD_CLAIM_LIMIT, isExportAdmin, startOfLocalDay } from "@/lib/export/lead-pool";
 
 export class ExportLeadTakeError extends Error {
   status: number;
@@ -35,6 +35,10 @@ export async function takeExportLeadFromPool(
   if (current.ownerId) {
     if (current.ownerId === args.user.id || isExportAdmin(args.user)) return { ok: true };
     return { ok: false, error: "这条线索已经有人在跟", status: 409 };
+  }
+
+  if (!canUseExportPool(args.user)) {
+    return { ok: false, error: "你没有公海权限，请联系管理者开通", status: 403 };
   }
 
   if (!isExportAdmin(args.user)) {

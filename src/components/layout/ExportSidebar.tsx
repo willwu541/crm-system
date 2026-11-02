@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useExportMe } from "@/components/export/use-export-me";
 
 const NAV_ITEMS = [
   { href: "/export/dashboard", label: "工作台" },
@@ -22,7 +21,6 @@ const NAV_ITEMS = [
 
 export function ExportSidebar() {
   const pathname = usePathname();
-  const me = useExportMe();
   const [chatUnread, setChatUnread] = useState(0);
   const [formUnread, setFormUnread] = useState(0);
 
@@ -88,7 +86,7 @@ export function ExportSidebar() {
         <p className="mt-1 text-sm font-semibold text-white">钢格板外贸系统</p>
       </div>
       <nav className="flex flex-col gap-1 p-3">
-        {NAV_ITEMS.filter((item) => item.href !== "/export/projects" || me?.canAssign).map((item) => {
+        {NAV_ITEMS.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/export/dashboard" && pathname.startsWith(item.href + "/"));

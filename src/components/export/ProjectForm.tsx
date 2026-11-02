@@ -14,6 +14,7 @@ import {
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import { CountrySelect } from "./CountrySelect";
+import { useExportMe } from "./use-export-me";
 
 interface ExportUser {
   id: string;
@@ -51,6 +52,8 @@ export function ProjectForm({
   onCancel?: () => void;
 }) {
   const router = useRouter();
+  const me = useExportMe();
+  const canAssign = Boolean(me?.canAssign);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [users, setUsers] = useState<ExportUser[]>([]);
@@ -87,6 +90,13 @@ export function ProjectForm({
   }, [initial]);
 
   useEffect(() => {
+    if (!projectId && me && !canAssign) {
+      router.replace("/export/projects");
+    }
+  }, [projectId, me, canAssign, router]);
+
+  useEffect(() => {
+    if (!canAssign) return;
     (async () => {
       try {
         const r = await fetch("/api/export/users?assignable=1");
@@ -96,7 +106,7 @@ export function ProjectForm({
         /* ignore */
       }
     })();
-  }, []);
+  }, [canAssign]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -328,21 +338,23 @@ export function ProjectForm({
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-slate-700">分配给</label>
-          <select
-            value={form.ownerId}
-            onChange={(e) => setForm((f) => ({ ...f, ownerId: e.target.value }))}
-            className="w-full rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">暂不分配</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {canAssign && (
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">分配给</label>
+            <select
+              value={form.ownerId}
+              onChange={(e) => setForm((f) => ({ ...f, ownerId: e.target.value }))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+            >
+              <option value="">暂不分配</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">可能用到的产品</label>
           <div className="mb-2 flex flex-wrap gap-2">

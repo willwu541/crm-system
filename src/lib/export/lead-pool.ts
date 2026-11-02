@@ -1,5 +1,6 @@
 import type { SessionUser } from "@/lib/auth";
-import { canSeeOwner, exportDataOwnerFilter, exportDataOwnerIds, isDirector } from "@/lib/access-policy";
+import { canSeeOwner, canUseExportPool, exportDataOwnerFilter, exportDataOwnerIds, isDirector } from "@/lib/access-policy";
+export { canUseExportPool };
 
 /** 每人每天最多从公海认领的条数。管理员分配不受此限制。 */
 export const DAILY_LEAD_CLAIM_LIMIT = 50;
@@ -36,8 +37,8 @@ function grantedOwnerIds(user: Pick<SessionUser, "id" | "role">) {
 }
 
 export function canViewExportLead(user: Pick<SessionUser, "id" | "role">, ownerId?: string | null) {
+  if (!ownerId) return canUseExportPool(user);
   if (isExportAdmin(user)) return true;
-  if (!ownerId) return true;
   return grantedOwnerIds(user).includes(ownerId);
 }
 
@@ -52,8 +53,8 @@ export function canWorkExportLead(user: Pick<SessionUser, "id" | "role">, ownerI
  * 找线索、补联系方式、记深挖不写负责人。认领、记真正跟进或转成客户才写。
  */
 export function canStartUsingExportLead(user: Pick<SessionUser, "id" | "role">, ownerId?: string | null) {
+  if (!ownerId) return canUseExportPool(user);
   if (isExportAdmin(user)) return true;
-  if (!ownerId) return true;
   return ownerId === user.id;
 }
 
@@ -109,13 +110,16 @@ export function leadVisibilityWhere(
   user: Pick<SessionUser, "id" | "role">,
   scope?: string | null,
 ): Record<string, unknown> | null {
+  const poolOk = canUseExportPool(user);
   if (isExportAdmin(user)) {
-    if (scope === "pool") return { ownerId: null };
+    if (scope === "pool") return poolOk ? { ownerId: null } : { ownerId: { in: [] } };
     if (scope === "mine") return { ownerId: user.id };
+    if (!poolOk) return { ownerId: { not: null } };
     return null;
   }
-  if (scope === "pool") return { ownerId: null };
+  if (scope === "pool") return poolOk ? { ownerId: null } : { ownerId: { in: [] } };
   if (scope === "mine") return { ownerId: user.id };
+  if (!poolOk) return ownedClause(grantedOwnerIds(user));
   return { OR: [{ ownerId: null }, ownedClause(grantedOwnerIds(user))] };
 }
 
@@ -137,7 +141,7 @@ export function presentExportLead<T extends { ownerId?: string | null; converted
     hasEmail: filled(record.email),
     hasPhone: filled(record.phone),
     hasWhatsapp: filled(record.whatsapp),
-    canClaim: inPool && !isExportAdmin(user),
+    canClaim: inPool && !isExportAdmin(user) && canUseExportPool(user),
     canWork: canWorkExportLead(user, ownerId),
     canRelease: isExportAdmin(user) && !inPool && !lead.convertedToCustomerId,
   };

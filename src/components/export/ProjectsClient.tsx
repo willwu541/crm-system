@@ -26,6 +26,7 @@ import {
   wrapSlashLabel,
 } from "@/lib/export/project-board";
 import { useToast } from "@/components/ui/Toast";
+import { useExportMe } from "./use-export-me";
 import { Pagination } from "./shared/Pagination";
 import { CountrySelect } from "./CountrySelect";
 
@@ -131,6 +132,8 @@ export function ProjectsClient() {
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const { toast } = useToast();
+  const me = useExportMe();
+  const canManage = Boolean(me?.canAssign);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -153,6 +156,7 @@ export function ProjectsClient() {
   }
 
   useEffect(() => {
+    if (!canManage) return;
     let cancelled = false;
     (async () => {
       try {
@@ -166,7 +170,7 @@ export function ProjectsClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canManage]);
 
   async function assignProject(id: string, userId: string) {
     setAssigningId(id);
@@ -352,12 +356,14 @@ export function ProjectsClient() {
             搜索
           </button>
         </form>
-        <Link
-          href="/export/projects/new"
-          className="export-btn-primary ml-auto rounded-md px-4 py-1.5 text-sm font-medium"
-        >
-          新建项目
-        </Link>
+        {canManage && (
+          <Link
+            href="/export/projects/new"
+            className="export-btn-primary ml-auto rounded-md px-4 py-1.5 text-sm font-medium"
+          >
+            新建项目
+          </Link>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-stone-200 bg-[#f7f1e8]">
@@ -365,11 +371,13 @@ export function ProjectsClient() {
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : projects.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            {entryStatus === "entered"
-              ? "还没有已录入的项目。录完后点「已录入」，之后从这里找。"
-              : entryStatus === "pending"
-                ? "没有未录入的项目。先建一条并标成未录入，录完再点已录入。"
-                : "还没有项目。先录入碰到的项目，再让业务员去找业主、总包、分包联系方式。"}
+            {canManage
+              ? entryStatus === "entered"
+                ? "还没有已录入的项目。录完后点「已录入」，之后从这里找。"
+                : entryStatus === "pending"
+                  ? "没有未录入的项目。先建一条并标成未录入，录完再点已录入。"
+                  : "还没有项目。先录入碰到的项目，再分配给业务员去找联系方式。"
+              : "还没有分配给你的项目。"}
           </div>
         ) : (
           <table className="w-full min-w-[72rem] text-sm">
@@ -384,7 +392,7 @@ export function ProjectsClient() {
                 <th className="px-3 py-2.5">总包</th>
                 <th className="px-3 py-2.5">潜在采购公司</th>
                 <th className="px-3 py-2.5">可靠度</th>
-                <th className="px-3 py-2.5">分配</th>
+                {canManage && <th className="px-3 py-2.5">分配</th>}
                 <th className="px-3 py-2.5" />
               </tr>
             </thead>
@@ -443,26 +451,28 @@ export function ProjectsClient() {
                     <td className="px-3 py-3 align-top text-stone-500">
                       {displayLabel(projectConfidenceLabel, p.confidence)}
                     </td>
-                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        value={p.owner?.id ?? ""}
-                        disabled={assigningId === p.id}
-                        onChange={(e) => {
-                          if (e.target.value && e.target.value !== p.owner?.id) assignProject(p.id, e.target.value);
-                        }}
-                        className="max-w-[10rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs"
-                      >
-                        {!p.owner && <option value="">分配</option>}
-                        {p.owner && !assignees.some((u) => u.id === p.owner?.id) && (
-                          <option value={p.owner.id}>{p.owner.name}</option>
-                        )}
-                        {assignees.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                    {canManage && (
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={p.owner?.id ?? ""}
+                          disabled={assigningId === p.id}
+                          onChange={(e) => {
+                            if (e.target.value && e.target.value !== p.owner?.id) assignProject(p.id, e.target.value);
+                          }}
+                          className="max-w-[10rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs"
+                        >
+                          {!p.owner && <option value="">分配</option>}
+                          {p.owner && !assignees.some((u) => u.id === p.owner?.id) && (
+                            <option value={p.owner.id}>{p.owner.name}</option>
+                          )}
+                          {assignees.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={`/export/projects/${p.id}`}

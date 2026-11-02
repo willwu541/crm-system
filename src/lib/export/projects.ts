@@ -148,18 +148,49 @@ export function parseOptionalDate(value: string | null | undefined): Date | null
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-export function denyUnlessProjectManager(user: Pick<SessionUser, "id" | "role">) {
-  if (canAssignExportWork(user)) return null;
-  return NextResponse.json({ error: "只有管理者可以查看和分配项目" }, { status: 403 });
+/** 只有管理者能建项目、分配、删除。 */
+export function canManageExportProjects(user: Pick<SessionUser, "id" | "role">) {
+  return canAssignExportWork(user);
 }
 
-export async function getProjectOrError(id: string, tenantId: string) {
+/** 管理者看全部；业务员和经理只看分给自己的。 */
+export function canViewExportProject(
+  user: Pick<SessionUser, "id" | "role">,
+  ownerId?: string | null,
+) {
+  if (canManageExportProjects(user)) return true;
+  return Boolean(ownerId && ownerId === user.id);
+}
+
+export function projectListOwnerWhere(user: Pick<SessionUser, "id" | "role">) {
+  if (canManageExportProjects(user)) return {};
+  return { ownerId: user.id };
+}
+
+export function denyUnlessCanManageProjects(user: Pick<SessionUser, "id" | "role">) {
+  if (canManageExportProjects(user)) return null;
+  return NextResponse.json({ error: "只有管理者可以创建、分配或删除项目" }, { status: 403 });
+}
+
+/** @deprecated 用 denyUnlessCanManageProjects / canViewExportProject */
+export function denyUnlessProjectManager(user: Pick<SessionUser, "id" | "role">) {
+  return denyUnlessCanManageProjects(user);
+}
+
+export async function getProjectOrError(
+  id: string,
+  tenantId: string,
+  user?: Pick<SessionUser, "id" | "role">,
+) {
   const project = await prisma.exportProject.findUnique({
     where: { id, tenantId },
     include: PROJECT_DETAIL_INCLUDE,
   });
   if (!project) {
     return { project: null, error: NextResponse.json({ error: "项目不存在" }, { status: 404 }) };
+  }
+  if (user && !canViewExportProject(user, project.ownerId)) {
+    return { project: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { project, error: null };
 }

@@ -8,6 +8,8 @@ export type DataOwnerFilter = { ownerIds: string[] };
 export type AccessPolicy = {
   directorUserId: string | null;
   canView: Record<string, string[]>;
+  /** 外贸用户是否可用公海。未写入时默认可用。 */
+  canUsePool: Record<string, boolean>;
 };
 
 const CONFIG_PATH = path.join(process.cwd(), "data", "access-policy.json");
@@ -15,6 +17,7 @@ const CONFIG_PATH = path.join(process.cwd(), "data", "access-policy.json");
 const DEFAULT_POLICY: AccessPolicy = {
   directorUserId: null,
   canView: {},
+  canUsePool: {},
 };
 
 let cached: AccessPolicy | null = null;
@@ -32,9 +35,14 @@ function normalize(raw: Partial<AccessPolicy> & {
     const cleaned = uniqueIds((ownerIds ?? []).filter((id) => id !== viewerId));
     if (cleaned.length) canView[viewerId] = cleaned;
   }
+  const canUsePool: Record<string, boolean> = {};
+  for (const [userId, allowed] of Object.entries(raw?.canUsePool ?? {})) {
+    if (userId) canUsePool[userId] = Boolean(allowed);
+  }
   return {
     directorUserId: raw?.directorUserId ?? null,
     canView,
+    canUsePool,
   };
 }
 
@@ -43,12 +51,14 @@ export function getAccessPolicy(): AccessPolicy {
   try {
     cached = normalize(JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as Partial<AccessPolicy>);
   } catch {
-    cached = { ...DEFAULT_POLICY, canView: {} };
+    cached = { ...DEFAULT_POLICY, canView: {}, canUsePool: {} };
   }
   return cached;
 }
 
-export function saveAccessPolicy(next: AccessPolicy): AccessPolicy {
+export function saveAccessPolicy(
+  next: Omit<AccessPolicy, "canUsePool"> & { canUsePool?: Record<string, boolean> },
+): AccessPolicy {
   cached = normalize(next);
   mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
   writeFileSync(CONFIG_PATH, JSON.stringify(cached, null, 2), "utf-8");
@@ -148,9 +158,14 @@ export function canEditAccessPolicy(user: Pick<SessionUser, "id" | "role">) {
   return user.role === "ADMIN" || isDirector(user);
 }
 
+/** 只有管理者能改公海开关。业务经理不行。 */
+export function canEditPoolAccess(user: Pick<SessionUser, "id" | "role">) {
+  return user.role === "ADMIN" && !isDirector(user);
+}
+
 /**
  * 外贸数据范围。管理者看全部；经理只看自己和管理者勾选的人；业务员只看自己。
- * 未认领的公海线索另外对所有人可见，不在这个名单里。
+ * 公海另由 canUseExportPool 控制。
  */
 export function exportDataOwnerIds(user: Pick<SessionUser, "id" | "role">): string[] | null {
   if (user.role === "ADMIN" || isDirector(user)) return null;
@@ -159,6 +174,13 @@ export function exportDataOwnerIds(user: Pick<SessionUser, "id" | "role">): stri
     return uniqueIds([user.id, ...extra]);
   }
   return [user.id];
+}
+
+/** 只有管理者始终可用公海。其他人按权限开关，未设置时默认可用。 */
+export function canUseExportPool(user: Pick<SessionUser, "id" | "role">) {
+  if (canEditPoolAccess(user)) return true;
+  const flagged = getAccessPolicy().canUsePool[user.id];
+  return flagged !== false;
 }
 
 export function exportDataOwnerFilter(user: Pick<SessionUser, "id" | "role">): DataOwnerFilter | undefined {

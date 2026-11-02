@@ -4,7 +4,7 @@ import { requireExportSession } from "@/lib/export/auth";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import { PROJECT_PARTY_ROLES } from "@/lib/export-constants";
-import { PARTY_INCLUDE, denyUnlessProjectManager, getProjectOrError } from "@/lib/export/projects";
+import { PARTY_INCLUDE, getProjectOrError } from "@/lib/export/projects";
 import { boardFieldsFromNewParty } from "@/lib/export/project-board";
 import { blankToNull } from "@/lib/export/blank-to-null";
 import { normalizeWebsiteUrl } from "@/lib/website";
@@ -30,10 +30,8 @@ export async function GET(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
   const { id } = await params;
-  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId);
+  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
   return NextResponse.json({ data: project!.parties });
 }
@@ -44,10 +42,8 @@ export async function POST(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
   const { id } = await params;
-  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId);
+  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
 
   let body: unknown;

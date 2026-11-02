@@ -101,6 +101,30 @@ describe("export lead pool visibility", () => {
     assert.equal(canWorkExportLead(sales, null), false);
   });
 
+  it("hides the pool when the permission switch is off", () => {
+    saveAccessPolicy({ directorUserId: null, canView: {}, canUsePool: { sales: false } });
+    resetAccessPolicyCache();
+    assert.equal(canViewExportLead(sales, null), false);
+    assert.equal(canStartUsingExportLead(sales, null), false);
+    const shown = presentExportLead(
+      { ownerId: null, email: "a@x.com", companyName: "Acme" },
+      sales,
+    );
+    assert.equal(shown.canClaim, false);
+  });
+
+  it("keeps pool always on for the admin, but not for the sales director", () => {
+    saveAccessPolicy({
+      directorUserId: "director",
+      canView: {},
+      canUsePool: { director: false, sales: false },
+    });
+    resetAccessPolicyCache();
+    assert.equal(canViewExportLead({ id: "boss", role: "ADMIN" }, null), true);
+    assert.equal(canViewExportLead({ id: "director", role: "ADMIN" }, null), false);
+    assert.equal(canStartUsingExportLead({ id: "director", role: "ADMIN" }, null), false);
+  });
+
   it("treats an unconverted lead as undeveloped even if it still has an old owner", () => {
     assert.equal(
       isUndevelopedOwnedLead({ ownerId: "finder", convertedToCustomerId: null, status: "new" }),

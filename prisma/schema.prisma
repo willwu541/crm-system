@@ -960,7 +960,7 @@ model ExportTask {
 }
 
 /**
- * 外贸项目找人板。只有管理者能看全部并分配给业务员或业务经理。
+ * 外贸项目找人板。管理者看全部并分配；业务员和经理只看分给自己的。
  */
 model ExportProject {
   id                 String    @id @default(cuid())

@@ -5,7 +5,7 @@ import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import { PROJECT_PARTY_ROLES } from "@/lib/export-constants";
-import { PARTY_INCLUDE, denyUnlessProjectManager, getProjectOrError } from "@/lib/export/projects";
+import { PARTY_INCLUDE, getProjectOrError } from "@/lib/export/projects";
 import { blankToNull } from "@/lib/export/blank-to-null";
 import { normalizeWebsiteUrl } from "@/lib/website";
 import { z } from "zod";
@@ -41,10 +41,8 @@ export async function PATCH(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
   const { id, partyId } = await params;
-  const { error: projectErr } = await getProjectOrError(id, ctx!.tenantId);
+  const { error: projectErr } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (projectErr) return projectErr;
   const { error: partyErr } = await getPartyOrError(id, partyId, ctx!.tenantId);
   if (partyErr) return partyErr;
@@ -102,10 +100,8 @@ export async function DELETE(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
   const { id, partyId } = await params;
-  const { error: projectErr } = await getProjectOrError(id, ctx!.tenantId);
+  const { error: projectErr } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (projectErr) return projectErr;
   const { party, error: partyErr } = await getPartyOrError(id, partyId, ctx!.tenantId);
   if (partyErr) return partyErr;

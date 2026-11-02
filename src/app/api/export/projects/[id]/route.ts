@@ -13,7 +13,8 @@ import {
 } from "@/lib/export-constants";
 import {
   PROJECT_DETAIL_INCLUDE,
-  denyUnlessProjectManager,
+  canManageExportProjects,
+  denyUnlessCanManageProjects,
   getProjectOrError,
   parseOptionalDate,
   resolveExportOwnerId,
@@ -26,12 +27,15 @@ export async function GET(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
   const { id } = await params;
-  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId);
+  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
-  return NextResponse.json({ data: project });
+  return NextResponse.json({
+    data: {
+      ...project,
+      canManage: canManageExportProjects(user!),
+    },
+  });
 }
 
 const updateSchema = z.object({
@@ -62,11 +66,10 @@ export async function PATCH(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
-  if (denied) return denied;
   const { id } = await params;
-  const { error: err } = await getProjectOrError(id, ctx!.tenantId);
+  const { error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
+  const manageAll = canManageExportProjects(user!);
 
   let body: unknown;
   try {
@@ -82,6 +85,10 @@ export async function PATCH(
         { error: parsed.error.issues[0]?.message ?? "参数错误" },
         { status: 400 },
       );
+    }
+
+    if (!manageAll && parsed.data.ownerId !== undefined) {
+      return NextResponse.json({ error: "只有管理者可以分配项目" }, { status: 403 });
     }
 
     const data: Record<string, unknown> = {};
@@ -141,10 +148,10 @@ export async function DELETE(
 ) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
-  const denied = denyUnlessProjectManager(user!);
+  const denied = denyUnlessCanManageProjects(user!);
   if (denied) return denied;
   const { id } = await params;
-  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId);
+  const { project, error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
 
   try {

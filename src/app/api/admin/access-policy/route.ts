@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   canClaimDirector,
   canEditAccessPolicy,
+  canEditPoolAccess,
   getAccessPolicy,
   isDirector,
   saveAccessPolicy,
@@ -30,20 +31,26 @@ export async function GET() {
   }
 
   const canEdit = canEditAccessPolicy(user);
+  const canEditPool = canEditPoolAccess(user);
   return NextResponse.json({
     data: {
       directorUserId: policy.directorUserId,
       directorName,
       canView: canEdit ? policy.canView : {},
+      canUsePool: canEditPool ? policy.canUsePool : {},
       isDirector: isDirector(user),
       canClaim: canClaimDirector(user),
       canEdit,
+      canEditPool,
     },
   });
 }
 
 const updateSchema = z.object({
-  canView: z.record(z.string(), z.array(z.string())),
+  canView: z.record(z.string(), z.array(z.string())).optional(),
+  canUsePool: z.record(z.string(), z.boolean()).optional(),
+}).refine((body) => body.canView !== undefined || body.canUsePool !== undefined, {
+  message: "没有可保存的内容",
 });
 
 export async function PATCH(request: NextRequest) {
@@ -57,9 +64,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "参数错误" }, { status: 400 });
   }
 
+  if (parsed.data.canUsePool !== undefined && !canEditPoolAccess(user)) {
+    return NextResponse.json({ error: "只有管理者可以改公海开关" }, { status: 403 });
+  }
+
+  const current = getAccessPolicy();
   const policy = saveAccessPolicy({
-    ...getAccessPolicy(),
-    canView: parsed.data.canView,
+    ...current,
+    canView: parsed.data.canView ?? current.canView,
+    canUsePool: parsed.data.canUsePool ?? current.canUsePool,
   });
 
   return NextResponse.json({ data: policy });

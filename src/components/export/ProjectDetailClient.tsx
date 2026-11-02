@@ -71,6 +71,7 @@ interface Project {
   owner: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   parties: Party[];
+  canManage?: boolean;
 }
 
 const emptyParty = {
@@ -238,7 +239,9 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           >
             编辑项目
           </button>
-          <ExportDeleteButton apiPath={`/api/export/projects/${projectId}`} redirectTo="/export/projects" />
+          {project.canManage && (
+            <ExportDeleteButton apiPath={`/api/export/projects/${projectId}`} redirectTo="/export/projects" />
+          )}
         </div>
       </div>
 
