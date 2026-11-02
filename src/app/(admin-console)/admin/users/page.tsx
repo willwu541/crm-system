@@ -5,7 +5,9 @@ import { UserList } from "@/components/admin/UserList";
 export default async function AdminUsersPage() {
   const user = await getSession();
   if (!user) redirect("/login");
-  if (user.role !== "ADMIN") redirect("/orders");
+  if (user.role !== "ADMIN") {
+    redirect(user.tenant === "export" ? "/export/dashboard" : "/dashboard");
+  }
 
   return (
     <div>

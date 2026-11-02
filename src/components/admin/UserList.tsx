@@ -383,11 +383,59 @@ export function UserList() {
         </form>
       )}
 
+      {policy?.canEditPool && (() => {
+        const exportPeople = users.filter((item) => {
+          if (item.tenant !== "export" || !item.isActive) return false;
+          const isDirectorUser = item.id === policy.directorUserId;
+          return !(item.role === "ADMIN" && !isDirectorUser);
+        });
+        return (
+          <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-4">
+            <p className="mb-1 text-sm font-medium text-slate-800">外贸公海权限</p>
+            <p className="mb-3 text-xs text-slate-500">
+              打开后，对方可看并认领公海线索；关掉后只能看自己的。管理者本人始终可用。
+            </p>
+            <div className="space-y-2">
+              {exportPeople.map((viewer) => {
+                const isDirectorUser = viewer.id === policy.directorUserId;
+                const poolOn = policy.canUsePool[viewer.id] !== false;
+                return (
+                  <div
+                    key={viewer.id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-teal-100 bg-white px-3 py-2"
+                  >
+                    <span className="text-sm text-slate-800">
+                      {viewer.name}
+                      <span className="ml-1 text-xs text-slate-400">
+                        {formatRole(viewer.role, isDirectorUser)}
+                      </span>
+                    </span>
+                    <label className="flex cursor-pointer items-center gap-1.5 text-sm text-teal-800">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={poolOn}
+                        disabled={savingPolicy}
+                        onChange={() => void toggleCanUsePool(viewer.id)}
+                      />
+                      可看公海
+                    </label>
+                  </div>
+                );
+              })}
+              {exportPeople.length === 0 ? (
+                <p className="text-xs text-slate-400">还没有可配置的业务员或业务经理</p>
+              ) : null}
+            </div>
+          </div>
+        );
+      })()}
+
       {policy?.canEdit && (
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="mb-2 text-sm font-medium text-slate-800">谁可以看谁的资料</p>
           <p className="mb-2 text-xs text-slate-500">
-            勾人名：让对方能看那个人的线索和客户。外贸里还可单独开关「可看公海」。
+            勾上某个人，对方就能看那个人的线索和客户。管理者看全部。
           </p>
           <div className="space-y-3">
             {(["domestic", "export"] as const).map((tenant) => {
@@ -400,38 +448,16 @@ export function UserList() {
                     {group.map((viewer) => {
                       const others = group.filter((item) => item.id !== viewer.id);
                       const isDirectorUser = viewer.id === policy.directorUserId;
-                      const isBossUser = viewer.role === "ADMIN" && !isDirectorUser;
-                      const poolOn = policy.canUsePool[viewer.id] !== false;
                       return (
                         <div key={viewer.id} className="rounded-md bg-slate-50 px-3 py-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm text-slate-800">
-                              {viewer.name}
-                              <span className="ml-1 text-xs text-slate-400">
-                                {formatRole(viewer.role, isDirectorUser)}
-                              </span>
-                            </p>
-                            {tenant === "export" && policy.canEditPool ? (
-                              isBossUser ? (
-                                <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs text-teal-800">
-                                  公海：始终可用
-                                </span>
-                              ) : (
-                                <label className="flex cursor-pointer items-center gap-1.5 rounded-full border border-teal-200 bg-white px-2.5 py-1 text-xs text-teal-800">
-                                  <input
-                                    type="checkbox"
-                                    className="h-3.5 w-3.5"
-                                    checked={poolOn}
-                                    disabled={savingPolicy}
-                                    onChange={() => void toggleCanUsePool(viewer.id)}
-                                  />
-                                  可看公海
-                                </label>
-                              )
-                            ) : null}
-                          </div>
+                          <p className="text-sm text-slate-800">
+                            {viewer.name}
+                            <span className="ml-1 text-xs text-slate-400">
+                              {formatRole(viewer.role, isDirectorUser)}
+                            </span>
+                          </p>
                           {isDirectorUser || viewer.role === "ADMIN" ? (
-                            <p className="mt-1 text-xs text-slate-500">资料：可看全部</p>
+                            <p className="mt-1 text-xs text-slate-500">可看全部</p>
                           ) : (
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                               {others.map((owner) => (

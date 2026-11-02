@@ -5,7 +5,9 @@ import { LogsClient } from "./LogsClient";
 export default async function AdminLogsPage() {
   const user = await getSession();
   if (!user) redirect("/login");
-  if (user.role !== "ADMIN") redirect("/orders");
+  if (user.role !== "ADMIN") {
+    redirect(user.tenant === "export" ? "/export/dashboard" : "/dashboard");
+  }
 
   return <LogsClient />;
 }

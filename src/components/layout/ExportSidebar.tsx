@@ -23,6 +23,16 @@ export function ExportSidebar() {
   const pathname = usePathname();
   const [chatUnread, setChatUnread] = useState(0);
   const [formUnread, setFormUnread] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((j: { user?: { role?: string } }) => {
+        setIsAdmin(j.user?.role === "ADMIN");
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -86,7 +96,10 @@ export function ExportSidebar() {
         <p className="mt-1 text-sm font-semibold text-white">钢格板外贸系统</p>
       </div>
       <nav className="flex flex-col gap-1 p-3">
-        {NAV_ITEMS.map((item) => {
+        {[
+          ...NAV_ITEMS,
+          ...(isAdmin ? [{ href: "/admin/users", label: "用户管理" }] : []),
+        ].map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/export/dashboard" && pathname.startsWith(item.href + "/"));
