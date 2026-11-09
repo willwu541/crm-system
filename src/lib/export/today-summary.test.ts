@@ -8,7 +8,10 @@ import {
   activityActionText,
   buildTodaySummary,
   deletionActionText,
+  formatDayKey,
   isTodayStaff,
+  parseSummaryDay,
+  summaryLogDays,
   todayRange,
   type TodayActionInput,
 } from "./today-summary";
@@ -128,5 +131,25 @@ describe("today summary grouping", () => {
     assert.equal(start.getHours(), 0);
     assert.equal(end.getTime() - start.getTime(), 24 * 60 * 60 * 1000);
     assert.ok(now >= start && now < end);
+    assert.equal(formatDayKey(start), "2026-11-09");
+  });
+
+  it("opens a past day and refuses a future or invalid day", () => {
+    const now = new Date(2026, 10, 9, 15, 0);
+    assert.equal(formatDayKey(parseSummaryDay("2026-11-01", now)), "2026-11-01");
+    assert.equal(formatDayKey(parseSummaryDay("2026-11-10", now)), "2026-11-09");
+    assert.equal(formatDayKey(parseSummaryDay("2026-02-31", now)), "2026-11-09");
+    assert.equal(formatDayKey(parseSummaryDay("昨天", now)), "2026-11-09");
+  });
+
+  it("lists recent days and keeps an older selected day on the log", () => {
+    const now = new Date(2026, 10, 9, 15, 0);
+    const days = summaryLogDays(now, 3, new Date(2026, 9, 1));
+    assert.deepEqual(
+      days.map((day) => day.date),
+      ["2026-11-09", "2026-11-08", "2026-11-07", "2026-10-01"],
+    );
+    assert.equal(days[0]?.label, "今天");
+    assert.equal(days[0]?.isToday, true);
   });
 });

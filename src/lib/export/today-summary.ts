@@ -60,6 +60,61 @@ export function todayRange(now = new Date()) {
   return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 }
 
+export function formatDayKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** 非法或未来日期回到今天。用服务器本地日，和线索认领的日界相同。 */
+export function parseSummaryDay(value: string | null | undefined, now = new Date()) {
+  const today = startOfLocalDay(now);
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return today;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day ||
+    parsed.getTime() > today.getTime()
+  ) {
+    return today;
+  }
+  return parsed;
+}
+
+export type SummaryLogDay = {
+  date: string;
+  label: string;
+  isToday: boolean;
+};
+
+/** 最近若干天的日志。选中的更早日期不在窗口里时，附在末尾。 */
+export function summaryLogDays(now = new Date(), count = 30, selected = startOfLocalDay(now)): SummaryLogDay[] {
+  const today = startOfLocalDay(now);
+  const days: SummaryLogDay[] = Array.from({ length: count }, (_, index) => {
+    const day = new Date(today);
+    day.setDate(today.getDate() - index);
+    return {
+      date: formatDayKey(day),
+      label:
+        index === 0
+          ? "今天"
+          : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(day),
+      isToday: index === 0,
+    };
+  });
+  const selectedKey = formatDayKey(startOfLocalDay(selected));
+  if (!days.some((day) => day.date === selectedKey)) {
+    days.push({
+      date: selectedKey,
+      label: new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(selected),
+      isToday: false,
+    });
+  }
+  return days;
+}
+
 export function formatTodayLabel(now = new Date()) {
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",

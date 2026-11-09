@@ -98,7 +98,7 @@ export function ExportSidebar() {
       <nav className="flex flex-col gap-1 p-3">
         {[
           ...NAV_ITEMS.slice(0, 1),
-          ...(canAssign ? [{ href: "/export/today", label: "今日总结" }] : []),
+          ...(canAssign ? [{ href: "/export/today", label: "每日总结" }] : []),
           ...NAV_ITEMS.slice(1),
           ...(canAssign ? [{ href: "/admin/users", label: "用户管理" }] : []),
         ].map((item) => {

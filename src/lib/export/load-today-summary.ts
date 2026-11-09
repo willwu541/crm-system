@@ -7,6 +7,7 @@ import {
   claimActionText,
   customerActionText,
   deletionActionText,
+  formatDayKey,
   formatTodayLabel,
   isTodayStaff,
   partyActionText,
@@ -19,6 +20,7 @@ import {
 type Actor = { id: string; name: string; role: string };
 
 export type TodaySummaryData = {
+  date: string;
   dateLabel: string;
   people: TodayPerson[];
 };
@@ -34,6 +36,7 @@ function actorFields(actor: Actor, directorUserId: string | null) {
 
 export async function loadTodaySummary(tenantId: string, now = new Date()): Promise<TodaySummaryData> {
   const { start, end } = todayRange(now);
+  const day = start;
   const createdAt = { gte: start, lt: end };
   const directorUserId = getAccessPolicy().directorUserId;
 
@@ -202,7 +205,8 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
     }));
 
   return {
-    dateLabel: formatTodayLabel(now),
+    date: formatDayKey(day),
+    dateLabel: formatTodayLabel(day),
     people: buildTodaySummary(staff, actions),
   };
 }
