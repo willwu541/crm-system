@@ -23,13 +23,13 @@ export function ExportSidebar() {
   const pathname = usePathname();
   const [chatUnread, setChatUnread] = useState(0);
   const [formUnread, setFormUnread] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [canAssign, setCanAssign] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((j: { user?: { role?: string } }) => {
-        setIsAdmin(j.user?.role === "ADMIN");
+      .then((j: { user?: { canAssign?: boolean } }) => {
+        setCanAssign(Boolean(j.user?.canAssign));
       })
       .catch(() => {});
   }, []);
@@ -97,8 +97,10 @@ export function ExportSidebar() {
       </div>
       <nav className="flex flex-col gap-1 p-3">
         {[
-          ...NAV_ITEMS,
-          ...(isAdmin ? [{ href: "/admin/users", label: "用户管理" }] : []),
+          ...NAV_ITEMS.slice(0, 1),
+          ...(canAssign ? [{ href: "/export/today", label: "今日总结" }] : []),
+          ...NAV_ITEMS.slice(1),
+          ...(canAssign ? [{ href: "/admin/users", label: "用户管理" }] : []),
         ].map((item) => {
           const isActive =
             pathname === item.href ||

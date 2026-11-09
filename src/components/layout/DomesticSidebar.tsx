@@ -14,6 +14,7 @@ interface Props {
   userName: string;
   userRole: string;
   isDirector?: boolean;
+  canManageUsers?: boolean;
 }
 
 const ICON_CLASS = "h-4 w-4 flex-shrink-0";
@@ -36,13 +37,14 @@ const ADMIN_ITEMS = [
   { href: "/admin/logs", label: "操作日志", Icon: ScrollText },
 ];
 
-export function DomesticSidebar({ userName, userRole, isDirector = false }: Props) {
+export function DomesticSidebar({ userName, userRole, isDirector = false, canManageUsers = false }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const isAdmin = userRole === "ADMIN" || userRole === "MANAGER";
 
-  const items = isAdmin ? [...NAV_ITEMS, ...ADMIN_ITEMS] : NAV_ITEMS;
+  const adminItems = ADMIN_ITEMS.filter((item) => item.href !== "/admin/users" || canManageUsers);
+  const items = isAdmin ? [...NAV_ITEMS, ...adminItems] : NAV_ITEMS;
 
   const roleText = formatRole(userRole, isDirector);
 

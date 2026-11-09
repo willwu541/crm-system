@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { UserList } from "@/components/admin/UserList";
 
 export default async function AdminUsersPage() {
   const user = await getSession();
   if (!user) redirect("/login");
-  if (user.role !== "ADMIN") {
+  if (!canAssignExportWork(user)) {
     redirect(user.tenant === "export" ? "/export/dashboard" : "/dashboard");
   }
 

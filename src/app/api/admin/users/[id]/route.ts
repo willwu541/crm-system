@@ -3,11 +3,12 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { getAccessPolicy } from "@/lib/access-policy";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { prisma } from "@/lib/prisma";
 
-async function requireAdminOrManager() {
+async function requireUserManager() {
   const me = await getSession();
-  if (!me || (me.role !== "ADMIN" && me.role !== "MANAGER")) {
+  if (!me || !canAssignExportWork(me)) {
     return { me: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { me, error: null };
@@ -25,7 +26,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { me, error } = await requireAdminOrManager();
+  const { me, error } = await requireUserManager();
   if (error) return error;
 
   const { id } = await params;
@@ -123,7 +124,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { me, error } = await requireAdminOrManager();
+  const { me, error } = await requireUserManager();
   if (error) return error;
 
   const { id } = await params;

@@ -3,10 +3,11 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 
 export async function GET() {
   const user = await getSession();
-  if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
+  if (!user || !canAssignExportWork(user)) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
@@ -36,7 +37,7 @@ const createSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const user = await getSession();
-  if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER")) {
+  if (!user || !canAssignExportWork(user)) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 

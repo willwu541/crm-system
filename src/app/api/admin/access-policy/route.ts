@@ -3,12 +3,12 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   canClaimDirector,
-  canEditAccessPolicy,
   canEditPoolAccess,
   getAccessPolicy,
   isDirector,
   saveAccessPolicy,
 } from "@/lib/access-policy";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { z } from "zod";
 
 export async function GET() {
@@ -16,7 +16,7 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
-  if (!canEditAccessPolicy(user) && !canClaimDirector(user)) {
+  if (!canAssignExportWork(user)) {
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
@@ -30,7 +30,7 @@ export async function GET() {
     directorName = director?.name ?? null;
   }
 
-  const canEdit = canEditAccessPolicy(user);
+  const canEdit = canAssignExportWork(user);
   const canEditPool = canEditPoolAccess(user);
   return NextResponse.json({
     data: {
@@ -55,7 +55,7 @@ const updateSchema = z.object({
 
 export async function PATCH(request: NextRequest) {
   const user = await getSession();
-  if (!user || !canEditAccessPolicy(user)) {
+  if (!user || !canAssignExportWork(user)) {
     return NextResponse.json({ error: "只有管理者可以改这项权限" }, { status: 403 });
   }
 

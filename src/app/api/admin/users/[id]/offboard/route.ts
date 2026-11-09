@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { prisma } from "@/lib/prisma";
 
 async function findHeir(target: { id: string; tenant: string; tenantId: string | null }, actorId: string) {
@@ -33,8 +34,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const me = await getSession();
-  if (!me || me.role !== "ADMIN") {
-    return NextResponse.json({ error: "只有管理员可以办理离职交接" }, { status: 403 });
+  if (!me || !canAssignExportWork(me)) {
+    return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
   const { id } = await params;
   if (id === me.id) {

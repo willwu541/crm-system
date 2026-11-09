@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { LogsClient } from "./LogsClient";
 
 export default async function AdminLogsPage() {
@@ -9,5 +10,5 @@ export default async function AdminLogsPage() {
     redirect(user.tenant === "export" ? "/export/dashboard" : "/dashboard");
   }
 
-  return <LogsClient />;
+  return <LogsClient canManageUsers={canAssignExportWork(user)} />;
 }

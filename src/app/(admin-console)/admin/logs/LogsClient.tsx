@@ -15,7 +15,7 @@ interface Log {
   createdAt: string;
 }
 
-export function LogsClient() {
+export function LogsClient({ canManageUsers = false }: { canManageUsers?: boolean }) {
   const [logs, setLogs] = useState<Log[]>([]);
   const [pagination, setPagination] = useState<{
     page: number;
@@ -76,12 +76,14 @@ export function LogsClient() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-800">操作日志</h1>
-        <Link
-          href="/admin/users"
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
-        >
-          返回用户管理
-        </Link>
+        {canManageUsers ? (
+          <Link
+            href="/admin/users"
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+          >
+            返回用户管理
+          </Link>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-4">

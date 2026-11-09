@@ -27,9 +27,9 @@ export function Header({ user, isDirector = false }: { user: SessionUser; isDire
     { href: "/suppliers", label: "加工户管理" },
     { href: "/tasks", label: "待办任务" },
     { href: "/moments", label: "朋友圈" },
+    ...(user.role === "ADMIN" && !isDirector ? [{ href: "/admin/users", label: "用户管理" }] : []),
     ...(user.role === "ADMIN" || user.role === "MANAGER"
       ? [
-          { href: "/admin/users", label: "用户管理" },
           { href: "/admin/logs", label: "操作日志" },
           { href: "/admin/export-deletions", label: "外贸删除记录" },
         ]

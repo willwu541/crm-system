@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { isDirector } from "@/lib/access-policy";
+import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { DomesticSidebar } from "@/components/layout/DomesticSidebar";
 
 export default async function AdminConsoleLayout({
@@ -20,7 +21,12 @@ export default async function AdminConsoleLayout({
   if (user.tenant === "domestic") {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-teal-50/30">
-        <DomesticSidebar userName={user.name} userRole={user.role} isDirector={isDirector(user)} />
+        <DomesticSidebar
+          userName={user.name}
+          userRole={user.role}
+          isDirector={isDirector(user)}
+          canManageUsers={canAssignExportWork(user)}
+        />
         <main className="flex-1 p-6">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
