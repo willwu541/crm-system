@@ -161,6 +161,8 @@ const contactSchema = z.object({
   website: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   roleStatus: z.string().optional().nullable(),
+  companyRole: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
 });
 
 const createSchema = z.object({
@@ -181,6 +183,7 @@ const createSchema = z.object({
   tenderUrl: z.string().optional().nullable(),
   sourceProjectNumber: z.string().optional().nullable(),
   knownScope: z.string().optional().nullable(),
+  gratingRelatedElements: z.string().optional().nullable(),
   needToVerify: z.string().optional().nullable(),
   askForRole: z.string().optional().nullable(),
   nextStep: z.string().optional().nullable(),
@@ -192,6 +195,12 @@ const createSchema = z.object({
   tenderOpening: z.string().optional().nullable(),
   contractorState: z.string().optional().nullable(),
   appointmentMethod: z.string().optional().nullable(),
+  projectValueText: z.string().optional().nullable(),
+  projectValueOriginal: z.string().optional().nullable(),
+  projectStatusRaw: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  siteArea: z.string().optional().nullable(),
+  contractorListed: z.string().optional().nullable(),
   demandStatus: z.enum(PROJECT_DEMAND_STATUSES).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
   bidDeadline: z.string().optional().nullable(),
@@ -200,7 +209,7 @@ const createSchema = z.object({
   /** 保存草稿不分配；保存并分配必须选业务员。 */
   dispatch: z.enum(["draft", "assign"]).optional(),
   firstContact: contactSchema.optional().nullable(),
-  extraParties: z.array(contactSchema).max(12).optional(),
+  extraParties: z.array(contactSchema).max(40).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -270,6 +279,8 @@ export async function POST(request: NextRequest) {
       website: string;
       notes: string;
       roleStatus: string;
+      companyRole: string;
+      address: string;
     }[] = [];
     for (const item of [parsed.data.firstContact, ...(parsed.data.extraParties ?? [])]) {
       if (!item) continue;
@@ -281,7 +292,20 @@ export async function POST(request: NextRequest) {
       const website = item.website?.trim() ?? "";
       const notes = item.notes?.trim() ?? "";
       const roleStatus = item.roleStatus?.trim() ?? "";
-      if (!companyName && !contactName && !contactTitle && !email && !phone && !website && !notes && !roleStatus) {
+      const companyRole = item.companyRole?.trim() ?? "";
+      const address = item.address?.trim() ?? "";
+      if (
+        !companyName &&
+        !contactName &&
+        !contactTitle &&
+        !email &&
+        !phone &&
+        !website &&
+        !notes &&
+        !roleStatus &&
+        !companyRole &&
+        !address
+      ) {
         continue;
       }
       parties.push({
@@ -294,6 +318,8 @@ export async function POST(request: NextRequest) {
         website,
         notes,
         roleStatus,
+        companyRole,
+        address,
       });
     }
 
@@ -321,6 +347,7 @@ export async function POST(request: NextRequest) {
           tenderUrl,
           sourceProjectNumber,
           knownScope: blankToNull(parsed.data.knownScope) ?? null,
+          gratingRelatedElements: blankToNull(parsed.data.gratingRelatedElements) ?? null,
           needToVerify: blankToNull(parsed.data.needToVerify) ?? null,
           askForRole: blankToNull(parsed.data.askForRole) ?? null,
           nextStep,
@@ -332,6 +359,12 @@ export async function POST(request: NextRequest) {
           tenderOpening: blankToNull(parsed.data.tenderOpening) ?? null,
           contractorState: blankToNull(parsed.data.contractorState) ?? null,
           appointmentMethod: blankToNull(parsed.data.appointmentMethod) ?? null,
+          projectValueText: blankToNull(parsed.data.projectValueText) ?? null,
+          projectValueOriginal: blankToNull(parsed.data.projectValueOriginal) ?? null,
+          projectStatusRaw: blankToNull(parsed.data.projectStatusRaw) ?? null,
+          region: blankToNull(parsed.data.region) ?? null,
+          siteArea: blankToNull(parsed.data.siteArea) ?? null,
+          contractorListed: blankToNull(parsed.data.contractorListed) ?? null,
           demandStatus: parsed.data.demandStatus ?? PROJECT_DEMAND_DEFAULT,
           status: parsed.data.status ?? "hunting",
           bidDeadline: bidDeadline ?? null,
@@ -361,6 +394,8 @@ export async function POST(request: NextRequest) {
             phone: party.phone || null,
             notes: party.notes || null,
             roleStatus: party.roleStatus || null,
+            companyRole: party.companyRole || null,
+            address: party.address || null,
             foundById: user!.id,
           },
         });

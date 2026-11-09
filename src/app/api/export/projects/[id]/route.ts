@@ -60,6 +60,7 @@ const updateSchema = z.object({
   tenderUrl: z.string().optional().nullable(),
   sourceProjectNumber: z.string().optional().nullable(),
   knownScope: z.string().optional().nullable(),
+  gratingRelatedElements: z.string().optional().nullable(),
   needToVerify: z.string().optional().nullable(),
   askForRole: z.string().optional().nullable(),
   nextStep: z.string().optional().nullable(),
@@ -71,6 +72,12 @@ const updateSchema = z.object({
   tenderOpening: z.string().optional().nullable(),
   contractorState: z.string().optional().nullable(),
   appointmentMethod: z.string().optional().nullable(),
+  projectValueText: z.string().optional().nullable(),
+  projectValueOriginal: z.string().optional().nullable(),
+  projectStatusRaw: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  siteArea: z.string().optional().nullable(),
+  contractorListed: z.string().optional().nullable(),
   demandStatus: z.enum(PROJECT_DEMAND_STATUSES).optional(),
   actualBuyerCompany: z.string().optional().nullable(),
   actualBuyerContact: z.string().optional().nullable(),
@@ -155,6 +162,9 @@ export async function PATCH(
       }
     }
     if (parsed.data.knownScope !== undefined) data.knownScope = blankToNull(parsed.data.knownScope) ?? null;
+    if (parsed.data.gratingRelatedElements !== undefined) {
+      data.gratingRelatedElements = blankToNull(parsed.data.gratingRelatedElements) ?? null;
+    }
     if (parsed.data.needToVerify !== undefined) data.needToVerify = blankToNull(parsed.data.needToVerify) ?? null;
     if (parsed.data.askForRole !== undefined) data.askForRole = blankToNull(parsed.data.askForRole) ?? null;
     if (parsed.data.nextStep !== undefined) data.nextStep = blankToNull(parsed.data.nextStep) ?? null;
@@ -165,6 +175,14 @@ export async function PATCH(
     if (parsed.data.tenderOpening !== undefined) data.tenderOpening = blankToNull(parsed.data.tenderOpening) ?? null;
     if (parsed.data.contractorState !== undefined) data.contractorState = blankToNull(parsed.data.contractorState) ?? null;
     if (parsed.data.appointmentMethod !== undefined) data.appointmentMethod = blankToNull(parsed.data.appointmentMethod) ?? null;
+    if (parsed.data.projectValueText !== undefined) data.projectValueText = blankToNull(parsed.data.projectValueText) ?? null;
+    if (parsed.data.projectValueOriginal !== undefined) {
+      data.projectValueOriginal = blankToNull(parsed.data.projectValueOriginal) ?? null;
+    }
+    if (parsed.data.projectStatusRaw !== undefined) data.projectStatusRaw = blankToNull(parsed.data.projectStatusRaw) ?? null;
+    if (parsed.data.region !== undefined) data.region = blankToNull(parsed.data.region) ?? null;
+    if (parsed.data.siteArea !== undefined) data.siteArea = blankToNull(parsed.data.siteArea) ?? null;
+    if (parsed.data.contractorListed !== undefined) data.contractorListed = blankToNull(parsed.data.contractorListed) ?? null;
     if (parsed.data.demandStatus !== undefined) data.demandStatus = parsed.data.demandStatus;
     if (parsed.data.actualBuyerCompany !== undefined) {
       data.actualBuyerCompany = blankToNull(parsed.data.actualBuyerCompany) ?? null;

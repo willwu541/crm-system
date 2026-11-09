@@ -36,6 +36,17 @@ interface ExistingProject {
 
 const inputClass = "w-full rounded-md border border-slate-300 px-3 py-2";
 
+/** 按 PDF 阅读顺序：业主 → 设计师 → 顾问 → 总包 → EPC → 分包 → 采购 */
+const ROLE_FORM_ORDER = [
+  "owner",
+  "designer",
+  "consultant",
+  "general_contractor",
+  "epc",
+  "subcontractor",
+  "procurement",
+] as const satisfies ReadonlyArray<(typeof PROJECT_PARTY_ROLE_CHOICES)[number]>;
+
 type PersonDraft = {
   contactName: string;
   contactTitle: string;
@@ -45,10 +56,13 @@ type PersonDraft = {
 
 type RoleDraft = {
   status: string;
+  companyRole: string;
   companyName: string;
   website: string;
+  address: string;
   note: string;
   people: PersonDraft[];
+  open: boolean;
 };
 
 function emptyPerson(): PersonDraft {
@@ -56,7 +70,16 @@ function emptyPerson(): PersonDraft {
 }
 
 function emptyRole(): RoleDraft {
-  return { status: "", companyName: "", website: "", note: "", people: [emptyPerson()] };
+  return {
+    status: "",
+    companyRole: "",
+    companyName: "",
+    website: "",
+    address: "",
+    note: "",
+    people: [emptyPerson()],
+    open: false,
+  };
 }
 
 function emptyContacts(): Record<(typeof PROJECT_PARTY_ROLE_CHOICES)[number], RoleDraft> {
@@ -71,11 +94,25 @@ function emptyContacts(): Record<(typeof PROJECT_PARTY_ROLE_CHOICES)[number], Ro
   };
 }
 
+function roleHasContent(row: RoleDraft) {
+  return Boolean(
+    row.status.trim() ||
+      row.companyRole.trim() ||
+      row.companyName.trim() ||
+      row.website.trim() ||
+      row.address.trim() ||
+      row.note.trim() ||
+      row.people.some((person) => person.contactName || person.contactTitle || person.phone || person.email),
+  );
+}
+
 /** 同一环节可以有多位联系人。整段都空就不建记录。 */
 function partiesFromRole(role: string, row: RoleDraft) {
   const status = row.status.trim();
+  const companyRole = row.companyRole.trim();
   const companyName = row.companyName.trim();
   const website = row.website.trim();
+  const address = row.address.trim();
   const note = row.note.trim();
   const people = row.people
     .map((person) => ({
@@ -85,13 +122,17 @@ function partiesFromRole(role: string, row: RoleDraft) {
       email: person.email.trim(),
     }))
     .filter((person) => person.contactName || person.contactTitle || person.phone || person.email);
-  if (!status && !companyName && !website && !note && people.length === 0) return [];
+  if (!status && !companyRole && !companyName && !website && !address && !note && people.length === 0) {
+    return [];
+  }
   const rows = people.length > 0 ? people : [{ contactName: "", contactTitle: "", phone: "", email: "" }];
   return rows.map((person) => ({
     role,
     roleStatus: status || null,
+    companyRole: companyRole || null,
     companyName: companyName || null,
     website: website || null,
+    address: address || null,
     notes: note || null,
     contactName: person.contactName || null,
     contactTitle: person.contactTitle || null,
@@ -114,22 +155,26 @@ export function ProjectDispatchForm() {
     tenderUrl: "",
     name: "",
     country: "",
-    stage: "unknown",
-    scheduleStatus: "",
-    scheduleStart: "",
-    scheduleEnd: "",
-    tenderOpening: "",
-    tenderDeadline: "",
-    contractorState: "",
-    appointmentMethod: "",
-    contacts: emptyContacts(),
-    ownerId: "",
     city: "",
     location: "",
-    projectValue: "",
+    region: "",
+    stage: "unknown",
+    scheduleStatus: "",
+    projectStatusRaw: "",
+    projectValueText: "",
+    projectValueOriginal: "",
     industry: "",
-    ownerOperator: "",
-    generalContractor: "",
+    siteArea: "",
+    scheduleStart: "",
+    scheduleEnd: "",
+    tenderDeadline: "",
+    contractorState: "",
+    contractorListed: "",
+    appointmentMethod: "",
+    knownScope: "",
+    gratingRelatedElements: "",
+    contacts: emptyContacts(),
+    ownerId: "",
     potentialBuyers: "",
     selectedProducts: [] as string[],
     productNeedExtra: "",
@@ -179,14 +224,14 @@ export function ProjectDispatchForm() {
 
   function setRole(
     role: (typeof PROJECT_PARTY_ROLE_CHOICES)[number],
-    key: "status" | "companyName" | "website" | "note",
+    key: "status" | "companyRole" | "companyName" | "website" | "address" | "note",
     value: string,
   ) {
     setForm((current) => ({
       ...current,
       contacts: {
         ...current.contacts,
-        [role]: { ...current.contacts[role], [key]: value },
+        [role]: { ...current.contacts[role], [key]: value, open: true },
       },
     }));
   }
@@ -203,6 +248,7 @@ export function ProjectDispatchForm() {
         ...current.contacts,
         [role]: {
           ...current.contacts[role],
+          open: true,
           people: current.contacts[role].people.map((person, personIndex) =>
             personIndex === index ? { ...person, [key]: value } : person,
           ),
@@ -216,7 +262,21 @@ export function ProjectDispatchForm() {
       ...current,
       contacts: {
         ...current.contacts,
-        [role]: { ...current.contacts[role], people: [...current.contacts[role].people, emptyPerson()] },
+        [role]: {
+          ...current.contacts[role],
+          open: true,
+          people: [...current.contacts[role].people, emptyPerson()],
+        },
+      },
+    }));
+  }
+
+  function toggleRole(role: (typeof PROJECT_PARTY_ROLE_CHOICES)[number]) {
+    setForm((current) => ({
+      ...current,
+      contacts: {
+        ...current.contacts,
+        [role]: { ...current.contacts[role], open: !current.contacts[role].open },
       },
     }));
   }
@@ -242,9 +302,6 @@ export function ProjectDispatchForm() {
         [...form.selectedProducts, ...form.productNeedExtra.split(/[,，]/).map((item) => item.trim())]
           .filter(Boolean)
           .join(", ") || null;
-      const notes = [form.projectValue.trim() ? `项目金额：${form.projectValue.trim()}` : "", form.notes.trim()]
-        .filter(Boolean)
-        .join("\n");
       const number = extractLeadManagerProjectNumber(form.tenderUrl);
       const res = await fetch("/api/export/projects", {
         method: "POST",
@@ -258,23 +315,28 @@ export function ProjectDispatchForm() {
           sourceProjectNumber: number,
           source: number ? "LeadManager" : null,
           scheduleStatus: form.scheduleStatus.trim() || null,
+          projectStatusRaw: form.projectStatusRaw.trim() || null,
+          projectValueText: form.projectValueText.trim() || null,
+          projectValueOriginal: form.projectValueOriginal.trim() || null,
           scheduleStart: form.scheduleStart.trim() || null,
           scheduleEnd: form.scheduleEnd.trim() || null,
-          tenderOpening: form.tenderOpening.trim() || null,
           tenderDeadline: form.tenderDeadline.trim() || null,
           contractorState: form.contractorState.trim() || null,
+          contractorListed: form.contractorListed.trim() || null,
           appointmentMethod: form.appointmentMethod.trim() || null,
+          knownScope: form.knownScope.trim() || null,
+          gratingRelatedElements: form.gratingRelatedElements.trim() || null,
+          region: form.region.trim() || null,
+          siteArea: form.siteArea.trim() || null,
           ownerId: mode === "assign" ? form.ownerId : null,
           city: form.city.trim() || null,
           location: form.location.trim() || null,
           industry: form.industry || null,
-          ownerOperator: form.ownerOperator.trim() || null,
-          generalContractor: form.generalContractor.trim() || null,
           potentialBuyers: form.potentialBuyers.trim() || null,
           productNeed,
           description: form.description.trim() || null,
-          notes: notes || null,
-          extraParties: PROJECT_PARTY_ROLE_CHOICES.flatMap((role) => partiesFromRole(role, form.contacts[role])),
+          notes: form.notes.trim() || null,
+          extraParties: ROLE_FORM_ORDER.flatMap((role) => partiesFromRole(role, form.contacts[role])),
         }),
       });
       const json = await parseResponseJson<{
@@ -302,8 +364,8 @@ export function ProjectDispatchForm() {
       }}
       className="export-card export-detail-group max-w-3xl space-y-6 p-7"
     >
-        <p className="text-sm text-slate-500">
-        先填项目和时间，再按环节记公司和联系人。一个环节可以有多位联系人。没委任、还在招标，选状态即可，其余留空。草稿不分配，业务员看不到。
+      <p className="text-sm text-slate-500">
+        按资料页顺序填：抬头、信息、总包与工期、工程范围、各环节相关人。金额填人民币万元。草稿不分配，业务员看不到。
       </p>
       {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
       {duplicate && (
@@ -317,7 +379,7 @@ export function ProjectDispatchForm() {
       )}
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-slate-800">1. 项目信息</h2>
+        <h2 className="text-sm font-semibold text-slate-800">1. 项目抬头</h2>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">LeadManager 链接</label>
           <input
@@ -343,7 +405,17 @@ export function ProjectDispatchForm() {
             className={inputClass}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">完整地址</label>
+          <input
+            type="text"
+            value={form.location}
+            onChange={(event) => set("location", event.target.value)}
+            placeholder="镇、区、街道，按资料原文"
+            className={inputClass}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">国家</label>
             <CountrySelect
@@ -355,6 +427,32 @@ export function ProjectDispatchForm() {
             />
           </div>
           <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">城市/省</label>
+            <input
+              type="text"
+              value={form.city}
+              onChange={(event) => set("city", event.target.value)}
+              placeholder="Town / Province"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">地区</label>
+            <input
+              type="text"
+              value={form.region}
+              onChange={(event) => set("region", event.target.value)}
+              placeholder="如 Northern Vietnam"
+              className={inputClass}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-slate-800">2. 信息</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">阶段</label>
             <select value={form.stage} onChange={(event) => set("stage", event.target.value)} className={inputClass}>
               {PROJECT_STAGES.map((stage) => (
@@ -363,45 +461,6 @@ export function ProjectDispatchForm() {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">项目状态</label>
-            <input
-              type="text"
-              value={form.scheduleStatus}
-              onChange={(event) => set("scheduleStatus", event.target.value)}
-              placeholder="如：招标已结束，投标名单已列出"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">项目金额</label>
-            <input
-              type="text"
-              value={form.projectValue}
-              onChange={(event) => set("projectValue", event.target.value)}
-              placeholder="按资料原文，没有就留空"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">城市</label>
-            <input
-              type="text"
-              value={form.city}
-              onChange={(event) => set("city", event.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">地点</label>
-            <input
-              type="text"
-              value={form.location}
-              onChange={(event) => set("location", event.target.value)}
-              placeholder="镇、区、街道"
-              className={inputClass}
-            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">行业</label>
@@ -418,13 +477,110 @@ export function ProjectDispatchForm() {
               ))}
             </select>
           </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">进度原文</label>
+            <input
+              type="text"
+              value={form.scheduleStatus}
+              onChange={(event) => set("scheduleStatus", event.target.value)}
+              placeholder="资料 Status：，如 MAIN CONTRACT AWARDED | CONSTRUCTION COMMENCED"
+              className={inputClass}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">工程状态</label>
+            <input
+              type="text"
+              value={form.projectStatusRaw}
+              onChange={(event) => set("projectStatusRaw", event.target.value)}
+              placeholder="资料 Project Status，如 Subcontractor(s) Appointed"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">项目金额（人民币万元）</label>
+            <input
+              type="text"
+              value={form.projectValueText}
+              onChange={(event) => set("projectValueText", event.target.value)}
+              placeholder="如 17073万元"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">原币金额原文</label>
+            <input
+              type="text"
+              value={form.projectValueOriginal}
+              onChange={(event) => set("projectValueOriginal", event.target.value)}
+              placeholder="对照用，如估算 650,000.00百万越南盾"
+              className={inputClass}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">用地面积</label>
+            <input
+              type="text"
+              value={form.siteArea}
+              onChange={(event) => set("siteArea", event.target.value)}
+              placeholder="按资料原文"
+              className={inputClass}
+            />
+          </div>
         </div>
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-slate-800">2. 时间与招标</h2>
+        <h2 className="text-sm font-semibold text-slate-800">3. 总包与工期</h2>
         <p className="text-xs text-slate-500">按资料原文填写。没有的留空。</p>
         <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">总包是否已委任</label>
+            <select
+              value={form.contractorState}
+              onChange={(event) => set("contractorState", event.target.value)}
+              className={inputClass}
+            >
+              <option value="">未填</option>
+              {PARTY_ROLE_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">总包是否已披露</label>
+            <select
+              value={form.contractorListed}
+              onChange={(event) => set("contractorListed", event.target.value)}
+              className={inputClass}
+            >
+              <option value="">未填</option>
+              <option value="是">是</option>
+              <option value="否">否</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">委任方式</label>
+            <input
+              type="text"
+              value={form.appointmentMethod}
+              onChange={(event) => set("appointmentMethod", event.target.value)}
+              placeholder="如：招标"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">投标截止</label>
+            <input
+              type="text"
+              value={form.tenderDeadline}
+              onChange={(event) => set("tenderDeadline", event.target.value)}
+              placeholder="没有就留空"
+              className={inputClass}
+            />
+          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">施工开始</label>
             <input
@@ -445,143 +601,152 @@ export function ProjectDispatchForm() {
               className={inputClass}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">开标</label>
-            <input
-              type="text"
-              value={form.tenderOpening}
-              onChange={(event) => set("tenderOpening", event.target.value)}
-              placeholder="没有就留空"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">投标截止</label>
-            <input
-              type="text"
-              value={form.tenderDeadline}
-              onChange={(event) => set("tenderDeadline", event.target.value)}
-              placeholder="没有就留空"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">总包是否已委任</label>
-            <select
-              value={form.contractorState}
-              onChange={(event) => set("contractorState", event.target.value)}
-              className={inputClass}
-            >
-              <option value="">未填</option>
-              {PARTY_ROLE_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">委任方式</label>
-            <input
-              type="text"
-              value={form.appointmentMethod}
-              onChange={(event) => set("appointmentMethod", event.target.value)}
-              placeholder="如：招标"
-              className={inputClass}
-            />
-          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-slate-800">4. 工程范围</h2>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">已知工程内容</label>
+          <textarea
+            value={form.knownScope}
+            onChange={(event) => set("knownScope", event.target.value)}
+            rows={4}
+            placeholder="Development to include：已知工程内容，没有就留空"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">钢格板相关建材</label>
+          <textarea
+            value={form.gratingRelatedElements}
+            onChange={(event) => set("gratingRelatedElements", event.target.value)}
+            rows={3}
+            placeholder="只填和钢格板相关的 Building elements，如 grating、walkway、platform、stairs。卫浴窗帘等不要填"
+            className={inputClass}
+          />
         </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">3. 各环节关键人</h2>
-        <p className="text-xs text-slate-500">和资料页一样，一个环节一张卡。先选状态和公司，再写下面的人。没有就留空。</p>
-        {PROJECT_PARTY_ROLE_CHOICES.map((role) => {
+        <h2 className="text-sm font-semibold text-slate-800">5. 各环节相关人</h2>
+        <p className="text-xs text-slate-500">
+          空环节先收着，点开再填。有内容的会自动展开。一个环节可以有多位联系人。
+        </p>
+        {ROLE_FORM_ORDER.map((role) => {
           const row = form.contacts[role];
+          const open = row.open || roleHasContent(row);
           return (
-            <div key={role} className="space-y-3 rounded-lg border border-slate-200 p-3">
-              <p className="text-sm font-medium text-slate-800">{projectPartyRoleLabel[role] ?? role}</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <select
-                  value={row.status}
-                  onChange={(event) => setRole(role, "status", event.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">状态未填</option>
-                  {PARTY_ROLE_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={row.companyName}
-                  onChange={(event) => setRole(role, "companyName", event.target.value)}
-                  placeholder="公司"
-                  className={inputClass}
-                />
-                <input
-                  type="text"
-                  value={row.website}
-                  onChange={(event) => setRole(role, "website", event.target.value)}
-                  placeholder="网站"
-                  className={inputClass}
-                />
-                <input
-                  type="text"
-                  value={row.note}
-                  onChange={(event) => setRole(role, "note", event.target.value)}
-                  placeholder="补充，如地址或投标额。没有就留空"
-                  className={`${inputClass} sm:col-span-2`}
-                />
-              </div>
-              {row.people.map((person, index) => (
-                <div key={index} className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
-                  <input
-                    type="text"
-                    value={person.contactName}
-                    onChange={(event) => setPerson(role, index, "contactName", event.target.value)}
-                    placeholder="联系人"
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    value={person.contactTitle}
-                    onChange={(event) => setPerson(role, index, "contactTitle", event.target.value)}
-                    placeholder="职位"
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    value={person.phone}
-                    onChange={(event) => setPerson(role, index, "phone", event.target.value)}
-                    placeholder="电话"
-                    className={inputClass}
-                  />
-                  <input
-                    type="text"
-                    value={person.email}
-                    onChange={(event) => setPerson(role, index, "email", event.target.value)}
-                    placeholder="邮箱"
-                    className={inputClass}
-                  />
-                </div>
-              ))}
+            <div key={role} className="rounded-lg border border-slate-200">
               <button
                 type="button"
-                onClick={() => addPerson(role)}
-                className="text-sm text-slate-600 underline"
+                onClick={() => toggleRole(role)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium text-slate-800"
               >
-                再加一位联系人
+                <span>
+                  {projectPartyRoleLabel[role] ?? role}
+                  {row.status ? <span className="ml-2 text-xs font-normal text-slate-500">{row.status}</span> : null}
+                  {row.companyName ? (
+                    <span className="ml-2 text-xs font-normal text-slate-500">{row.companyName}</span>
+                  ) : null}
+                </span>
+                <span className="text-xs text-slate-500">{open ? "收起" : "填写"}</span>
               </button>
+              {open ? (
+                <div className="space-y-3 border-t border-slate-100 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <select
+                      value={row.status}
+                      onChange={(event) => setRole(role, "status", event.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">状态未填</option>
+                      {PARTY_ROLE_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={row.companyRole}
+                      onChange={(event) => setRole(role, "companyRole", event.target.value)}
+                      placeholder="资料角色，如 Design Consultant"
+                      className={inputClass}
+                    />
+                    <input
+                      type="text"
+                      value={row.companyName}
+                      onChange={(event) => setRole(role, "companyName", event.target.value)}
+                      placeholder="公司"
+                      className={inputClass}
+                    />
+                    <input
+                      type="text"
+                      value={row.website}
+                      onChange={(event) => setRole(role, "website", event.target.value)}
+                      placeholder="网站"
+                      className={inputClass}
+                    />
+                    <input
+                      type="text"
+                      value={row.address}
+                      onChange={(event) => setRole(role, "address", event.target.value)}
+                      placeholder="公司地址"
+                      className={`${inputClass} sm:col-span-2`}
+                    />
+                    <input
+                      type="text"
+                      value={row.note}
+                      onChange={(event) => setRole(role, "note", event.target.value)}
+                      placeholder="备注。没有就留空"
+                      className={`${inputClass} sm:col-span-2`}
+                    />
+                  </div>
+                  {row.people.map((person, index) => (
+                    <div key={index} className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        value={person.contactName}
+                        onChange={(event) => setPerson(role, index, "contactName", event.target.value)}
+                        placeholder="联系人"
+                        className={inputClass}
+                      />
+                      <input
+                        type="text"
+                        value={person.contactTitle}
+                        onChange={(event) => setPerson(role, index, "contactTitle", event.target.value)}
+                        placeholder="职位"
+                        className={inputClass}
+                      />
+                      <input
+                        type="text"
+                        value={person.phone}
+                        onChange={(event) => setPerson(role, index, "phone", event.target.value)}
+                        placeholder="电话"
+                        className={inputClass}
+                      />
+                      <input
+                        type="text"
+                        value={person.email}
+                        onChange={(event) => setPerson(role, index, "email", event.target.value)}
+                        placeholder="邮箱"
+                        className={inputClass}
+                      />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addPerson(role)} className="text-sm text-slate-600 underline">
+                    再加一位联系人
+                  </button>
+                </div>
+              ) : null}
             </div>
           );
         })}
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-slate-800">4. 分配</h2>
+        <h2 className="text-sm font-semibold text-slate-800">6. 分配</h2>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">分配给</label>
           <select value={form.ownerId} onChange={(event) => set("ownerId", event.target.value)} className={inputClass}>
@@ -592,6 +757,7 @@ export function ProjectDispatchForm() {
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-slate-500">保存草稿不会分配；保存并分配才交给选中的业务员。</p>
         </div>
       </section>
 
@@ -602,39 +768,18 @@ export function ProjectDispatchForm() {
           className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700"
         >
           更多信息
-          <span className="text-xs text-slate-500">{showMore ? "收起" : "工程范围、产品"}</span>
+          <span className="text-xs text-slate-500">{showMore ? "收起" : "产品、内部备注"}</span>
         </button>
         {showMore && (
           <div className="space-y-4 border-t border-stone-200 px-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">业主/运营商</label>
-                <input
-                  type="text"
-                  value={form.ownerOperator}
-                  onChange={(event) => set("ownerOperator", event.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">总包</label>
-                <input
-                  type="text"
-                  value={form.generalContractor}
-                  onChange={(event) => set("generalContractor", event.target.value)}
-                  placeholder="上面总包一行填了公司，这里可以不重复"
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">潜在采购公司</label>
-                <input
-                  type="text"
-                  value={form.potentialBuyers}
-                  onChange={(event) => set("potentialBuyers", event.target.value)}
-                  className={inputClass}
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">潜在采购公司</label>
+              <input
+                type="text"
+                value={form.potentialBuyers}
+                onChange={(event) => set("potentialBuyers", event.target.value)}
+                className={inputClass}
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">可能用到的产品</label>
@@ -676,11 +821,12 @@ export function ProjectDispatchForm() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">备注</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">内部备注</label>
               <textarea
                 value={form.notes}
                 onChange={(event) => set("notes", event.target.value)}
                 rows={2}
+                placeholder="不要再把金额写这里，金额填上面的人民币万元"
                 className={inputClass}
               />
             </div>

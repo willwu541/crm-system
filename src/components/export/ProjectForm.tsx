@@ -83,6 +83,7 @@ export function ProjectForm({
     notes: (initial?.notes as string) ?? "",
     entryStatus: (initial?.entryStatus as string) ?? "entered",
     knownScope: (initial?.knownScope as string) ?? "",
+    gratingRelatedElements: (initial?.gratingRelatedElements as string) ?? "",
     needToVerify: (initial?.needToVerify as string) ?? "",
     askForRole: (initial?.askForRole as string) ?? "",
     nextStep: (initial?.nextStep as string) ?? "",
@@ -95,6 +96,12 @@ export function ProjectForm({
     tenderOpening: (initial?.tenderOpening as string) ?? "",
     contractorState: (initial?.contractorState as string) ?? "",
     appointmentMethod: (initial?.appointmentMethod as string) ?? "",
+    projectValueText: (initial?.projectValueText as string) ?? "",
+    projectValueOriginal: (initial?.projectValueOriginal as string) ?? "",
+    projectStatusRaw: (initial?.projectStatusRaw as string) ?? "",
+    region: (initial?.region as string) ?? "",
+    siteArea: (initial?.siteArea as string) ?? "",
+    contractorListed: (initial?.contractorListed as string) ?? "",
   });
 
   useEffect(() => {
@@ -152,6 +159,7 @@ export function ProjectForm({
         notes: form.notes.trim() || null,
         entryStatus: form.entryStatus,
         knownScope: form.knownScope.trim() || null,
+        gratingRelatedElements: form.gratingRelatedElements.trim() || null,
         needToVerify: form.needToVerify.trim() || null,
         askForRole: form.askForRole.trim() || null,
         nextStep: form.nextStep.trim() || null,
@@ -164,6 +172,12 @@ export function ProjectForm({
         tenderOpening: form.tenderOpening.trim() || null,
         contractorState: form.contractorState.trim() || null,
         appointmentMethod: form.appointmentMethod.trim() || null,
+        projectValueText: form.projectValueText.trim() || null,
+        projectValueOriginal: form.projectValueOriginal.trim() || null,
+        projectStatusRaw: form.projectStatusRaw.trim() || null,
+        region: form.region.trim() || null,
+        siteArea: form.siteArea.trim() || null,
+        contractorListed: form.contractorListed.trim() || null,
         ...(() => {
           const lmNumber = extractLeadManagerProjectNumber(form.tenderUrl);
           if (lmNumber) return { sourceProjectNumber: lmNumber };
@@ -288,7 +302,7 @@ export function ProjectForm({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">项目状态</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">进度原文</label>
           <input
             type="text"
             value={form.scheduleStatus}
@@ -296,6 +310,66 @@ export function ProjectForm({
             placeholder="计划进行中"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">工程状态</label>
+          <input
+            type="text"
+            value={form.projectStatusRaw}
+            onChange={(e) => setForm((f) => ({ ...f, projectStatusRaw: e.target.value }))}
+            placeholder="资料 Project Status"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">项目金额（人民币万元）</label>
+          <input
+            type="text"
+            value={form.projectValueText}
+            onChange={(e) => setForm((f) => ({ ...f, projectValueText: e.target.value }))}
+            placeholder="如 17073万元"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">原币金额原文</label>
+          <input
+            type="text"
+            value={form.projectValueOriginal}
+            onChange={(e) => setForm((f) => ({ ...f, projectValueOriginal: e.target.value }))}
+            placeholder="对照用"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">地区</label>
+          <input
+            type="text"
+            value={form.region}
+            onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">用地面积</label>
+          <input
+            type="text"
+            value={form.siteArea}
+            onChange={(e) => setForm((f) => ({ ...f, siteArea: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">总包是否已披露</label>
+          <select
+            value={form.contractorListed}
+            onChange={(e) => setForm((f) => ({ ...f, contractorListed: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">未填</option>
+            <option value="是">是</option>
+            <option value="否">否</option>
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">施工开始</label>
@@ -483,11 +557,21 @@ export function ProjectForm({
         </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">已知范围</label>
-          <input
-            type="text"
+          <textarea
             value={form.knownScope}
             onChange={(e) => setForm((f) => ({ ...f, knownScope: e.target.value }))}
+            rows={3}
             placeholder="已知有新增脱水建筑和设备"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">钢格板相关建材</label>
+          <textarea
+            value={form.gratingRelatedElements}
+            onChange={(e) => setForm((f) => ({ ...f, gratingRelatedElements: e.target.value }))}
+            rows={3}
+            placeholder="grating、walkway、platform、stairs 等"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
         </div>

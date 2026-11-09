@@ -984,6 +984,8 @@ model ExportProject {
   sourceProjectNumber String?  @map("source_project_number")
   /// 已知工程范围，一句话。
   knownScope         String?   @map("known_scope") @db.Text
+  /// 资料 Building elements 里和钢格板相关的项，多行文本。
+  gratingRelatedElements String? @map("grating_related_elements") @db.Text
   /// 钢格板或钢材用途里还要核实的一句话。
   needToVerify       String?   @map("need_to_verify") @db.Text
   /// 打总机时请转哪个岗位。
@@ -1006,6 +1008,18 @@ model ExportProject {
   contractorState    String?   @map("contractor_state")
   /// 总包委任方式，如「招标」。
   appointmentMethod  String?   @map("appointment_method")
+  /// 展示用项目金额，人民币万元，如「17073万元」。
+  projectValueText   String?   @map("project_value_text")
+  /// 资料原币金额原文，如「估算 650,000.00百万越南盾」。
+  projectValueOriginal String? @map("project_value_original")
+  /// PDF Project Status 原文，如「Subcontractor(s) Appointed」。
+  projectStatusRaw   String?   @map("project_status_raw")
+  /// 地区，如 Northern Vietnam。
+  region             String?
+  /// 用地面积原文。
+  siteArea           String?   @map("site_area")
+  /// 总包是否已披露公司名：是 / 否。对应 PDF Main Contractor Listed。
+  contractorListed   String?   @map("contractor_listed")
   /// 需求是否坐实。新建默认「需求待核实」，联系后再改。
   demandStatus       String    @default("需求待核实") @map("demand_status")
   /// 实际采购公司。空着时界面显示待确认，不覆盖第一通的总包。
@@ -1054,6 +1068,10 @@ model ExportProjectParty {
   notes        String?  @db.Text
   /// 该环节状态：已任命、招标中、未委任。空着表示资料里没有。
   roleStatus   String?  @map("role_status")
+  /// 资料里的 Company Role，如 Design Consultant。
+  companyRole  String?  @map("company_role")
+  /// 公司地址，按资料原文。
+  address      String?  @db.Text
   foundById    String   @map("found_by_id")
   leadId       String?  @map("lead_id")
   createdAt    DateTime @default(now()) @map("created_at")

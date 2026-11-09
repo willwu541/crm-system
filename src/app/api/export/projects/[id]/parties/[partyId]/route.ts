@@ -33,6 +33,9 @@ const updateSchema = z.object({
   whatsapp: z.string().optional().nullable(),
   linkedin: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  roleStatus: z.string().optional().nullable(),
+  companyRole: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
 });
 
 export async function PATCH(
@@ -78,6 +81,9 @@ export async function PATCH(
     if (parsed.data.whatsapp !== undefined) data.whatsapp = blankToNull(parsed.data.whatsapp) ?? null;
     if (parsed.data.linkedin !== undefined) data.linkedin = blankToNull(parsed.data.linkedin) ?? null;
     if (parsed.data.notes !== undefined) data.notes = blankToNull(parsed.data.notes) ?? null;
+    if (parsed.data.roleStatus !== undefined) data.roleStatus = blankToNull(parsed.data.roleStatus) ?? null;
+    if (parsed.data.companyRole !== undefined) data.companyRole = blankToNull(parsed.data.companyRole) ?? null;
+    if (parsed.data.address !== undefined) data.address = blankToNull(parsed.data.address) ?? null;
 
     const updated = await prisma.exportProjectParty.update({
       where: { id: partyId },

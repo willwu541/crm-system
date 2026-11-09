@@ -22,6 +22,9 @@ const createSchema = z.object({
   whatsapp: z.string().optional().nullable(),
   linkedin: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  roleStatus: z.string().optional().nullable(),
+  companyRole: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
 });
 
 export async function GET(
@@ -77,6 +80,9 @@ export async function POST(
         whatsapp: blankToNull(parsed.data.whatsapp) ?? null,
         linkedin: blankToNull(parsed.data.linkedin) ?? null,
         notes: blankToNull(parsed.data.notes) ?? null,
+        roleStatus: blankToNull(parsed.data.roleStatus) ?? null,
+        companyRole: blankToNull(parsed.data.companyRole) ?? null,
+        address: blankToNull(parsed.data.address) ?? null,
         foundById: user!.id,
       },
       include: PARTY_INCLUDE,

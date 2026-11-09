@@ -19,8 +19,6 @@ import {
   projectStatusLabel,
 } from "@/lib/export-display-labels";
 import {
-  displayGeneralContractor,
-  displayOwnerOperator,
   displayPotentialBuyers,
   formatProjectPlace,
 } from "@/lib/export/project-board";
@@ -48,6 +46,8 @@ interface Party {
   linkedin: string | null;
   notes: string | null;
   roleStatus: string | null;
+  companyRole: string | null;
+  address: string | null;
   leadId: string | null;
   foundBy: { id: string; name: string };
   lead: { id: string; companyName: string } | null;
@@ -82,7 +82,14 @@ interface Project {
   tenderOpening: string | null;
   contractorState: string | null;
   appointmentMethod: string | null;
+  projectValueText: string | null;
+  projectValueOriginal: string | null;
+  projectStatusRaw: string | null;
+  region: string | null;
+  siteArea: string | null;
+  contractorListed: string | null;
   knownScope: string | null;
+  gratingRelatedElements: string | null;
   needToVerify: string | null;
   askForRole: string | null;
   nextStep: string | null;
@@ -96,6 +103,17 @@ interface Project {
   parties: Party[];
   canManage?: boolean;
 }
+
+/** 详情页环节顺序跟 PDF / 录入页一致 */
+const DETAIL_ROLE_ORDER = [
+  "owner",
+  "designer",
+  "consultant",
+  "general_contractor",
+  "epc",
+  "subcontractor",
+  "procurement",
+] as const;
 
 function partyRoleOptions(current: string) {
   if ((PROJECT_PARTY_ROLE_CHOICES as readonly string[]).includes(current)) {
@@ -288,9 +306,10 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const products = project.productNeed
     ? project.productNeed.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     : [];
-  const knownRoles = new Set<string>(PROJECT_PARTY_ROLE_CHOICES);
+  const knownRoles = new Set<string>(DETAIL_ROLE_ORDER);
   const extraRoles = [...new Set(project.parties.map((party) => party.role))].filter((role) => !knownRoles.has(role));
-  const roleRows = [...PROJECT_PARTY_ROLE_CHOICES, ...extraRoles];
+  const roleRows = [...DETAIL_ROLE_ORDER, ...extraRoles];
+  const filledRoles = roleRows.filter((role) => project.parties.some((party) => party.role === role));
 
   return (
     <div className="space-y-5">
@@ -321,15 +340,86 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       </div>
 
       <div className="export-card space-y-3 p-6">
-        <h2 className="text-base font-semibold text-slate-800">项目时间</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-800">
+              {project.name}
+              {project.sourceProjectNumber ? (
+                <span className="ml-2 text-sm font-normal text-slate-500">LM {project.sourceProjectNumber}</span>
+              ) : null}
+            </h1>
+            <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{formatProjectPlace(project)}</p>
+            {project.region?.trim() ? <p className="mt-1 text-sm text-slate-500">地区：{project.region}</p> : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${
+                project.entryStatus === "entered"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-amber-300 bg-amber-50 text-amber-800"
+              }`}
+            >
+              {displayLabel(projectEntryStatusLabel, project.entryStatus || "pending")}
+            </span>
+            <span className="inline-flex rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs text-stone-700">
+              {displayLabel(projectStageLabel, project.stage)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="export-card space-y-3 p-6">
+        <h2 className="text-base font-semibold text-slate-800">信息</h2>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           <p>
             <span className="text-slate-500">阶段：</span>
             {displayLabel(projectStageLabel, project.stage)}
           </p>
           <p>
-            <span className="text-slate-500">项目状态：</span>
+            <span className="text-slate-500">行业：</span>
+            {displayLabel(projectIndustryLabel, project.industry)}
+          </p>
+          <p className="sm:col-span-2">
+            <span className="text-slate-500">进度原文：</span>
             {project.scheduleStatus?.trim() || "—"}
+          </p>
+          <p className="sm:col-span-2">
+            <span className="text-slate-500">工程状态：</span>
+            {project.projectStatusRaw?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">项目金额：</span>
+            <span className="font-medium text-slate-800">{project.projectValueText?.trim() || "—"}</span>
+          </p>
+          <p>
+            <span className="text-slate-500">原币金额：</span>
+            {project.projectValueOriginal?.trim() || "—"}
+          </p>
+          <p className="sm:col-span-2">
+            <span className="text-slate-500">用地面积：</span>
+            {project.siteArea?.trim() || "—"}
+          </p>
+        </div>
+      </div>
+
+      <div className="export-card space-y-3 p-6">
+        <h2 className="text-base font-semibold text-slate-800">总包与工期</h2>
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <p>
+            <span className="text-slate-500">总包是否已委任：</span>
+            {project.contractorState?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">总包是否已披露：</span>
+            {project.contractorListed?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">委任方式：</span>
+            {project.appointmentMethod?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">投标截止：</span>
+            {project.tenderDeadline?.trim() || "—"}
           </p>
           <p>
             <span className="text-slate-500">施工开始：</span>
@@ -339,30 +429,29 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             <span className="text-slate-500">施工结束：</span>
             {project.scheduleEnd?.trim() || "—"}
           </p>
-          <p>
-            <span className="text-slate-500">开标：</span>
-            {project.tenderOpening?.trim() || "—"}
-          </p>
-          <p>
-            <span className="text-slate-500">投标截止：</span>
-            {project.tenderDeadline?.trim() || "—"}
-          </p>
-          <p>
-            <span className="text-slate-500">总包是否已委任：</span>
-            {project.contractorState?.trim() || "—"}
-          </p>
-          <p>
-            <span className="text-slate-500">委任方式：</span>
-            {project.appointmentMethod?.trim() || "—"}
+        </div>
+      </div>
+
+      <div className="export-card space-y-3 p-6">
+        <h2 className="text-base font-semibold text-slate-800">工程范围</h2>
+        <div>
+          <p className="text-xs text-slate-500">已知工程内容</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{project.knownScope?.trim() || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">钢格板相关建材</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+            {project.gratingRelatedElements?.trim() || "—"}
           </p>
         </div>
       </div>
 
       <div className="export-card space-y-3 p-6">
-        <h2 className="text-base font-semibold text-slate-800">各环节关键人</h2>
+        <h2 className="text-base font-semibold text-slate-800">各环节相关人</h2>
         <div className="space-y-3">
-          {roleRows.map((role) => {
+          {(filledRoles.length ? filledRoles : roleRows).map((role) => {
             const people = project.parties.filter((party) => party.role === role);
+            if (!people.length && filledRoles.length) return null;
             return (
               <div key={role} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <p className="font-medium text-slate-800">
@@ -381,11 +470,15 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
                     return (
                       <div key={company || "blank"} className="mt-2 text-slate-700">
                         <p className="font-medium">{company || "公司未填"}</p>
+                        {head?.companyRole ? (
+                          <p className="text-xs text-slate-500">资料角色：{head.companyRole}</p>
+                        ) : null}
                         {site ? (
                           <a href={site} target="_blank" rel="noreferrer" className="text-xs text-teal-600 hover:underline">
                             {site}
                           </a>
                         ) : null}
+                        {head?.address ? <p className="text-xs text-slate-500">地址：{head.address}</p> : null}
                         {head?.notes ? <p className="text-xs text-slate-500">{head.notes}</p> : null}
                         {group.map((party) => (
                           <div key={party.id} className="mt-1 text-slate-600">
@@ -464,49 +557,13 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       </form>
 
       <div className="export-card export-detail-group space-y-4 p-7">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">
-              {project.name}
-              {project.sourceProjectNumber ? (
-                <span className="ml-2 text-sm font-normal text-slate-500">LM {project.sourceProjectNumber}</span>
-              ) : null}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">{formatProjectPlace(project)}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${
-                project.entryStatus === "entered"
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                  : "border-amber-300 bg-amber-50 text-amber-800"
-              }`}
-            >
-              {displayLabel(projectEntryStatusLabel, project.entryStatus || "pending")}
-            </span>
-            <span className="inline-flex rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs text-stone-700">
-              {displayLabel(projectStageLabel, project.stage)}
-            </span>
-          </div>
-        </div>
+        <h2 className="text-base font-semibold text-slate-800">跟进与内部</h2>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <span className="text-slate-500">行业：</span>
-            {displayLabel(projectIndustryLabel, project.industry)}
-          </div>
           <div>
             <span className="text-slate-500">可靠度：</span>
             {displayLabel(projectConfidenceLabel, project.confidence)}
           </div>
           <div>
-            <span className="text-slate-500">业主/运营商：</span>
-            {displayOwnerOperator(project, project.parties) || "—"}
-          </div>
-          <div>
-            <span className="text-slate-500">总包：</span>
-            {displayGeneralContractor(project, project.parties) || "—"}
-          </div>
-          <div className="sm:col-span-2">
             <span className="text-slate-500">潜在采购公司：</span>
             {displayPotentialBuyers(project, project.parties) || "—"}
           </div>
