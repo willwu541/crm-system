@@ -980,6 +980,24 @@ model ExportProject {
   description        String?   @db.Text
   source             String?
   tenderUrl          String?   @map("tender_url")
+  /// LeadManager 项目号，只留数字，如 137094003。同一租户不能重复；空值不占号。
+  sourceProjectNumber String?  @map("source_project_number")
+  /// 已知工程范围，一句话。
+  knownScope         String?   @map("known_scope") @db.Text
+  /// 钢格板或钢材用途里还要核实的一句话。
+  needToVerify       String?   @map("need_to_verify") @db.Text
+  /// 打总机时请转哪个岗位。
+  askForRole         String?   @map("ask_for_role")
+  /// 派给业务员的第一问。
+  nextStep           String?   @map("next_step") @db.Text
+  /// 希望业务员反馈的日期。
+  feedbackDueAt      DateTime? @map("feedback_due_at")
+  /// 需求是否坐实。新建默认「需求待核实」，联系后再改。
+  demandStatus       String    @default("需求待核实") @map("demand_status")
+  /// 实际采购公司。空着时界面显示待确认，不覆盖第一通的总包。
+  actualBuyerCompany String?   @map("actual_buyer_company")
+  actualBuyerContact String?   @map("actual_buyer_contact")
+  purchaseProgress   String?   @map("purchase_progress") @db.Text
   status             String    @default("hunting")
   bidDeadline        DateTime? @map("bid_deadline")
   ownerId            String?   @map("owner_id")
@@ -999,6 +1017,7 @@ model ExportProject {
   @@index([stage])
   @@index([industry])
   @@index([country])
+  @@unique([tenantId, sourceProjectNumber])
   @@index([entryStatus])
   @@index([createdAt])
   @@map("export_projects")

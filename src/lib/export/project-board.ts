@@ -2,6 +2,9 @@ import { countryLabel } from "@/lib/export/countries";
 
 export type PartyName = { role: string; companyName: string };
 
+/** 可能采购的角色。顾问、设计师、业主不算采购方；钢构加工厂保留，避免旧行从名单里消失。 */
+const POTENTIAL_BUYER_ROLES = ["epc", "subcontractor", "fabricator", "procurement"];
+
 function namesForRoles(parties: PartyName[] | undefined, roles: string[]): string {
   const names = (parties ?? [])
     .filter((p) => roles.includes(p.role) && p.companyName?.trim())
@@ -29,7 +32,7 @@ export function displayPotentialBuyers(
 ): string {
   return (
     project.potentialBuyers?.trim() ||
-    namesForRoles(parties, ["epc", "subcontractor", "fabricator", "consultant"])
+    namesForRoles(parties, POTENTIAL_BUYER_ROLES)
   );
 }
 
@@ -97,10 +100,11 @@ export function boardFieldsFromNewParty(
   companyName: string,
 ): { ownerOperator?: string; generalContractor?: string; potentialBuyers?: string } {
   const name = companyName.trim();
+  if (!name) return {};
   const patch: { ownerOperator?: string; generalContractor?: string; potentialBuyers?: string } = {};
   if (role === "owner" && !project.ownerOperator?.trim()) patch.ownerOperator = name;
   if (role === "general_contractor" && !project.generalContractor?.trim()) patch.generalContractor = name;
-  if (["epc", "subcontractor", "fabricator", "consultant"].includes(role)) {
+  if (POTENTIAL_BUYER_ROLES.includes(role)) {
     const existing = (project.potentialBuyers || "")
       .split(/[、,，]/)
       .map((s) => s.trim())

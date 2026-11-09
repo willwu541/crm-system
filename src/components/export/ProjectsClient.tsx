@@ -85,6 +85,7 @@ function stageClass(stage: string) {
     case "delayed":
       return "border-slate-300 bg-slate-100 text-slate-600";
     case "planning":
+    case "design_docs":
       return "border-sky-300 bg-sky-50 text-sky-800";
     default:
       return "border-stone-300 bg-stone-50 text-stone-600";
@@ -361,7 +362,7 @@ export function ProjectsClient() {
             href="/export/projects/new"
             className="export-btn-primary ml-auto rounded-md px-4 py-1.5 text-sm font-medium"
           >
-            新建项目
+            快速录入
           </Link>
         )}
       </div>

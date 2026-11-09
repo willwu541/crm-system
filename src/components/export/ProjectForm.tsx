@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { INTERESTED_PRODUCTS, PROJECT_CONFIDENCE, PROJECT_INDUSTRIES, PROJECT_STAGES, PROJECT_STATUSES } from "@/lib/export-constants";
+import { INTERESTED_PRODUCTS, PROJECT_CONFIDENCE, PROJECT_DEMAND_STATUSES, PROJECT_INDUSTRIES, PROJECT_STAGES, PROJECT_STATUSES } from "@/lib/export-constants";
 import {
   interestedProductLabel,
   projectConfidenceLabel,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/export-display-labels";
 import { parseResponseJson } from "@/lib/parse-response-json";
 import { canonicalizeCountry } from "@/lib/export/countries";
+import { extractLeadManagerProjectNumber } from "@/lib/export/project-dispatch";
 import { CountrySelect } from "./CountrySelect";
 import { useExportMe } from "./use-export-me";
 
@@ -81,6 +82,12 @@ export function ProjectForm({
     ownerId: (initial?.owner as { id?: string })?.id ?? (initial?.ownerId as string) ?? "",
     notes: (initial?.notes as string) ?? "",
     entryStatus: (initial?.entryStatus as string) ?? "entered",
+    knownScope: (initial?.knownScope as string) ?? "",
+    needToVerify: (initial?.needToVerify as string) ?? "",
+    askForRole: (initial?.askForRole as string) ?? "",
+    nextStep: (initial?.nextStep as string) ?? "",
+    feedbackDueAt: dateInputValue(initial?.feedbackDueAt),
+    demandStatus: (initial?.demandStatus as string) ?? "需求待核实",
   });
 
   useEffect(() => {
@@ -137,6 +144,18 @@ export function ProjectForm({
         ownerId: form.ownerId || null,
         notes: form.notes.trim() || null,
         entryStatus: form.entryStatus,
+        knownScope: form.knownScope.trim() || null,
+        needToVerify: form.needToVerify.trim() || null,
+        askForRole: form.askForRole.trim() || null,
+        nextStep: form.nextStep.trim() || null,
+        feedbackDueAt: form.feedbackDueAt || null,
+        demandStatus: form.demandStatus || "需求待核实",
+        ...(() => {
+          const lmNumber = extractLeadManagerProjectNumber(form.tenderUrl);
+          if (lmNumber) return { sourceProjectNumber: lmNumber };
+          if (!form.tenderUrl.trim()) return { sourceProjectNumber: null };
+          return {};
+        })(),
       };
       const url = projectId ? `/api/export/projects/${projectId}` : "/api/export/projects";
       const res = await fetch(url, {
@@ -166,7 +185,7 @@ export function ProjectForm({
     <form onSubmit={handleSubmit} className="export-card export-detail-group max-w-3xl space-y-5 p-7">
       {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
       <p className="text-sm text-slate-500">
-        先填项目情报（行业、阶段、业主、总包），保存后再让业务员去找联系方式。团队全员可见。
+        改项目内容和派发说明。业务员只能看到分给自己的项目。
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
@@ -404,6 +423,70 @@ export function ProjectForm({
             placeholder="https://"
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           />
+        </div>
+        <div className="sm:col-span-2 pt-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+          派发说明
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">已知范围</label>
+          <input
+            type="text"
+            value={form.knownScope}
+            onChange={(e) => setForm((f) => ({ ...f, knownScope: e.target.value }))}
+            placeholder="已知有新增脱水建筑和设备"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">还要核实</label>
+          <input
+            type="text"
+            value={form.needToVerify}
+            onChange={(e) => setForm((f) => ({ ...f, needToVerify: e.target.value }))}
+            placeholder="平台和走道是否使用钢格板待核实"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">请转哪个岗位</label>
+          <input
+            type="text"
+            value={form.askForRole}
+            onChange={(e) => setForm((f) => ({ ...f, askForRole: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">业务员要问什么</label>
+          <textarea
+            value={form.nextStep}
+            onChange={(e) => setForm((f) => ({ ...f, nextStep: e.target.value }))}
+            rows={2}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">希望反馈日期</label>
+          <input
+            type="date"
+            value={form.feedbackDueAt}
+            onChange={(e) => setForm((f) => ({ ...f, feedbackDueAt: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">需求</label>
+          <select
+            value={form.demandStatus}
+            onChange={(e) => setForm((f) => ({ ...f, demandStatus: e.target.value }))}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          >
+            {PROJECT_DEMAND_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-slate-700">项目说明</label>

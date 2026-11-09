@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
-import { PROJECT_PARTY_ROLES } from "@/lib/export-constants";
+import {
+  PROJECT_DEMAND_STATUSES,
+  PROJECT_PARTY_ROLE_CHOICES,
+  PROJECT_PARTY_ROLE_CHOICE_TEXT,
+} from "@/lib/export-constants";
 import {
   displayInterestedProductsList,
   displayLabel,
@@ -46,6 +50,7 @@ interface Party {
   leadId: string | null;
   foundBy: { id: string; name: string };
   lead: { id: string; companyName: string } | null;
+  createdAt: string;
 }
 
 interface Project {
@@ -68,10 +73,27 @@ interface Project {
   status: string;
   bidDeadline: string | null;
   notes: string | null;
+  sourceProjectNumber: string | null;
+  knownScope: string | null;
+  needToVerify: string | null;
+  askForRole: string | null;
+  nextStep: string | null;
+  feedbackDueAt: string | null;
+  demandStatus: string;
+  actualBuyerCompany: string | null;
+  actualBuyerContact: string | null;
+  purchaseProgress: string | null;
   owner: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   parties: Party[];
   canManage?: boolean;
+}
+
+function partyRoleOptions(current: string) {
+  if ((PROJECT_PARTY_ROLE_CHOICES as readonly string[]).includes(current)) {
+    return [...PROJECT_PARTY_ROLE_CHOICES];
+  }
+  return [...PROJECT_PARTY_ROLE_CHOICES, current];
 }
 
 const emptyParty = {
@@ -99,6 +121,13 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [duplicate, setDuplicate] = useState<DuplicateRecord | null>(null);
   const [partyForm, setPartyForm] = useState(emptyParty);
   const [togglingEntry, setTogglingEntry] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
+  const [report, setReport] = useState({
+    company: "",
+    contact: "",
+    progress: "",
+    demand: "需求待核实",
+  });
 
   async function fetchProject(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true);
@@ -119,6 +148,16 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
     fetchProject();
   }, [projectId]);
 
+  useEffect(() => {
+    if (!project) return;
+    setReport({
+      company: project.actualBuyerCompany ?? "",
+      contact: project.actualBuyerContact ?? "",
+      progress: project.purchaseProgress ?? "",
+      demand: project.demandStatus || "需求待核实",
+    });
+  }, [project]);
+
   async function toggleEntryStatus() {
     if (!project) return;
     const next = project.entryStatus === "entered" ? "pending" : "entered";
@@ -138,6 +177,31 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       toast(e instanceof Error ? e.message : "更新失败");
     } finally {
       setTogglingEntry(false);
+    }
+  }
+
+  async function handleSaveReport(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingReport(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actualBuyerCompany: report.company.trim() || null,
+          actualBuyerContact: report.contact.trim() || null,
+          purchaseProgress: report.progress.trim() || null,
+          demandStatus: report.demand || "需求待核实",
+        }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      if (json.data) setProject(json.data);
+      toast("已记下实际采购");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSavingReport(false);
     }
   }
 
@@ -216,6 +280,9 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const products = project.productNeed
     ? project.productNeed.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     : [];
+  const firstCall = [...project.parties].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  )[0];
 
   return (
     <div className="space-y-5">
@@ -245,10 +312,126 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      <div className="export-card space-y-3 border-amber-200 bg-[#fbf7ef] p-6">
+        <h2 className="text-base font-semibold text-slate-800">这一通怎么打</h2>
+        {firstCall ? (
+          <div className="text-sm text-slate-800">
+            <p className="text-base font-medium">
+              {firstCall.companyName}
+              <span className="ml-2 text-sm font-normal text-slate-500">
+                {displayLabel(projectPartyRoleLabel, firstCall.role)}
+              </span>
+            </p>
+            <p className="mt-1">联系人：{firstCall.contactName || "未留姓名，打总机后转岗位"}</p>
+            <p>电话：{firstCall.phone || "—"}</p>
+            {firstCall.email ? <p>邮箱：{firstCall.email}</p> : null}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">
+            还没有第一通要找的公司。角色选{PROJECT_PARTY_ROLE_CHOICE_TEXT}。例如：Perunding BSK（顾问）· +60 88 498 838
+          </p>
+        )}
+        <p className="text-sm text-slate-800">
+          <span className="text-slate-500">请转：</span>
+          {project.askForRole || (
+            <span className="text-slate-400">例如：负责脱水车间设备平台的项目经理或采购</span>
+          )}
+        </p>
+        <p className="whitespace-pre-wrap text-sm text-slate-800">
+          <span className="text-slate-500">要问什么：</span>
+          {project.nextStep || (
+            <span className="text-slate-400">
+              例如：确认是否用钢格板、是否已下单。如果归分包，拿到分包公司名和采购联系人
+            </span>
+          )}
+        </p>
+        <p className="text-sm text-slate-700">
+          <span className="text-slate-500">为什么跟：</span>
+          {[project.knownScope, project.needToVerify].filter(Boolean).join("。") || (
+            <span className="text-slate-400">例如：已知有新增脱水建筑和设备。平台和走道是否使用钢格板待核实</span>
+          )}
+        </p>
+        <p className="text-sm text-slate-700">
+          <span className="text-slate-500">需求：</span>
+          {project.demandStatus || "需求待核实"}
+          {project.feedbackDueAt
+            ? ` · 希望 ${new Date(project.feedbackDueAt).toLocaleDateString("zh-CN")} 前反馈`
+            : ""}
+        </p>
+      </div>
+
+      <form onSubmit={handleSaveReport} className="export-card space-y-4 p-6">
+        <div>
+          <h2 className="text-base font-semibold text-slate-800">打完回填</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            总包或第一通联系人仍是入口。实际采购公司另外记，没问到就留空，显示为待确认。
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">实际采购公司</label>
+            <input
+              type="text"
+              value={report.company}
+              onChange={(e) => setReport((current) => ({ ...current, company: e.target.value }))}
+              placeholder="待确认"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-slate-500">当前：{report.company.trim() || "待确认"}</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">采购联系人</label>
+            <input
+              type="text"
+              value={report.contact}
+              onChange={(e) => setReport((current) => ({ ...current, contact: e.target.value }))}
+              placeholder="姓名和电话"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">需求</label>
+            <select
+              value={report.demand}
+              onChange={(e) => setReport((current) => ({ ...current, demand: e.target.value }))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              {PROJECT_DEMAND_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">采购进度</label>
+            <textarea
+              value={report.progress}
+              onChange={(e) => setReport((current) => ({ ...current, progress: e.target.value }))}
+              rows={2}
+              placeholder="例如：总包说平台归分包，还没下单"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={savingReport}
+          className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          {savingReport ? "保存中..." : "保存回填"}
+        </button>
+      </form>
+
       <div className="export-card export-detail-group space-y-4 p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold text-slate-800">{project.name}</h1>
+            <h1 className="text-xl font-semibold text-slate-800">
+              {project.name}
+              {project.sourceProjectNumber ? (
+                <span className="ml-2 text-sm font-normal text-slate-500">LM {project.sourceProjectNumber}</span>
+              ) : null}
+            </h1>
             <p className="mt-1 text-sm text-slate-500">{formatProjectPlace(project)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -331,7 +514,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       <div className="export-card p-7">
         <h2 className="mb-1 text-base font-semibold text-slate-800">找到的公司 / 联系人</h2>
         <p className="mb-4 text-sm text-slate-500">
-          按角色补 EPC、总包、分包等公司，填上网站、邮箱、WhatsApp、联系人。
+          按角色补{PROJECT_PARTY_ROLE_CHOICE_TEXT}。已保存的钢构加工厂、其他等旧角色仍会显示。填上网站、邮箱、WhatsApp、联系人。
         </p>
         {duplicate && (
           <div className="mb-3">
@@ -429,7 +612,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
                 onChange={(e) => setPartyForm((f) => ({ ...f, role: e.target.value }))}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                {PROJECT_PARTY_ROLES.map((r) => (
+                {partyRoleOptions(partyForm.role).map((r) => (
                   <option key={r} value={r}>
                     {projectPartyRoleLabel[r] ?? r}
                   </option>

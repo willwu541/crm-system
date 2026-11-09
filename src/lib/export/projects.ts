@@ -93,6 +93,10 @@ export function projectKeywordOrClauses(
     { productNeed: { contains: keyword, mode: "insensitive" } },
     { description: { contains: keyword, mode: "insensitive" } },
     { source: { contains: keyword, mode: "insensitive" } },
+    { sourceProjectNumber: { contains: keyword, mode: "insensitive" } },
+    { knownScope: { contains: keyword, mode: "insensitive" } },
+    { nextStep: { contains: keyword, mode: "insensitive" } },
+    { actualBuyerCompany: { contains: keyword, mode: "insensitive" } },
     { notes: { contains: keyword, mode: "insensitive" } },
     { ownerOperator: { contains: keyword, mode: "insensitive" } },
     { generalContractor: { contains: keyword, mode: "insensitive" } },
@@ -193,6 +197,21 @@ export async function getProjectOrError(
     return { project: null, error: NextResponse.json({ error: "无权限" }, { status: 403 }) };
   }
   return { project, error: null };
+}
+
+export async function findProjectBySourceNumber(
+  tenantId: string,
+  sourceProjectNumber: string,
+  excludeId?: string,
+) {
+  return prisma.exportProject.findFirst({
+    where: {
+      tenantId,
+      sourceProjectNumber,
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+    },
+    select: { id: true, name: true, sourceProjectNumber: true },
+  });
 }
 
 export async function resolveExportOwnerId(

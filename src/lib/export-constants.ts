@@ -134,6 +134,7 @@ export const PROJECT_STATUSES = [
 /** 项目工程阶段（列表「阶段」列） */
 export const PROJECT_STAGES = [
   "planning",
+  "design_docs",
   "tendering",
   "awarded",
   "construction",
@@ -155,6 +156,11 @@ export const PROJECT_INDUSTRIES = [
   "other",
 ] as const;
 
+/** 需求是否坐实。新建默认第一项，业务员联系后再改。 */
+export const PROJECT_DEMAND_STATUSES = ["需求待核实", "确认使用", "不使用", "已下单", "归分包"] as const;
+
+export const PROJECT_DEMAND_DEFAULT = PROJECT_DEMAND_STATUSES[0];
+
 /** 信息可靠度 */
 export const PROJECT_CONFIDENCE = [
   "unknown",
@@ -163,16 +169,29 @@ export const PROJECT_CONFIDENCE = [
   "high",
 ] as const;
 
-/** 外贸项目找人：参与方角色 */
-export const PROJECT_PARTY_ROLES = [
+/**
+ * 录入时给人点的角色。
+ * fabricator、other 仍留在 PROJECT_PARTY_ROLES，旧行继续能存、能显示，只是不再作为新选项。
+ */
+export const PROJECT_PARTY_ROLE_CHOICES = [
+  "owner",
   "epc",
   "general_contractor",
   "subcontractor",
-  "fabricator",
-  "owner",
   "consultant",
+  "designer",
+  "procurement",
+] as const;
+
+/** 外贸项目找人：参与方角色。含已停用选项，避免旧参与方校验失败。 */
+export const PROJECT_PARTY_ROLES = [
+  ...PROJECT_PARTY_ROLE_CHOICES,
+  "fabricator",
   "other",
 ] as const;
+
+/** 下拉和提示里展示的角色，按用户口头说法。 */
+export const PROJECT_PARTY_ROLE_CHOICE_TEXT = "业主、EPC、总包、分包、顾问、设计师、采购";
 
 /** 邮件 / 沟通模板分类（对应开发客户全链路） */
 export const EMAIL_TEMPLATE_CATEGORIES = [

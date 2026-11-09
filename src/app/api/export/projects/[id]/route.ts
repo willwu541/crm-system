@@ -6,15 +6,19 @@ import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import {
   PROJECT_CONFIDENCE,
+  PROJECT_DEMAND_STATUSES,
   PROJECT_ENTRY_STATUSES,
   PROJECT_INDUSTRIES,
   PROJECT_STAGES,
   PROJECT_STATUSES,
 } from "@/lib/export-constants";
+import { extractLeadManagerProjectNumber } from "@/lib/export/project-dispatch";
+import { blankToNull } from "@/lib/export/blank-to-null";
 import {
   PROJECT_DETAIL_INCLUDE,
   canManageExportProjects,
   denyUnlessCanManageProjects,
+  findProjectBySourceNumber,
   getProjectOrError,
   parseOptionalDate,
   resolveExportOwnerId,
@@ -54,6 +58,16 @@ const updateSchema = z.object({
   description: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
   tenderUrl: z.string().optional().nullable(),
+  sourceProjectNumber: z.string().optional().nullable(),
+  knownScope: z.string().optional().nullable(),
+  needToVerify: z.string().optional().nullable(),
+  askForRole: z.string().optional().nullable(),
+  nextStep: z.string().optional().nullable(),
+  feedbackDueAt: z.string().optional().nullable(),
+  demandStatus: z.enum(PROJECT_DEMAND_STATUSES).optional(),
+  actualBuyerCompany: z.string().optional().nullable(),
+  actualBuyerContact: z.string().optional().nullable(),
+  purchaseProgress: z.string().optional().nullable(),
   status: z.enum(PROJECT_STATUSES).optional(),
   bidDeadline: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
@@ -114,6 +128,39 @@ export async function PATCH(
     if (parsed.data.description !== undefined) data.description = parsed.data.description?.trim() || null;
     if (parsed.data.source !== undefined) data.source = parsed.data.source?.trim() || null;
     if (parsed.data.tenderUrl !== undefined) data.tenderUrl = parsed.data.tenderUrl?.trim() || null;
+    if (parsed.data.sourceProjectNumber !== undefined || parsed.data.tenderUrl !== undefined) {
+      const rawNumber = parsed.data.sourceProjectNumber ?? parsed.data.tenderUrl;
+      const sourceProjectNumber = extractLeadManagerProjectNumber(rawNumber);
+      if (parsed.data.sourceProjectNumber !== undefined || sourceProjectNumber) {
+        if (sourceProjectNumber) {
+          const existing = await findProjectBySourceNumber(ctx!.tenantId, sourceProjectNumber, id);
+          if (existing) {
+            return NextResponse.json(
+              {
+                error: `LM ${sourceProjectNumber} 已经录过`,
+                existing: { id: existing.id, name: existing.name },
+              },
+              { status: 409 },
+            );
+          }
+        }
+        data.sourceProjectNumber = sourceProjectNumber;
+      }
+    }
+    if (parsed.data.knownScope !== undefined) data.knownScope = blankToNull(parsed.data.knownScope) ?? null;
+    if (parsed.data.needToVerify !== undefined) data.needToVerify = blankToNull(parsed.data.needToVerify) ?? null;
+    if (parsed.data.askForRole !== undefined) data.askForRole = blankToNull(parsed.data.askForRole) ?? null;
+    if (parsed.data.nextStep !== undefined) data.nextStep = blankToNull(parsed.data.nextStep) ?? null;
+    if (parsed.data.demandStatus !== undefined) data.demandStatus = parsed.data.demandStatus;
+    if (parsed.data.actualBuyerCompany !== undefined) {
+      data.actualBuyerCompany = blankToNull(parsed.data.actualBuyerCompany) ?? null;
+    }
+    if (parsed.data.actualBuyerContact !== undefined) {
+      data.actualBuyerContact = blankToNull(parsed.data.actualBuyerContact) ?? null;
+    }
+    if (parsed.data.purchaseProgress !== undefined) {
+      data.purchaseProgress = blankToNull(parsed.data.purchaseProgress) ?? null;
+    }
     if (parsed.data.status !== undefined) data.status = parsed.data.status;
     if (parsed.data.notes !== undefined) data.notes = parsed.data.notes?.trim() || null;
     if (parsed.data.bidDeadline !== undefined) {
@@ -122,6 +169,13 @@ export async function PATCH(
         return NextResponse.json({ error: "投标截止日期无效" }, { status: 400 });
       }
       data.bidDeadline = bidDeadline ?? null;
+    }
+    if (parsed.data.feedbackDueAt !== undefined) {
+      const feedbackDueAt = parseOptionalDate(parsed.data.feedbackDueAt);
+      if (parsed.data.feedbackDueAt && feedbackDueAt === undefined) {
+        return NextResponse.json({ error: "反馈日期无效" }, { status: 400 });
+      }
+      data.feedbackDueAt = feedbackDueAt ?? null;
     }
     if (parsed.data.ownerId !== undefined) {
       data.ownerId = await resolveExportOwnerId(ctx!.tenantId, parsed.data.ownerId);

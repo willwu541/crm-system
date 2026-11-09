@@ -180,6 +180,7 @@ export const projectStatusLabel: Record<string, string> = {
 
 export const projectStageLabel: Record<string, string> = {
   planning: "规划",
+  design_docs: "设计与文档",
   tendering: "招标",
   awarded: "已中标",
   construction: "在建",
@@ -208,12 +209,14 @@ export const projectConfidenceLabel: Record<string, string> = {
 };
 
 export const projectPartyRoleLabel: Record<string, string> = {
+  owner: "业主",
   epc: "EPC",
   general_contractor: "总包",
   subcontractor: "分包",
+  consultant: "顾问",
+  designer: "设计师",
+  procurement: "采购",
   fabricator: "钢构加工厂",
-  owner: "业主",
-  consultant: "顾问/设计院",
   other: "其他",
 };
 
