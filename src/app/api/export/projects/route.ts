@@ -160,6 +160,7 @@ const contactSchema = z.object({
   phone: z.string().optional().nullable(),
   website: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  roleStatus: z.string().optional().nullable(),
 });
 
 const createSchema = z.object({
@@ -184,15 +185,22 @@ const createSchema = z.object({
   askForRole: z.string().optional().nullable(),
   nextStep: z.string().optional().nullable(),
   feedbackDueAt: z.string().optional().nullable(),
+  scheduleStatus: z.string().optional().nullable(),
+  scheduleStart: z.string().optional().nullable(),
+  scheduleEnd: z.string().optional().nullable(),
+  tenderDeadline: z.string().optional().nullable(),
+  tenderOpening: z.string().optional().nullable(),
+  contractorState: z.string().optional().nullable(),
+  appointmentMethod: z.string().optional().nullable(),
   demandStatus: z.enum(PROJECT_DEMAND_STATUSES).optional(),
   status: z.enum(PROJECT_STATUSES).optional(),
   bidDeadline: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-  /** 保存草稿不分配；保存并分配必须带业务员和第一问。 */
+  /** 保存草稿不分配；保存并分配必须选业务员。 */
   dispatch: z.enum(["draft", "assign"]).optional(),
   firstContact: contactSchema.optional().nullable(),
-  extraParties: z.array(contactSchema).max(5).optional(),
+  extraParties: z.array(contactSchema).max(12).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -230,7 +238,7 @@ export async function POST(request: NextRequest) {
     const resolvedOwner = await resolveExportOwnerId(ctx!.tenantId, parsed.data.ownerId);
     const ownerId = mode === "draft" ? null : (resolvedOwner ?? null);
     const nextStep = blankToNull(parsed.data.nextStep) ?? null;
-    const assignmentError = mode ? dispatchAssignmentError({ mode, ownerId, nextStep }) : null;
+    const assignmentError = mode ? dispatchAssignmentError({ mode, ownerId }) : null;
     if (assignmentError) {
       return NextResponse.json({ error: assignmentError }, { status: 400 });
     }
@@ -261,6 +269,7 @@ export async function POST(request: NextRequest) {
       phone: string;
       website: string;
       notes: string;
+      roleStatus: string;
     }[] = [];
     for (const item of [parsed.data.firstContact, ...(parsed.data.extraParties ?? [])]) {
       if (!item) continue;
@@ -271,7 +280,8 @@ export async function POST(request: NextRequest) {
       const phone = item.phone?.trim() ?? "";
       const website = item.website?.trim() ?? "";
       const notes = item.notes?.trim() ?? "";
-      if (!companyName && !contactName && !contactTitle && !email && !phone && !website && !notes) {
+      const roleStatus = item.roleStatus?.trim() ?? "";
+      if (!companyName && !contactName && !contactTitle && !email && !phone && !website && !notes && !roleStatus) {
         continue;
       }
       parties.push({
@@ -283,6 +293,7 @@ export async function POST(request: NextRequest) {
         phone,
         website,
         notes,
+        roleStatus,
       });
     }
 
@@ -314,6 +325,13 @@ export async function POST(request: NextRequest) {
           askForRole: blankToNull(parsed.data.askForRole) ?? null,
           nextStep,
           feedbackDueAt: feedbackDueAt ?? null,
+          scheduleStatus: blankToNull(parsed.data.scheduleStatus) ?? null,
+          scheduleStart: blankToNull(parsed.data.scheduleStart) ?? null,
+          scheduleEnd: blankToNull(parsed.data.scheduleEnd) ?? null,
+          tenderDeadline: blankToNull(parsed.data.tenderDeadline) ?? null,
+          tenderOpening: blankToNull(parsed.data.tenderOpening) ?? null,
+          contractorState: blankToNull(parsed.data.contractorState) ?? null,
+          appointmentMethod: blankToNull(parsed.data.appointmentMethod) ?? null,
           demandStatus: parsed.data.demandStatus ?? PROJECT_DEMAND_DEFAULT,
           status: parsed.data.status ?? "hunting",
           bidDeadline: bidDeadline ?? null,
@@ -342,6 +360,7 @@ export async function POST(request: NextRequest) {
             email: party.email || null,
             phone: party.phone || null,
             notes: party.notes || null,
+            roleStatus: party.roleStatus || null,
             foundById: user!.id,
           },
         });

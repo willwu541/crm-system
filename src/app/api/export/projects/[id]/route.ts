@@ -64,6 +64,13 @@ const updateSchema = z.object({
   askForRole: z.string().optional().nullable(),
   nextStep: z.string().optional().nullable(),
   feedbackDueAt: z.string().optional().nullable(),
+  scheduleStatus: z.string().optional().nullable(),
+  scheduleStart: z.string().optional().nullable(),
+  scheduleEnd: z.string().optional().nullable(),
+  tenderDeadline: z.string().optional().nullable(),
+  tenderOpening: z.string().optional().nullable(),
+  contractorState: z.string().optional().nullable(),
+  appointmentMethod: z.string().optional().nullable(),
   demandStatus: z.enum(PROJECT_DEMAND_STATUSES).optional(),
   actualBuyerCompany: z.string().optional().nullable(),
   actualBuyerContact: z.string().optional().nullable(),
@@ -151,6 +158,13 @@ export async function PATCH(
     if (parsed.data.needToVerify !== undefined) data.needToVerify = blankToNull(parsed.data.needToVerify) ?? null;
     if (parsed.data.askForRole !== undefined) data.askForRole = blankToNull(parsed.data.askForRole) ?? null;
     if (parsed.data.nextStep !== undefined) data.nextStep = blankToNull(parsed.data.nextStep) ?? null;
+    if (parsed.data.scheduleStatus !== undefined) data.scheduleStatus = blankToNull(parsed.data.scheduleStatus) ?? null;
+    if (parsed.data.scheduleStart !== undefined) data.scheduleStart = blankToNull(parsed.data.scheduleStart) ?? null;
+    if (parsed.data.scheduleEnd !== undefined) data.scheduleEnd = blankToNull(parsed.data.scheduleEnd) ?? null;
+    if (parsed.data.tenderDeadline !== undefined) data.tenderDeadline = blankToNull(parsed.data.tenderDeadline) ?? null;
+    if (parsed.data.tenderOpening !== undefined) data.tenderOpening = blankToNull(parsed.data.tenderOpening) ?? null;
+    if (parsed.data.contractorState !== undefined) data.contractorState = blankToNull(parsed.data.contractorState) ?? null;
+    if (parsed.data.appointmentMethod !== undefined) data.appointmentMethod = blankToNull(parsed.data.appointmentMethod) ?? null;
     if (parsed.data.demandStatus !== undefined) data.demandStatus = parsed.data.demandStatus;
     if (parsed.data.actualBuyerCompany !== undefined) {
       data.actualBuyerCompany = blankToNull(parsed.data.actualBuyerCompany) ?? null;

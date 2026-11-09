@@ -181,6 +181,7 @@ export const projectStatusLabel: Record<string, string> = {
 export const projectStageLabel: Record<string, string> = {
   planning: "规划",
   design_docs: "设计与文档",
+  pre_construction: "施工前",
   tendering: "招标",
   awarded: "已中标",
   construction: "在建",

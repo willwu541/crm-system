@@ -47,6 +47,7 @@ interface Party {
   whatsapp: string | null;
   linkedin: string | null;
   notes: string | null;
+  roleStatus: string | null;
   leadId: string | null;
   foundBy: { id: string; name: string };
   lead: { id: string; companyName: string } | null;
@@ -74,6 +75,13 @@ interface Project {
   bidDeadline: string | null;
   notes: string | null;
   sourceProjectNumber: string | null;
+  scheduleStatus: string | null;
+  scheduleStart: string | null;
+  scheduleEnd: string | null;
+  tenderDeadline: string | null;
+  tenderOpening: string | null;
+  contractorState: string | null;
+  appointmentMethod: string | null;
   knownScope: string | null;
   needToVerify: string | null;
   askForRole: string | null;
@@ -280,9 +288,9 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const products = project.productNeed
     ? project.productNeed.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     : [];
-  const firstCall = [...project.parties].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  )[0];
+  const knownRoles = new Set<string>(PROJECT_PARTY_ROLE_CHOICES);
+  const extraRoles = [...new Set(project.parties.map((party) => party.role))].filter((role) => !knownRoles.has(role));
+  const roleRows = [...PROJECT_PARTY_ROLE_CHOICES, ...extraRoles];
 
   return (
     <div className="space-y-5">
@@ -312,60 +320,93 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <div className="export-card space-y-3 border-amber-200 bg-[#fbf7ef] p-6">
-        <h2 className="text-base font-semibold text-slate-800">这一通怎么打</h2>
-        {firstCall ? (
-          <div className="text-sm text-slate-800">
-            <p className="text-base font-medium">
-              {firstCall.companyName}
-              <span className="ml-2 text-sm font-normal text-slate-500">
-                {displayLabel(projectPartyRoleLabel, firstCall.role)}
-              </span>
-            </p>
-            <p className="mt-1">联系人：{firstCall.contactName || "未留姓名，打总机后转岗位"}</p>
-            <p>电话：{firstCall.phone || "—"}</p>
-            {firstCall.email ? <p>邮箱：{firstCall.email}</p> : null}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">
-            还没有第一通要找的公司。角色选{PROJECT_PARTY_ROLE_CHOICE_TEXT}。例如：Perunding BSK（顾问）· +60 88 498 838
+      <div className="export-card space-y-3 p-6">
+        <h2 className="text-base font-semibold text-slate-800">项目时间</h2>
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <p>
+            <span className="text-slate-500">阶段：</span>
+            {displayLabel(projectStageLabel, project.stage)}
           </p>
-        )}
-        <p className="text-sm text-slate-800">
-          <span className="text-slate-500">请转：</span>
-          {project.askForRole || (
-            <span className="text-slate-400">例如：负责脱水车间设备平台的项目经理或采购</span>
-          )}
-        </p>
-        <p className="whitespace-pre-wrap text-sm text-slate-800">
-          <span className="text-slate-500">要问什么：</span>
-          {project.nextStep || (
-            <span className="text-slate-400">
-              例如：确认是否用钢格板、是否已下单。如果归分包，拿到分包公司名和采购联系人
-            </span>
-          )}
-        </p>
-        <p className="text-sm text-slate-700">
-          <span className="text-slate-500">为什么跟：</span>
-          {[project.knownScope, project.needToVerify].filter(Boolean).join("。") || (
-            <span className="text-slate-400">例如：已知有新增脱水建筑和设备。平台和走道是否使用钢格板待核实</span>
-          )}
-        </p>
-        <p className="text-sm text-slate-700">
-          <span className="text-slate-500">需求：</span>
-          {project.demandStatus || "需求待核实"}
-          {project.feedbackDueAt
-            ? ` · 希望 ${new Date(project.feedbackDueAt).toLocaleDateString("zh-CN")} 前反馈`
-            : ""}
-        </p>
+          <p>
+            <span className="text-slate-500">项目状态：</span>
+            {project.scheduleStatus?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">施工开始：</span>
+            {project.scheduleStart?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">施工结束：</span>
+            {project.scheduleEnd?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">开标：</span>
+            {project.tenderOpening?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">投标截止：</span>
+            {project.tenderDeadline?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">总包是否已委任：</span>
+            {project.contractorState?.trim() || "—"}
+          </p>
+          <p>
+            <span className="text-slate-500">委任方式：</span>
+            {project.appointmentMethod?.trim() || "—"}
+          </p>
+        </div>
+      </div>
+
+      <div className="export-card space-y-3 p-6">
+        <h2 className="text-base font-semibold text-slate-800">各环节关键人</h2>
+        <div className="space-y-3">
+          {roleRows.map((role) => {
+            const people = project.parties.filter((party) => party.role === role);
+            return (
+              <div key={role} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                <p className="font-medium text-slate-800">
+                  {displayLabel(projectPartyRoleLabel, role)}
+                  {people[0]?.roleStatus ? (
+                    <span className="ml-2 text-xs font-normal text-slate-500">{people[0].roleStatus}</span>
+                  ) : null}
+                </p>
+                {people.length === 0 ? (
+                  <p className="mt-1 text-slate-400">未填</p>
+                ) : (
+                  [...new Set(people.map((party) => party.companyName || ""))].map((company) => {
+                    const group = people.filter((party) => (party.companyName || "") === company);
+                    const head = group[0];
+                    const site = head ? normalizeWebsiteUrl(head.website) : null;
+                    return (
+                      <div key={company || "blank"} className="mt-2 text-slate-700">
+                        <p className="font-medium">{company || "公司未填"}</p>
+                        {site ? (
+                          <a href={site} target="_blank" rel="noreferrer" className="text-xs text-teal-600 hover:underline">
+                            {site}
+                          </a>
+                        ) : null}
+                        {head?.notes ? <p className="text-xs text-slate-500">{head.notes}</p> : null}
+                        {group.map((party) => (
+                          <div key={party.id} className="mt-1 text-slate-600">
+                            <p>{[party.contactName, party.contactTitle].filter(Boolean).join(" · ") || "联系人未填"}</p>
+                            <p>{[party.phone, party.email].filter(Boolean).join(" · ") || "联系方式未填"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <form onSubmit={handleSaveReport} className="export-card space-y-4 p-6">
         <div>
-          <h2 className="text-base font-semibold text-slate-800">打完回填</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            总包或第一通联系人仍是入口。实际采购公司另外记，没问到就留空，显示为待确认。
-          </p>
+          <h2 className="text-base font-semibold text-slate-800">采购进展</h2>
+          <p className="mt-1 text-sm text-slate-500">问到实际采购方后再填。没问到就留空。</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -374,10 +415,9 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
               type="text"
               value={report.company}
               onChange={(e) => setReport((current) => ({ ...current, company: e.target.value }))}
-              placeholder="待确认"
+              placeholder="没有就留空"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
-            <p className="mt-1 text-xs text-slate-500">当前：{report.company.trim() || "待确认"}</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">采购联系人</label>

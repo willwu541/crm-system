@@ -43,15 +43,13 @@ export function extractLeadManagerProjectNumber(raw: string | null | undefined):
   return null;
 }
 
-/** 保存并分配必须有业务员和第一问。联系人姓名可以空。草稿不检查这两项。 */
+/** 保存并分配必须选业务员。联系人和项目时间可以空。草稿不分配。 */
 export function dispatchAssignmentError(input: {
   mode: "draft" | "assign";
   ownerId: string | null;
-  nextStep: string | null;
 }): string | null {
   if (input.mode !== "assign") return null;
   if (!input.ownerId) return "分配前请选择业务员";
-  if (!input.nextStep?.trim()) return "分配前请写明业务员要问什么";
   return null;
 }
 

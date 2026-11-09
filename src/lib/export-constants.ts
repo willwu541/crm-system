@@ -135,6 +135,7 @@ export const PROJECT_STATUSES = [
 export const PROJECT_STAGES = [
   "planning",
   "design_docs",
+  "pre_construction",
   "tendering",
   "awarded",
   "construction",
@@ -192,6 +193,9 @@ export const PROJECT_PARTY_ROLES = [
 
 /** 下拉和提示里展示的角色，按用户口头说法。 */
 export const PROJECT_PARTY_ROLE_CHOICE_TEXT = "业主、EPC、总包、分包、顾问、设计师、采购";
+
+/** 环节在资料里的状态。空值表示没写。 */
+export const PARTY_ROLE_STATUSES = ["已任命", "招标中", "未委任"] as const;
 
 /** 邮件 / 沟通模板分类（对应开发客户全链路） */
 export const EMAIL_TEMPLATE_CATEGORIES = [

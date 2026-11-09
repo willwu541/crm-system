@@ -37,23 +37,13 @@ describe("extractLeadManagerProjectNumber", () => {
 });
 
 describe("dispatchAssignmentError", () => {
-  it("lets a draft save without an assignee or a question", () => {
-    assert.equal(dispatchAssignmentError({ mode: "draft", ownerId: null, nextStep: "" }), null);
-    assert.equal(dispatchAssignmentError({ mode: "draft", ownerId: "user", nextStep: null }), null);
+  it("lets a draft save without an assignee", () => {
+    assert.equal(dispatchAssignmentError({ mode: "draft", ownerId: null }), null);
+    assert.equal(dispatchAssignmentError({ mode: "draft", ownerId: "user" }), null);
   });
 
-  it("requires an owner and a question when assigning, but not a contact name", () => {
-    assert.equal(
-      dispatchAssignmentError({ mode: "assign", ownerId: null, nextStep: "问钢格板" }),
-      "分配前请选择业务员",
-    );
-    assert.equal(
-      dispatchAssignmentError({ mode: "assign", ownerId: "user", nextStep: "  " }),
-      "分配前请写明业务员要问什么",
-    );
-    assert.equal(
-      dispatchAssignmentError({ mode: "assign", ownerId: "user", nextStep: "确认是否用钢格板" }),
-      null,
-    );
+  it("requires an owner when assigning, but not contacts or a question", () => {
+    assert.equal(dispatchAssignmentError({ mode: "assign", ownerId: null }), "分配前请选择业务员");
+    assert.equal(dispatchAssignmentError({ mode: "assign", ownerId: "user" }), null);
   });
 });

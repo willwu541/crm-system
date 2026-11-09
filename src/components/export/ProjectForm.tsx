@@ -88,6 +88,13 @@ export function ProjectForm({
     nextStep: (initial?.nextStep as string) ?? "",
     feedbackDueAt: dateInputValue(initial?.feedbackDueAt),
     demandStatus: (initial?.demandStatus as string) ?? "需求待核实",
+    scheduleStatus: (initial?.scheduleStatus as string) ?? "",
+    scheduleStart: (initial?.scheduleStart as string) ?? "",
+    scheduleEnd: (initial?.scheduleEnd as string) ?? "",
+    tenderDeadline: (initial?.tenderDeadline as string) ?? "",
+    tenderOpening: (initial?.tenderOpening as string) ?? "",
+    contractorState: (initial?.contractorState as string) ?? "",
+    appointmentMethod: (initial?.appointmentMethod as string) ?? "",
   });
 
   useEffect(() => {
@@ -150,6 +157,13 @@ export function ProjectForm({
         nextStep: form.nextStep.trim() || null,
         feedbackDueAt: form.feedbackDueAt || null,
         demandStatus: form.demandStatus || "需求待核实",
+        scheduleStatus: form.scheduleStatus.trim() || null,
+        scheduleStart: form.scheduleStart.trim() || null,
+        scheduleEnd: form.scheduleEnd.trim() || null,
+        tenderDeadline: form.tenderDeadline.trim() || null,
+        tenderOpening: form.tenderOpening.trim() || null,
+        contractorState: form.contractorState.trim() || null,
+        appointmentMethod: form.appointmentMethod.trim() || null,
         ...(() => {
           const lmNumber = extractLeadManagerProjectNumber(form.tenderUrl);
           if (lmNumber) return { sourceProjectNumber: lmNumber };
@@ -272,6 +286,46 @@ export function ProjectForm({
               </option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">项目状态</label>
+          <input
+            type="text"
+            value={form.scheduleStatus}
+            onChange={(e) => setForm((f) => ({ ...f, scheduleStatus: e.target.value }))}
+            placeholder="计划进行中"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">施工开始</label>
+          <input
+            type="text"
+            value={form.scheduleStart}
+            onChange={(e) => setForm((f) => ({ ...f, scheduleStart: e.target.value }))}
+            placeholder="2027年第四季度"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">施工结束</label>
+          <input
+            type="text"
+            value={form.scheduleEnd}
+            onChange={(e) => setForm((f) => ({ ...f, scheduleEnd: e.target.value }))}
+            placeholder="2032年第四季度"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">投标截止</label>
+          <input
+            type="text"
+            value={form.tenderDeadline}
+            onChange={(e) => setForm((f) => ({ ...f, tenderDeadline: e.target.value }))}
+            placeholder="没有就留空"
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">阶段</label>

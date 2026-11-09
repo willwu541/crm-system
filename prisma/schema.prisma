@@ -992,6 +992,20 @@ model ExportProject {
   nextStep           String?   @map("next_step") @db.Text
   /// 希望业务员反馈的日期。
   feedbackDueAt      DateTime? @map("feedback_due_at")
+  /// 资料里的项目状态原文，如「计划进行中」。和跟进状态分开。
+  scheduleStatus     String?   @map("schedule_status")
+  /// 施工开始，按资料原文，如「2027年第四季度」。
+  scheduleStart      String?   @map("schedule_start")
+  /// 施工结束，按资料原文。
+  scheduleEnd        String?   @map("schedule_end")
+  /// 投标截止，按资料原文。没有就空着。
+  tenderDeadline     String?   @map("tender_deadline")
+  /// 开标日期，按资料原文。
+  tenderOpening      String?   @map("tender_opening")
+  /// 总包是否已委任，如「未委任」「已委任」「招标中」。
+  contractorState    String?   @map("contractor_state")
+  /// 总包委任方式，如「招标」。
+  appointmentMethod  String?   @map("appointment_method")
   /// 需求是否坐实。新建默认「需求待核实」，联系后再改。
   demandStatus       String    @default("需求待核实") @map("demand_status")
   /// 实际采购公司。空着时界面显示待确认，不覆盖第一通的总包。
@@ -1038,6 +1052,8 @@ model ExportProjectParty {
   whatsapp     String?
   linkedin     String?
   notes        String?  @db.Text
+  /// 该环节状态：已任命、招标中、未委任。空着表示资料里没有。
+  roleStatus   String?  @map("role_status")
   foundById    String   @map("found_by_id")
   leadId       String?  @map("lead_id")
   createdAt    DateTime @default(now()) @map("created_at")
