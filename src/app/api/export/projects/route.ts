@@ -38,6 +38,15 @@ import {
   projectListOwnerWhere,
   resolveExportOwnerId,
 } from "@/lib/export/projects";
+import {
+  filterProjectListRowsByParsedFields,
+  isProjectListSortBy,
+  needsParsedProjectListPass,
+  parseOptionalNumber,
+  parseScheduleBoundParam,
+  sortProjectListRows,
+  summarizeEntryCounts,
+} from "@/lib/export/project-schedule-value";
 import { z } from "zod";
 import { findSalesUsersByName } from "@/lib/sales-user-search";
 
@@ -59,8 +68,18 @@ export async function GET(request: NextRequest) {
   const role = searchParams.get("role")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
-  const allowedSort = new Set(["createdAt", "updatedAt", "name", "status", "bidDeadline", "country"]);
-  const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "updatedAt";
+  const sortBy = isProjectListSortBy(sortByRaw) ? sortByRaw : "updatedAt";
+  const valueMin = parseOptionalNumber(searchParams.get("valueMin"));
+  const valueMax = parseOptionalNumber(searchParams.get("valueMax"));
+  const scheduleEndFrom = parseScheduleBoundParam(searchParams.get("scheduleEndFrom"), "from");
+  const scheduleEndTo = parseScheduleBoundParam(searchParams.get("scheduleEndTo"), "to");
+  const parsedPass = needsParsedProjectListPass({
+    sortBy,
+    valueMin,
+    valueMax,
+    scheduleEndFrom,
+    scheduleEndTo,
+  });
 
   const where: Record<string, unknown> = {
     tenantId: ctx!.tenantId,
@@ -99,37 +118,96 @@ export async function GET(request: NextRequest) {
   if (entryStatus && isProjectEntryStatus(entryStatus)) where.entryStatus = entryStatus;
 
   try {
-    const [data, total, countryRows, entryGroups] = await Promise.all([
+    const countryRowsPromise = prisma.exportProject.groupBy({
+      by: ["country"],
+      where: {
+        tenantId: ctx!.tenantId,
+        ...projectListOwnerWhere(user!),
+        AND: [{ country: { not: null } }, { country: { not: "" } }],
+      },
+    });
+
+    if (!parsedPass) {
+      const [data, total, countryRows, entryGroups] = await Promise.all([
+        prisma.exportProject.findMany({
+          where,
+          orderBy: { [sortBy]: sortOrder },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: PROJECT_LIST_INCLUDE,
+        }),
+        prisma.exportProject.count({ where }),
+        countryRowsPromise,
+        prisma.exportProject.groupBy({
+          by: ["entryStatus"],
+          where: countWhere,
+          _count: { _all: true },
+        }),
+      ]);
+
+      const entryCounts = { pending: 0, entered: 0, all: 0 };
+      for (const row of entryGroups) {
+        const key = row.entryStatus;
+        const n = row._count._all;
+        if (key === "pending" || key === "entered") entryCounts[key] = n;
+        entryCounts.all += n;
+      }
+
+      return NextResponse.json({
+        data,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+        countries: extraCountryValues(countryRows.map((row) => row.country)),
+        entryCounts,
+      });
+    }
+
+    const [candidates, countryRows] = await Promise.all([
       prisma.exportProject.findMany({
-        where,
-        orderBy: { [sortBy]: sortOrder },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: PROJECT_LIST_INCLUDE,
-      }),
-      prisma.exportProject.count({ where }),
-      prisma.exportProject.groupBy({
-        by: ["country"],
-        where: {
-          tenantId: ctx!.tenantId,
-          ...projectListOwnerWhere(user!),
-          AND: [{ country: { not: null } }, { country: { not: "" } }],
+        where: countWhere,
+        select: {
+          id: true,
+          entryStatus: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+          status: true,
+          bidDeadline: true,
+          country: true,
+          scheduleEnd: true,
+          projectValueText: true,
         },
       }),
-      prisma.exportProject.groupBy({
-        by: ["entryStatus"],
-        where: countWhere,
-        _count: { _all: true },
-      }),
+      countryRowsPromise,
     ]);
 
-    const entryCounts = { pending: 0, entered: 0, all: 0 };
-    for (const row of entryGroups) {
-      const key = row.entryStatus;
-      const n = row._count._all;
-      if (key === "pending" || key === "entered") entryCounts[key] = n;
-      entryCounts.all += n;
-    }
+    const ranged = filterProjectListRowsByParsedFields(candidates, {
+      valueMin,
+      valueMax,
+      scheduleEndFrom,
+      scheduleEndTo,
+    });
+    const entryCounts = summarizeEntryCounts(ranged);
+    const entryFiltered =
+      entryStatus && isProjectEntryStatus(entryStatus)
+        ? ranged.filter((row) => row.entryStatus === entryStatus)
+        : ranged;
+    const sorted = sortProjectListRows(entryFiltered, sortBy, sortOrder);
+    const total = sorted.length;
+    const pageIds = sorted.slice((page - 1) * pageSize, page * pageSize).map((row) => row.id);
+    const unordered =
+      pageIds.length === 0
+        ? []
+        : await prisma.exportProject.findMany({
+            where: { tenantId: ctx!.tenantId, id: { in: pageIds } },
+            include: PROJECT_LIST_INCLUDE,
+          });
+    const byId = new Map(unordered.map((row) => [row.id, row]));
+    const data = pageIds.map((id) => byId.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
 
     return NextResponse.json({
       data,

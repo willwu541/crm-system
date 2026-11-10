@@ -47,6 +47,8 @@ interface ProjectRow {
   notes: string | null;
   description: string | null;
   bidDeadline: string | null;
+  scheduleEnd: string | null;
+  projectValueText: string | null;
   parties: { role: string; companyName: string }[];
   owner: { id: string; name: string } | null;
 }
@@ -123,6 +125,12 @@ export function ProjectsClient() {
       : "entered";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const keywordParam = searchParams.get("keyword") ?? "";
+  const sortBy = searchParams.get("sortBy") ?? "updatedAt";
+  const sortOrder = searchParams.get("sortOrder") ?? "desc";
+  const scheduleEndFrom = searchParams.get("scheduleEndFrom") ?? "";
+  const scheduleEndTo = searchParams.get("scheduleEndTo") ?? "";
+  const valueMinParam = searchParams.get("valueMin") ?? "";
+  const valueMaxParam = searchParams.get("valueMax") ?? "";
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -130,6 +138,8 @@ export function ProjectsClient() {
   const [entryCounts, setEntryCounts] = useState<EntryCounts>({ pending: 0, entered: 0, all: 0 });
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState(keywordParam);
+  const [valueMin, setValueMin] = useState(valueMinParam);
+  const [valueMax, setValueMax] = useState(valueMaxParam);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -141,6 +151,11 @@ export function ProjectsClient() {
     setKeyword(keywordParam);
   }, [keywordParam]);
 
+  useEffect(() => {
+    setValueMin(valueMinParam);
+    setValueMax(valueMaxParam);
+  }, [valueMinParam, valueMaxParam]);
+
   function updateUrl(updates: Record<string, string | number | undefined>) {
     router.replace(
       buildListUrl(pathname, {
@@ -149,9 +164,34 @@ export function ProjectsClient() {
         confidence: confidence || undefined,
         country: country || undefined,
         entryStatus,
-        keyword: keyword || undefined,
+        keyword: keywordParam || undefined,
+        sortBy,
+        sortOrder,
+        scheduleEndFrom: scheduleEndFrom || undefined,
+        scheduleEndTo: scheduleEndTo || undefined,
+        valueMin: valueMinParam || undefined,
+        valueMax: valueMaxParam || undefined,
         page,
         ...updates,
+      }),
+    );
+  }
+
+  function updateSort(value: string) {
+    const [nextSortBy, nextSortOrder] = value.split(":");
+    updateUrl({ sortBy: nextSortBy, sortOrder: nextSortOrder, page: 1 });
+  }
+
+  function resetFilters() {
+    setKeyword("");
+    setValueMin("");
+    setValueMax("");
+    router.replace(
+      buildListUrl(pathname, {
+        entryStatus,
+        sortBy: "updatedAt",
+        sortOrder: "desc",
+        page: 1,
       }),
     );
   }
@@ -210,6 +250,12 @@ export function ProjectsClient() {
         if (country) params.set("country", country);
         if (entryStatus === "pending" || entryStatus === "entered") params.set("entryStatus", entryStatus);
         if (keywordParam) params.set("keyword", keywordParam);
+        if (sortBy) params.set("sortBy", sortBy);
+        if (sortOrder) params.set("sortOrder", sortOrder);
+        if (scheduleEndFrom) params.set("scheduleEndFrom", scheduleEndFrom);
+        if (scheduleEndTo) params.set("scheduleEndTo", scheduleEndTo);
+        if (valueMinParam) params.set("valueMin", valueMinParam);
+        if (valueMaxParam) params.set("valueMax", valueMaxParam);
         const res = await fetch(`/api/export/projects?${params}`);
         const json = await parseResponseJson<{
           error?: string;
@@ -234,7 +280,21 @@ export function ProjectsClient() {
     return () => {
       cancelled = true;
     };
-  }, [page, stage, industry, confidence, country, entryStatus, keywordParam]);
+  }, [
+    page,
+    stage,
+    industry,
+    confidence,
+    country,
+    entryStatus,
+    keywordParam,
+    sortBy,
+    sortOrder,
+    scheduleEndFrom,
+    scheduleEndTo,
+    valueMinParam,
+    valueMaxParam,
+  ]);
 
   async function toggleEntryStatus(project: ProjectRow) {
     const next = project.entryStatus === "entered" ? "pending" : "entered";
@@ -294,11 +354,16 @@ export function ProjectsClient() {
           );
         })}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            updateUrl({ keyword: keyword || undefined, page: 1 });
+            updateUrl({
+              keyword: keyword || undefined,
+              valueMin: valueMin || undefined,
+              valueMax: valueMax || undefined,
+              page: 1,
+            });
           }}
           className="flex flex-wrap items-center gap-2"
         >
@@ -346,15 +411,75 @@ export function ProjectsClient() {
             onChange={(e) => updateUrl({ confidence: e.target.value || undefined, page: 1 })}
             className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
           >
-            <option value="">全部</option>
+            <option value="">全部可靠度</option>
             {PROJECT_CONFIDENCE.map((s) => (
               <option key={s} value={s}>
                 {projectConfidenceLabel[s] ?? s}
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-1 text-sm text-slate-600">
+            <span className="whitespace-nowrap">完工从</span>
+            <input
+              type="month"
+              value={scheduleEndFrom}
+              onChange={(e) => updateUrl({ scheduleEndFrom: e.target.value || undefined, page: 1 })}
+              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="flex items-center gap-1 text-sm text-slate-600">
+            <span className="whitespace-nowrap">到</span>
+            <input
+              type="month"
+              value={scheduleEndTo}
+              onChange={(e) => updateUrl({ scheduleEndTo: e.target.value || undefined, page: 1 })}
+              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="flex items-center gap-1 text-sm text-slate-600">
+            <span className="whitespace-nowrap">金额</span>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={valueMin}
+              onChange={(e) => setValueMin(e.target.value)}
+              placeholder="最小万元"
+              className="w-[6.5rem] rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm"
+            />
+            <span>—</span>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={valueMax}
+              onChange={(e) => setValueMax(e.target.value)}
+              placeholder="最大万元"
+              className="w-[6.5rem] rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </label>
+          <select
+            value={`${sortBy}:${sortOrder}`}
+            onChange={(e) => updateSort(e.target.value)}
+            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
+          >
+            <option value="updatedAt:desc">最新更新</option>
+            <option value="createdAt:desc">最新创建</option>
+            <option value="name:asc">名称 A-Z</option>
+            <option value="scheduleEnd:asc">完工时间早→晚</option>
+            <option value="scheduleEnd:desc">完工时间晚→早</option>
+            <option value="projectValue:desc">金额大→小</option>
+            <option value="projectValue:asc">金额小→大</option>
+          </select>
           <button type="submit" className="export-btn-secondary rounded-md px-3 py-1.5 text-sm">
             搜索
+          </button>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
+          >
+            重置筛选
           </button>
         </form>
         {canManage && (
@@ -381,7 +506,7 @@ export function ProjectsClient() {
               : "还没有分配给你的项目。"}
           </div>
         ) : (
-          <table className="w-full min-w-[72rem] text-sm">
+          <table className="w-full min-w-[84rem] text-sm">
             <thead className="sticky top-0 z-10 bg-[#f3ece3]">
               <tr className="border-b border-stone-300 text-left text-xs font-medium text-stone-500">
                 <th className="px-4 py-2.5">项目</th>
@@ -389,6 +514,8 @@ export function ProjectsClient() {
                 <th className="px-3 py-2.5">行业</th>
                 <th className="px-3 py-2.5">地点</th>
                 <th className="px-3 py-2.5">阶段</th>
+                <th className="px-3 py-2.5">金额</th>
+                <th className="px-3 py-2.5">完工</th>
                 <th className="px-3 py-2.5">业主/运营商</th>
                 <th className="px-3 py-2.5">总包</th>
                 <th className="px-3 py-2.5">潜在采购公司</th>
@@ -439,6 +566,12 @@ export function ProjectsClient() {
                       >
                         {displayLabel(projectStageLabel, p.stage)}
                       </span>
+                    </td>
+                    <td className="max-w-[7.5rem] whitespace-pre-line px-3 py-3 align-top text-slate-700">
+                      {dash(p.projectValueText)}
+                    </td>
+                    <td className="max-w-[8rem] whitespace-pre-line px-3 py-3 align-top text-slate-700">
+                      {dash(p.scheduleEnd)}
                     </td>
                     <td className="max-w-[10rem] px-3 py-3 align-top text-slate-700">
                       {dash(displayOwnerOperator(p, p.parties))}
