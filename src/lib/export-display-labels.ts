@@ -176,6 +176,12 @@ export const projectStatusLabel: Record<string, string> = {
   won: "已成交",
   lost: "已丢单",
   parked: "暂缓",
+  abandoned: "废弃",
+};
+
+export const projectLifecycleLabel: Record<string, string> = {
+  active: "进行中",
+  abandoned: "已废弃",
 };
 
 export const projectStageLabel: Record<string, string> = {

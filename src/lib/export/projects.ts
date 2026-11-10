@@ -9,9 +9,22 @@ import {
   PROJECT_INDUSTRIES,
   PROJECT_PARTY_ROLES,
   PROJECT_STAGES,
-  PROJECT_STATUSES,
+  PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import type { Prisma } from "@prisma/client";
+import {
+  isProjectAbandoned,
+  isProjectLifecycle,
+  isProjectStatus,
+  projectLifecycleWhere,
+} from "./project-lifecycle";
+
+export {
+  isProjectAbandoned,
+  isProjectLifecycle,
+  isProjectStatus,
+  projectLifecycleWhere,
+};
 
 export const PROJECT_LIST_INCLUDE = {
   owner: { select: { id: true, name: true } },
@@ -37,9 +50,7 @@ export const PARTY_INCLUDE = {
   lead: { select: { id: true, companyName: true } },
 } satisfies Prisma.ExportProjectPartyInclude;
 
-export function isProjectStatus(value: string): value is (typeof PROJECT_STATUSES)[number] {
-  return (PROJECT_STATUSES as readonly string[]).includes(value);
-}
+export { PROJECT_UNABANDON_STATUS };
 
 export function isProjectEntryStatus(value: string): value is (typeof PROJECT_ENTRY_STATUSES)[number] {
   return (PROJECT_ENTRY_STATUSES as readonly string[]).includes(value);

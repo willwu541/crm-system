@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  PROJECT_ABANDONED_STATUS,
   PROJECT_CONFIDENCE,
   PROJECT_INDUSTRIES,
+  PROJECT_LIFECYCLES,
   PROJECT_STAGES,
+  PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import {
   displayLabel,
   projectConfidenceLabel,
   projectEntryStatusLabel,
   projectIndustryLabel,
+  projectLifecycleLabel,
   projectStageLabel,
 } from "@/lib/export-display-labels";
 import { buildListUrl } from "@/lib/export/url-params";
@@ -38,6 +42,7 @@ interface ProjectRow {
   location: string | null;
   industry: string | null;
   stage: string;
+  status: string;
   confidence: string;
   entryStatus: string;
   ownerOperator: string | null;
@@ -110,6 +115,11 @@ const ENTRY_TABS = [
   { id: "all", label: "全部" },
 ] as const;
 
+const LIFECYCLE_TABS = PROJECT_LIFECYCLES.map((id) => ({
+  id,
+  label: projectLifecycleLabel[id] ?? id,
+}));
+
 export function ProjectsClient() {
   const pathname = usePathname();
   const router = useRouter();
@@ -118,6 +128,9 @@ export function ProjectsClient() {
   const industry = searchParams.get("industry") ?? "";
   const confidence = searchParams.get("confidence") ?? "";
   const country = searchParams.get("country") ?? "";
+  const lifecycleRaw = searchParams.get("lifecycle");
+  const lifecycle =
+    lifecycleRaw === "abandoned" || lifecycleRaw === "active" ? lifecycleRaw : "active";
   const entryStatusRaw = searchParams.get("entryStatus");
   const entryStatus =
     entryStatusRaw === "pending" || entryStatusRaw === "entered" || entryStatusRaw === "all"
@@ -142,6 +155,10 @@ export function ProjectsClient() {
   const [valueMax, setValueMax] = useState(valueMaxParam);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [abandoningId, setAbandoningId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [savingUpdateId, setSavingUpdateId] = useState<string | null>(null);
+  const [updateDraft, setUpdateDraft] = useState({ stage: "", note: "" });
   const { toast } = useToast();
   const me = useExportMe();
   const canManage = Boolean(me?.canAssign);
@@ -163,6 +180,7 @@ export function ProjectsClient() {
         industry: industry || undefined,
         confidence: confidence || undefined,
         country: country || undefined,
+        lifecycle: lifecycle === "active" ? undefined : lifecycle,
         entryStatus,
         keyword: keywordParam || undefined,
         sortBy,
@@ -188,6 +206,7 @@ export function ProjectsClient() {
     setValueMax("");
     router.replace(
       buildListUrl(pathname, {
+        lifecycle: lifecycle === "active" ? undefined : lifecycle,
         entryStatus,
         sortBy: "updatedAt",
         sortOrder: "desc",
@@ -248,6 +267,7 @@ export function ProjectsClient() {
         if (industry) params.set("industry", industry);
         if (confidence) params.set("confidence", confidence);
         if (country) params.set("country", country);
+        params.set("lifecycle", lifecycle);
         if (entryStatus === "pending" || entryStatus === "entered") params.set("entryStatus", entryStatus);
         if (keywordParam) params.set("keyword", keywordParam);
         if (sortBy) params.set("sortBy", sortBy);
@@ -286,6 +306,7 @@ export function ProjectsClient() {
     industry,
     confidence,
     country,
+    lifecycle,
     entryStatus,
     keywordParam,
     sortBy,
@@ -295,6 +316,78 @@ export function ProjectsClient() {
     valueMinParam,
     valueMaxParam,
   ]);
+
+  async function toggleAbandoned(project: ProjectRow) {
+    const abandoned = project.status === PROJECT_ABANDONED_STATUS;
+    const nextStatus = abandoned ? PROJECT_UNABANDON_STATUS : PROJECT_ABANDONED_STATUS;
+    setAbandoningId(project.id);
+    try {
+      const res = await fetch(`/api/export/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      setProjects((rows) => rows.filter((row) => row.id !== project.id));
+      if (updatingId === project.id) {
+        setUpdatingId(null);
+        setUpdateDraft({ stage: "", note: "" });
+      }
+      toast(abandoned ? "已取消废弃" : "已标为废弃");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setAbandoningId(null);
+    }
+  }
+
+  function openUpdate(project: ProjectRow) {
+    if (updatingId === project.id) {
+      setUpdatingId(null);
+      setUpdateDraft({ stage: "", note: "" });
+      return;
+    }
+    setUpdatingId(project.id);
+    setUpdateDraft({ stage: project.stage, note: "" });
+  }
+
+  async function saveUpdate(project: ProjectRow) {
+    const note = updateDraft.note.trim();
+    if (!note) {
+      toast("请填写更新内容", "error");
+      return;
+    }
+    setSavingUpdateId(project.id);
+    try {
+      const body: { updateNote: string; stage: string } = {
+        updateNote: note,
+        stage: updateDraft.stage || project.stage,
+      };
+      const res = await fetch(`/api/export/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      const nextStage = body.stage;
+      if (stage && stage !== nextStage) {
+        setProjects((rows) => rows.filter((row) => row.id !== project.id));
+      } else {
+        setProjects((rows) =>
+          rows.map((row) => (row.id === project.id ? { ...row, stage: nextStage } : row)),
+        );
+      }
+      setUpdatingId(null);
+      setUpdateDraft({ stage: "", note: "" });
+      toast("更新已保存");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "保存失败", "error");
+    } finally {
+      setSavingUpdateId(null);
+    }
+  }
 
   async function toggleEntryStatus(project: ProjectRow) {
     const next = project.entryStatus === "entered" ? "pending" : "entered";
@@ -332,6 +425,31 @@ export function ProjectsClient() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
+        {LIFECYCLE_TABS.map((tab) => {
+          const active = lifecycle === tab.id;
+          const activeClass =
+            tab.id === "abandoned"
+              ? "border-rose-700 bg-rose-800 text-white"
+              : "border-stone-700 bg-stone-800 text-white";
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() =>
+                updateUrl({
+                  lifecycle: tab.id === "active" ? undefined : tab.id,
+                  page: 1,
+                })
+              }
+              className={`rounded-full border px-3 py-1 text-sm ${
+                active ? activeClass : "border-stone-300 bg-white text-slate-700 hover:bg-stone-50"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+        <span className="mx-1 h-4 w-px bg-stone-300" aria-hidden />
         {ENTRY_TABS.map((tab) => {
           const active = entryStatus === tab.id;
           const count = entryCounts[tab.id];
@@ -497,13 +615,15 @@ export function ProjectsClient() {
           <div className="p-8 text-center text-slate-500">加载中...</div>
         ) : projects.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            {canManage
-              ? entryStatus === "entered"
-                ? "还没有已录入的项目。录完后点「已录入」，之后从这里找。"
-                : entryStatus === "pending"
-                  ? "没有未录入的项目。先建一条并标成未录入，录完再点已录入。"
-                  : "还没有项目。先录入碰到的项目，再分配给业务员去找联系方式。"
-              : "还没有分配给你的项目。"}
+            {lifecycle === "abandoned"
+              ? "没有已废弃的项目。"
+              : canManage
+                ? entryStatus === "entered"
+                  ? "还没有已录入的项目。录完后点「已录入」，之后从这里找。"
+                  : entryStatus === "pending"
+                    ? "没有未录入的项目。先建一条并标成未录入，录完再点已录入。"
+                    : "还没有项目。先录入碰到的项目，再分配给业务员去找联系方式。"
+                : "还没有分配给你的项目。"}
           </div>
         ) : (
           <table className="w-full min-w-[84rem] text-sm">
@@ -528,14 +648,21 @@ export function ProjectsClient() {
               {projects.map((p) => {
                 const subtitle = projectSubtitle(p);
                 return (
+                <Fragment key={p.id}>
                   <tr
-                    key={p.id}
                     className="cursor-pointer border-b border-stone-200/80 hover:bg-white/70"
                     onClick={() => router.push(`/export/projects/${p.id}`)}
                   >
                     <td className="max-w-[22rem] px-4 py-3 align-top">
-                      <div className="font-semibold text-slate-800" title={p.name}>
-                        {p.name}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="font-semibold text-slate-800" title={p.name}>
+                          {p.name}
+                        </div>
+                        {p.status === PROJECT_ABANDONED_STATUS ? (
+                          <span className="inline-flex rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-xs text-rose-800">
+                            废弃
+                          </span>
+                        ) : null}
                       </div>
                       {subtitle ? (
                         <div className="mt-0.5 line-clamp-2 text-xs font-normal text-stone-500">
@@ -608,14 +735,90 @@ export function ProjectsClient() {
                       </td>
                     )}
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/export/projects/${p.id}`}
-                        className="inline-flex rounded border border-stone-400 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-stone-50"
-                      >
-                        详情
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={abandoningId === p.id}
+                          onClick={() => toggleAbandoned(p)}
+                          className={`inline-flex rounded border px-2.5 py-1 text-xs disabled:opacity-60 ${
+                            p.status === PROJECT_ABANDONED_STATUS
+                              ? "border-stone-400 bg-white text-slate-700 hover:bg-stone-50"
+                              : "border-rose-400 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                          }`}
+                        >
+                          {p.status === PROJECT_ABANDONED_STATUS ? "取消废弃" : "废弃"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openUpdate(p)}
+                          className="inline-flex rounded border border-teal-500 bg-teal-50 px-2.5 py-1 text-xs text-teal-900 hover:bg-teal-100"
+                        >
+                          更新
+                        </button>
+                        <Link
+                          href={`/export/projects/${p.id}`}
+                          className="inline-flex rounded border border-stone-400 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-stone-50"
+                        >
+                          详情
+                        </Link>
+                      </div>
                     </td>
                   </tr>
+                  {updatingId === p.id ? (
+                    <tr className="border-b border-stone-200/80 bg-teal-50/40">
+                      <td
+                        colSpan={canManage ? 13 : 12}
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex flex-wrap items-end gap-3">
+                          <label className="text-sm text-slate-700">
+                            <span className="mb-1 block text-xs text-slate-500">阶段</span>
+                            <select
+                              value={updateDraft.stage}
+                              onChange={(e) => setUpdateDraft((d) => ({ ...d, stage: e.target.value }))}
+                              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm"
+                            >
+                              {PROJECT_STAGES.map((s) => (
+                                <option key={s} value={s}>
+                                  {projectStageLabel[s] ?? s}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="min-w-[16rem] flex-1 text-sm text-slate-700">
+                            <span className="mb-1 block text-xs text-slate-500">更新内容</span>
+                            <input
+                              type="text"
+                              value={updateDraft.note}
+                              onChange={(e) => setUpdateDraft((d) => ({ ...d, note: e.target.value }))}
+                              placeholder="写一句这次进度/变化"
+                              className="w-full rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            disabled={savingUpdateId === p.id}
+                            onClick={() => saveUpdate(p)}
+                            className="export-btn-primary rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+                          >
+                            {savingUpdateId === p.id ? "保存中..." : "保存更新"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUpdatingId(null);
+                              setUpdateDraft({ stage: "", note: "" });
+                            }}
+                            className="export-btn-secondary rounded-md px-3 py-1.5 text-sm"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
                 );
               })}
             </tbody>

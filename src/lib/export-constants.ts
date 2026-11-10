@@ -121,7 +121,7 @@ export const TASK_STATUSES = [
 /** 项目录入状态：未录入 / 已录入 */
 export const PROJECT_ENTRY_STATUSES = ["pending", "entered"] as const;
 
-/** 外贸项目找人：跟进状态 */
+/** 外贸项目找人：跟进状态。abandoned = 废弃/施工结束不再跟进（软隐藏，非删除） */
 export const PROJECT_STATUSES = [
   "hunting",
   "contacting",
@@ -129,7 +129,16 @@ export const PROJECT_STATUSES = [
   "won",
   "lost",
   "parked",
+  "abandoned",
 ] as const;
+
+/** 列表生命周期：进行中默认排除废弃；已废弃只看 abandoned */
+export const PROJECT_LIFECYCLES = ["active", "abandoned"] as const;
+
+export const PROJECT_ABANDONED_STATUS = "abandoned" as const;
+
+/** 取消废弃后回到可跟进默认态 */
+export const PROJECT_UNABANDON_STATUS = "hunting" as const;
 
 /** 项目工程阶段（列表「阶段」列） */
 export const PROJECT_STAGES = [

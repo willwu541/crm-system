@@ -33,6 +33,7 @@ import {
   isProjectStatus,
   parseOptionalDate,
   projectKeywordOrClauses,
+  projectLifecycleWhere,
   canManageExportProjects,
   denyUnlessCanManageProjects,
   projectListOwnerWhere,
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
   const pageSize = Math.min(80, Math.max(10, parseInt(searchParams.get("pageSize") ?? "50")));
   const keyword = searchParams.get("keyword")?.trim();
   const status = searchParams.get("status")?.trim();
+  const lifecycle = searchParams.get("lifecycle")?.trim();
   const stage = searchParams.get("stage")?.trim();
   const industry = searchParams.get("industry")?.trim();
   const confidence = searchParams.get("confidence")?.trim();
@@ -84,6 +86,7 @@ export async function GET(request: NextRequest) {
   const where: Record<string, unknown> = {
     tenantId: ctx!.tenantId,
     ...projectListOwnerWhere(user!),
+    ...projectLifecycleWhere(lifecycle, status),
   };
   const and: Record<string, unknown>[] = [];
   const manageAll = canManageExportProjects(user!);

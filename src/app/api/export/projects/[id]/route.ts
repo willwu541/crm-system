@@ -23,6 +23,7 @@ import {
   parseOptionalDate,
   resolveExportOwnerId,
 } from "@/lib/export/projects";
+import { appendProjectUpdateNote, buildProjectUpdateNoteEntry } from "@/lib/export/project-update-note";
 import { z } from "zod";
 
 export async function GET(
@@ -86,6 +87,8 @@ const updateSchema = z.object({
   bidDeadline: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  /** 一次「更新」说明：追加进 notes，并可同请求改 stage */
+  updateNote: z.string().trim().min(1, "请填写更新内容").optional(),
 });
 
 export async function PATCH(
@@ -95,7 +98,7 @@ export async function PATCH(
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
   const { id } = await params;
-  const { error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
+  const { project: existing, error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
   const manageAll = canManageExportProjects(user!);
 
@@ -195,6 +198,18 @@ export async function PATCH(
     }
     if (parsed.data.status !== undefined) data.status = parsed.data.status;
     if (parsed.data.notes !== undefined) data.notes = parsed.data.notes?.trim() || null;
+    if (parsed.data.updateNote !== undefined) {
+      const nextStage = parsed.data.stage ?? existing!.stage;
+      const entry = buildProjectUpdateNoteEntry({
+        note: parsed.data.updateNote,
+        stage: nextStage,
+        previousStage: existing!.stage,
+      });
+      data.notes = appendProjectUpdateNote(
+        typeof data.notes === "string" || data.notes === null ? (data.notes as string | null) : existing!.notes,
+        entry,
+      );
+    }
     if (parsed.data.bidDeadline !== undefined) {
       const bidDeadline = parseOptionalDate(parsed.data.bidDeadline);
       if (parsed.data.bidDeadline && bidDeadline === undefined) {

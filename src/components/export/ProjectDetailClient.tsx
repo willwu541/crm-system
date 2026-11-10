@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import {
+  PROJECT_ABANDONED_STATUS,
   PROJECT_DEMAND_STATUSES,
   PROJECT_PARTY_ROLE_CHOICES,
   PROJECT_PARTY_ROLE_CHOICE_TEXT,
+  PROJECT_STAGES,
+  PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import {
   displayInterestedProductsList,
@@ -147,6 +150,10 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [duplicate, setDuplicate] = useState<DuplicateRecord | null>(null);
   const [partyForm, setPartyForm] = useState(emptyParty);
   const [togglingEntry, setTogglingEntry] = useState(false);
+  const [savingLifecycle, setSavingLifecycle] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [savingUpdate, setSavingUpdate] = useState(false);
+  const [updateForm, setUpdateForm] = useState({ stage: "", note: "" });
   const [savingReport, setSavingReport] = useState(false);
   const [report, setReport] = useState({
     company: "",
@@ -183,6 +190,70 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       demand: project.demandStatus || "需求待核实",
     });
   }, [project]);
+
+  const abandoned = project?.status === PROJECT_ABANDONED_STATUS;
+
+  async function toggleAbandoned() {
+    if (!project) return;
+    const nextStatus = abandoned ? PROJECT_UNABANDON_STATUS : PROJECT_ABANDONED_STATUS;
+    setSavingLifecycle(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      if (json.data) setProject(json.data);
+      else setProject({ ...project, status: nextStatus });
+      toast(abandoned ? "已取消废弃" : "已标为废弃");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setSavingLifecycle(false);
+    }
+  }
+
+  function openUpdateForm() {
+    if (!project) return;
+    setUpdateForm({ stage: project.stage, note: "" });
+    setShowUpdateForm(true);
+  }
+
+  async function handleSaveUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!project) return;
+    const note = updateForm.note.trim();
+    if (!note) {
+      toast("请填写更新内容", "error");
+      return;
+    }
+    setSavingUpdate(true);
+    try {
+      const body: { updateNote: string; stage?: string } = { updateNote: note };
+      if (updateForm.stage && updateForm.stage !== project.stage) {
+        body.stage = updateForm.stage;
+      } else if (updateForm.stage) {
+        body.stage = updateForm.stage;
+      }
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      if (json.data) setProject(json.data);
+      setShowUpdateForm(false);
+      setUpdateForm({ stage: "", note: "" });
+      toast("更新已保存");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "保存失败", "error");
+    } finally {
+      setSavingUpdate(false);
+    }
+  }
 
   async function toggleEntryStatus() {
     if (!project) return;
@@ -317,7 +388,26 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         <ListBackLink listPath="/export/projects" className="text-sm text-slate-600 hover:underline">
           ← 返回项目列表
         </ListBackLink>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={savingLifecycle}
+            onClick={toggleAbandoned}
+            className={`rounded-md px-4 py-2 text-sm ${
+              abandoned
+                ? "export-btn-secondary"
+                : "border border-rose-400 bg-rose-50 text-rose-800 hover:bg-rose-100"
+            }`}
+          >
+            {abandoned ? "取消废弃" : "废弃"}
+          </button>
+          <button
+            type="button"
+            onClick={() => (showUpdateForm ? setShowUpdateForm(false) : openUpdateForm())}
+            className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium"
+          >
+            更新
+          </button>
           <button
             type="button"
             disabled={togglingEntry}
@@ -339,6 +429,54 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      {showUpdateForm ? (
+        <form onSubmit={handleSaveUpdate} className="export-card space-y-3 border-teal-200 p-5">
+          <h2 className="text-base font-semibold text-slate-800">写这次更新</h2>
+          <p className="text-sm text-slate-500">改阶段并写一句进度说明，保存后会出现在项目备注里。</p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">阶段</label>
+            <select
+              value={updateForm.stage}
+              onChange={(e) => setUpdateForm((f) => ({ ...f, stage: e.target.value }))}
+              className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              {PROJECT_STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {projectStageLabel[s] ?? s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">更新内容</label>
+            <textarea
+              value={updateForm.note}
+              onChange={(e) => setUpdateForm((f) => ({ ...f, note: e.target.value }))}
+              rows={3}
+              required
+              placeholder="例如：施工已结束，不再跟进；或招标推迟到下月"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={savingUpdate}
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {savingUpdate ? "保存中..." : "保存更新"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUpdateForm(false)}
+              className="export-btn-secondary rounded-md px-4 py-2 text-sm"
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      ) : null}
+
       <div className="export-card space-y-3 p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -352,6 +490,11 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             {project.region?.trim() ? <p className="mt-1 text-sm text-slate-500">地区：{project.region}</p> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {abandoned ? (
+              <span className="inline-flex rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-xs text-rose-800">
+                废弃
+              </span>
+            ) : null}
             <span
               className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${
                 project.entryStatus === "entered"
@@ -603,7 +746,10 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             <div className="sm:col-span-2 whitespace-pre-wrap text-slate-700">{project.description}</div>
           )}
           {project.notes && (
-            <div className="sm:col-span-2 whitespace-pre-wrap text-slate-600">备注：{project.notes}</div>
+            <div className="sm:col-span-2 whitespace-pre-wrap text-slate-700">
+              <span className="text-slate-500">更新记录 / 备注：</span>
+              {project.notes}
+            </div>
           )}
         </div>
       </div>
