@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: 外贸 CRM 管理者 AI 接口
+  version: "1.0.0"
+  description: |
+    只给 ChatGPT 读取分析。只读，不能发信，不能改数据。
+    仅管理者可用。请求头 Authorization: Bearer <EXPORT_AI_API_KEY>。
+    未配置 EXPORT_AI_API_KEY 时接口关闭（503），空密钥不会放行。
+    没有写跟进、没有邮件草稿、没有发信接口。
+servers:
+  - url: https://你的域名
+    description: 换成 CRM 实际访问地址，不要带末尾斜杠
+paths:
+  /api/export/ai/customers:
+    get:
+      operationId: listCustomers
+      summary: 查客户
+      description: 按关键词、国家、阶段（status 或 stage）筛选。客户在系统里必有负责人，unassigned=true 时结果为空。不返回密码。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/keyword"
+        - $ref: "#/components/parameters/country"
+        - $ref: "#/components/parameters/stage"
+        - $ref: "#/components/parameters/unassigned"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: 精简客户列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/NotConfigured"
+  /api/export/ai/customers/{id}:
+    get:
+      operationId: getCustomer
+      summary: 客户详情和最近沟通
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: 客户、联系人和最近 15 条活动
+        "404":
+          description: 不存在
+  /api/export/ai/leads:
+    get:
+      operationId: listLeads
+      summary: 查线索
+      description: 关键词、国家、阶段（线索 status）、unassigned=true 表示负责人 ownerId 为空（公海）。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/keyword"
+        - $ref: "#/components/parameters/country"
+        - $ref: "#/components/parameters/stage"
+        - $ref: "#/components/parameters/unassigned"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: 精简线索列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordList"
+  /api/export/ai/leads/{id}:
+    get:
+      operationId: getLead
+      summary: 线索详情和最近沟通
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: 线索和最近活动
+  /api/export/ai/projects:
+    get:
+      operationId: listProjects
+      summary: 查项目
+      description: 关键词、国家、阶段 stage、进度标记 progressMark、unassigned=true 表示未分配。projectValueWan 为资料里的金额原文（万元口径）。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/keyword"
+        - $ref: "#/components/parameters/country"
+        - $ref: "#/components/parameters/stage"
+        - name: progressMark
+          in: query
+          description: 进度标记。待联系、已联系、有意向、无需求、跟进中、已结束
+          schema:
+            type: string
+        - $ref: "#/components/parameters/unassigned"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: 精简项目列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordList"
+  /api/export/ai/projects/{id}:
+    get:
+      operationId: getProject
+      summary: 项目详情和关联线索的最近沟通
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: 项目、相关公司和最近活动
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 服务器环境变量 EXPORT_AI_API_KEY 的值。不要把密钥写进仓库。
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    keyword:
+      name: keyword
+      in: query
+      description: 公司、联系人、邮箱、电话或项目名等关键词
+      schema:
+        type: string
+    country:
+      name: country
+      in: query
+      description: 国家
+      schema:
+        type: string
+    stage:
+      name: stage
+      in: query
+      description: 客户/线索传状态；项目传阶段代码，如 tendering、construction
+      schema:
+        type: string
+    unassigned:
+      name: unassigned
+      in: query
+      description: true 或 1 表示负责人 ownerId 为空
+      schema:
+        type: string
+    limit:
+      name: limit
+      in: query
+      description: 条数，默认 20，最多 50
+      schema:
+        type: integer
+  responses:
+    Unauthorized:
+      description: 未带密钥或密钥错误
+    NotConfigured:
+      description: 服务器未配置 EXPORT_AI_API_KEY
+  schemas:
+    RecordList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              companyName:
+                type: string
+                description: 公司；项目列表里优先取相关公司，否则用项目名
+              projectName:
+                type: string
+              contactName:
+                type: string
+                nullable: true
+              email:
+                type: string
+                nullable: true
+              phone:
+                type: string
+                nullable: true
+              country:
+                type: string
+                nullable: true
+              ownerId:
+                type: string
+                nullable: true
+              ownerName:
+                type: string
+                nullable: true
+                description: 负责人姓名
+              lastAction:
+                type: string
+                nullable: true
+                description: 最近动作或结果摘要
+              projectValueWan:
+                type: string
+                nullable: true
+                description: 项目金额（万元原文）。客户和线索为空
+              progressMark:
+                type: string
+                nullable: true
+                description: 项目进度标记
+              stage:
+                type: string
+              status:
+                type: string
+                nullable: true

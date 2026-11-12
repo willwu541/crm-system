@@ -77,7 +77,7 @@ export function buildExportLeadListWhere(
   if (ctx.user) {
     const visibility = leadVisibilityWhere(ctx.user, params.scope);
     if (visibility) pushAnd(where, visibility);
-  } else if (params.scope === "pool") {
+  } else if (params.scope === "pool" || params.scope === "unassigned") {
     pushAnd(where, { ownerId: null });
   } else if (params.scope === "mine") {
     pushAnd(where, { ownerId: { in: [] } });

@@ -99,6 +99,7 @@ export function ExportSidebar() {
         {[
           ...NAV_ITEMS.slice(0, 1),
           ...(canAssign ? [{ href: "/export/today", label: "每日总结" }] : []),
+          ...(canAssign ? [{ href: "/export/insights", label: "经营分析" }] : []),
           ...NAV_ITEMS.slice(1),
           ...(canAssign ? [{ href: "/admin/users", label: "用户管理" }] : []),
         ].map((item) => {

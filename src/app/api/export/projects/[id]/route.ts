@@ -9,6 +9,7 @@ import {
   PROJECT_DEMAND_STATUSES,
   PROJECT_ENTRY_STATUSES,
   PROJECT_INDUSTRIES,
+  PROJECT_PROGRESS_MARKS,
   PROJECT_STAGES,
   PROJECT_STATUSES,
 } from "@/lib/export-constants";
@@ -80,6 +81,7 @@ const updateSchema = z.object({
   siteArea: z.string().optional().nullable(),
   contractorListed: z.string().optional().nullable(),
   demandStatus: z.enum(PROJECT_DEMAND_STATUSES).optional(),
+  progressMark: z.enum(PROJECT_PROGRESS_MARKS).optional(),
   actualBuyerCompany: z.string().optional().nullable(),
   actualBuyerContact: z.string().optional().nullable(),
   purchaseProgress: z.string().optional().nullable(),
@@ -187,6 +189,7 @@ export async function PATCH(
     if (parsed.data.siteArea !== undefined) data.siteArea = blankToNull(parsed.data.siteArea) ?? null;
     if (parsed.data.contractorListed !== undefined) data.contractorListed = blankToNull(parsed.data.contractorListed) ?? null;
     if (parsed.data.demandStatus !== undefined) data.demandStatus = parsed.data.demandStatus;
+    if (parsed.data.progressMark !== undefined) data.progressMark = parsed.data.progressMark;
     if (parsed.data.actualBuyerCompany !== undefined) {
       data.actualBuyerCompany = blankToNull(parsed.data.actualBuyerCompany) ?? null;
     }

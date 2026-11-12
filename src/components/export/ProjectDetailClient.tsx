@@ -8,7 +8,9 @@ import {
   PROJECT_DEMAND_STATUSES,
   PROJECT_PARTY_ROLE_CHOICES,
   PROJECT_PARTY_ROLE_CHOICE_TEXT,
+  PROJECT_PROGRESS_MARKS,
   PROJECT_STAGES,
+  UNMARKED_PROGRESS_LABEL,
   PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import {
@@ -75,6 +77,7 @@ interface Project {
   source: string | null;
   tenderUrl: string | null;
   status: string;
+  progressMark: string | null;
   bidDeadline: string | null;
   notes: string | null;
   sourceProjectNumber: string | null;
@@ -151,6 +154,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [partyForm, setPartyForm] = useState(emptyParty);
   const [togglingEntry, setTogglingEntry] = useState(false);
   const [savingLifecycle, setSavingLifecycle] = useState(false);
+  const [savingMark, setSavingMark] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [savingUpdate, setSavingUpdate] = useState(false);
   const [updateForm, setUpdateForm] = useState({ stage: "", note: "" });
@@ -212,6 +216,27 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       toast(e instanceof Error ? e.message : "操作失败", "error");
     } finally {
       setSavingLifecycle(false);
+    }
+  }
+
+  async function changeProgressMark(next: string) {
+    if (!project || !next || next === (project.progressMark ?? "")) return;
+    setSavingMark(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ progressMark: next }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "标记失败");
+      if (json.data) setProject(json.data);
+      else setProject({ ...project, progressMark: next });
+      toast("已更新进度标记");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "标记失败", "error");
+    } finally {
+      setSavingMark(false);
     }
   }
 
@@ -388,7 +413,25 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         <ListBackLink listPath="/export/projects" className="text-sm text-slate-600 hover:underline">
           ← 返回项目列表
         </ListBackLink>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <span>进度标记</span>
+            <select
+              value={project.progressMark ?? ""}
+              disabled={savingMark}
+              onChange={(e) => changeProgressMark(e.target.value)}
+              className="rounded-md border border-stone-300 bg-white px-2 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {UNMARKED_PROGRESS_LABEL}
+              </option>
+              {PROJECT_PROGRESS_MARKS.map((mark) => (
+                <option key={mark} value={mark}>
+                  {mark}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             disabled={savingLifecycle}
@@ -717,6 +760,10 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           <div>
             <span className="text-slate-500">跟进状态：</span>
             {displayLabel(projectStatusLabel, project.status)}
+          </div>
+          <div>
+            <span className="text-slate-500">进度标记：</span>
+            {project.progressMark || UNMARKED_PROGRESS_LABEL}
           </div>
           <div>
             <span className="text-slate-500">录入人：</span>

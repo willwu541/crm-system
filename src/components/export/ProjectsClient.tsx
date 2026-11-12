@@ -8,7 +8,9 @@ import {
   PROJECT_CONFIDENCE,
   PROJECT_INDUSTRIES,
   PROJECT_LIFECYCLES,
+  PROJECT_PROGRESS_MARKS,
   PROJECT_STAGES,
+  UNMARKED_PROGRESS_LABEL,
   PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import {
@@ -43,6 +45,7 @@ interface ProjectRow {
   industry: string | null;
   stage: string;
   status: string;
+  progressMark: string | null;
   confidence: string;
   entryStatus: string;
   ownerOperator: string | null;
@@ -144,6 +147,8 @@ export function ProjectsClient() {
   const scheduleEndTo = searchParams.get("scheduleEndTo") ?? "";
   const valueMinParam = searchParams.get("valueMin") ?? "";
   const valueMaxParam = searchParams.get("valueMax") ?? "";
+  const assignment = searchParams.get("assignment") === "unassigned" ? "unassigned" : "";
+  const progressMark = searchParams.get("progressMark") ?? "";
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -156,6 +161,7 @@ export function ProjectsClient() {
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [abandoningId, setAbandoningId] = useState<string | null>(null);
+  const [markingId, setMarkingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [savingUpdateId, setSavingUpdateId] = useState<string | null>(null);
   const [updateDraft, setUpdateDraft] = useState({ stage: "", note: "" });
@@ -189,6 +195,8 @@ export function ProjectsClient() {
         scheduleEndTo: scheduleEndTo || undefined,
         valueMin: valueMinParam || undefined,
         valueMax: valueMaxParam || undefined,
+        assignment: assignment || undefined,
+        progressMark: progressMark || undefined,
         page,
         ...updates,
       }),
@@ -276,6 +284,8 @@ export function ProjectsClient() {
         if (scheduleEndTo) params.set("scheduleEndTo", scheduleEndTo);
         if (valueMinParam) params.set("valueMin", valueMinParam);
         if (valueMaxParam) params.set("valueMax", valueMaxParam);
+        if (assignment) params.set("assignment", assignment);
+        if (progressMark) params.set("progressMark", progressMark);
         const res = await fetch(`/api/export/projects?${params}`);
         const json = await parseResponseJson<{
           error?: string;
@@ -315,7 +325,31 @@ export function ProjectsClient() {
     scheduleEndTo,
     valueMinParam,
     valueMaxParam,
+    assignment,
+    progressMark,
   ]);
+
+  async function changeProgressMark(project: ProjectRow, next: string) {
+    if (!next || next === (project.progressMark ?? "")) return;
+    setMarkingId(project.id);
+    try {
+      const res = await fetch(`/api/export/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ progressMark: next }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "标记失败");
+      setProjects((rows) =>
+        rows.map((row) => (row.id === project.id ? { ...row, progressMark: next } : row)),
+      );
+      toast("已更新进度标记");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "标记失败", "error");
+    } finally {
+      setMarkingId(null);
+    }
+  }
 
   async function toggleAbandoned(project: ProjectRow) {
     const abandoned = project.status === PROJECT_ABANDONED_STATUS;
@@ -525,6 +559,27 @@ export function ProjectsClient() {
             ))}
           </select>
           <select
+            value={assignment}
+            onChange={(e) => updateUrl({ assignment: e.target.value || undefined, page: 1 })}
+            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
+          >
+            <option value="">全部分配</option>
+            <option value="unassigned">未分配</option>
+          </select>
+          <select
+            value={progressMark}
+            onChange={(e) => updateUrl({ progressMark: e.target.value || undefined, page: 1 })}
+            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
+          >
+            <option value="">全部进度标记</option>
+            <option value="unset">{UNMARKED_PROGRESS_LABEL}</option>
+            {PROJECT_PROGRESS_MARKS.map((mark) => (
+              <option key={mark} value={mark}>
+                {mark}
+              </option>
+            ))}
+          </select>
+          <select
             value={confidence}
             onChange={(e) => updateUrl({ confidence: e.target.value || undefined, page: 1 })}
             className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
@@ -634,6 +689,7 @@ export function ProjectsClient() {
                 <th className="px-3 py-2.5">行业</th>
                 <th className="px-3 py-2.5">地点</th>
                 <th className="px-3 py-2.5">阶段</th>
+                <th className="px-3 py-2.5">进度标记</th>
                 <th className="px-3 py-2.5">金额</th>
                 <th className="px-3 py-2.5">完工</th>
                 <th className="px-3 py-2.5">业主/运营商</th>
@@ -693,6 +749,23 @@ export function ProjectsClient() {
                       >
                         {displayLabel(projectStageLabel, p.stage)}
                       </span>
+                    </td>
+                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={p.progressMark ?? ""}
+                        disabled={markingId === p.id}
+                        onChange={(e) => changeProgressMark(p, e.target.value)}
+                        className="max-w-[7.5rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs"
+                      >
+                        <option value="" disabled>
+                          {UNMARKED_PROGRESS_LABEL}
+                        </option>
+                        {PROJECT_PROGRESS_MARKS.map((mark) => (
+                          <option key={mark} value={mark}>
+                            {mark}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="max-w-[7.5rem] whitespace-pre-line px-3 py-3 align-top text-slate-700">
                       {dash(p.projectValueText)}
@@ -767,7 +840,7 @@ export function ProjectsClient() {
                   {updatingId === p.id ? (
                     <tr className="border-b border-stone-200/80 bg-teal-50/40">
                       <td
-                        colSpan={canManage ? 13 : 12}
+                        colSpan={canManage ? 14 : 13}
                         className="px-4 py-3"
                         onClick={(e) => e.stopPropagation()}
                       >

@@ -171,6 +171,18 @@ export const PROJECT_DEMAND_STATUSES = ["需求待核实", "确认使用", "不�
 
 export const PROJECT_DEMAND_DEFAULT = PROJECT_DEMAND_STATUSES[0];
 
+/** 跟进进度标记。和项目 status（hunting/abandoned）分开，用来掌握联系进度。 */
+export const PROJECT_PROGRESS_MARKS = [
+  "待联系",
+  "已联系",
+  "有意向",
+  "无需求",
+  "跟进中",
+  "已结束",
+] as const;
+
+export const UNMARKED_PROGRESS_LABEL = "未标记";
+
 /** 信息可靠度 */
 export const PROJECT_CONFIDENCE = [
   "unknown",

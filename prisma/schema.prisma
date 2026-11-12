@@ -1022,6 +1022,8 @@ model ExportProject {
   contractorListed   String?   @map("contractor_listed")
   /// 需求是否坐实。新建默认「需求待核实」，联系后再改。
   demandStatus       String    @default("需求待核实") @map("demand_status")
+  /// 跟进进度标记，和 hunting/abandoned 分开。空着表示还没标。
+  progressMark       String?   @map("progress_mark")
   /// 实际采购公司。空着时界面显示待确认，不覆盖第一通的总包。
   actualBuyerCompany String?   @map("actual_buyer_company")
   actualBuyerContact String?   @map("actual_buyer_contact")

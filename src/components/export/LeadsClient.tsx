@@ -519,6 +519,7 @@ export function LeadsClient() {
             [
               { key: "", label: "公海和我的" },
               { key: "pool", label: "公海" },
+              { key: "unassigned", label: "未分配" },
               { key: "mine", label: "我的" },
             ] as const
           ).map((item) => (

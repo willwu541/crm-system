@@ -118,13 +118,14 @@ export function leadVisibilityWhere(
   scope?: string | null,
 ): Record<string, unknown> | null {
   const poolOk = canUseExportPool(user);
+  const unassigned = scope === "pool" || scope === "unassigned";
   if (isExportAdmin(user)) {
-    if (scope === "pool") return poolOk ? { ownerId: null } : { ownerId: { in: [] } };
+    if (unassigned) return poolOk ? { ownerId: null } : { ownerId: { in: [] } };
     if (scope === "mine") return { ownerId: user.id };
     if (!poolOk) return { ownerId: { not: null } };
     return null;
   }
-  if (scope === "pool") return poolOk ? { ownerId: null } : { ownerId: { in: [] } };
+  if (unassigned) return poolOk ? { ownerId: null } : { ownerId: { in: [] } };
   if (scope === "mine") return { ownerId: user.id };
   if (!poolOk) return ownedClause(grantedOwnerIds(user));
   return { OR: [{ ownerId: null }, ownedClause(grantedOwnerIds(user))] };

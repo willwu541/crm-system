@@ -9,6 +9,7 @@ import {
   PROJECT_INDUSTRIES,
   PROJECT_PARTY_ROLES,
   PROJECT_STAGES,
+  PROJECT_PROGRESS_MARKS,
   PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import type { Prisma } from "@prisma/client";
@@ -70,6 +71,17 @@ export function isProjectConfidence(value: string): value is (typeof PROJECT_CON
 
 export function isProjectPartyRole(value: string): value is (typeof PROJECT_PARTY_ROLES)[number] {
   return (PROJECT_PARTY_ROLES as readonly string[]).includes(value);
+}
+
+export function isProjectProgressMark(value: string): value is (typeof PROJECT_PROGRESS_MARKS)[number] {
+  return (PROJECT_PROGRESS_MARKS as readonly string[]).includes(value);
+}
+
+/** 列表「未分配」：负责人空着。非管理者不能借这个条件看别人的项目。 */
+export function projectAssignmentWhere(assignment: string | null | undefined, manageAll: boolean) {
+  if (assignment !== "unassigned") return null;
+  if (!manageAll) return { ownerId: { in: [] as string[] } };
+  return { ownerId: null as string | null };
 }
 
 export function partyRoleToCustomerType(role: string): string | undefined {

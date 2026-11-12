@@ -29,9 +29,11 @@ import {
   isProjectEntryStatus,
   isProjectIndustry,
   isProjectPartyRole,
+  isProjectProgressMark,
   isProjectStage,
   isProjectStatus,
   parseOptionalDate,
+  projectAssignmentWhere,
   projectKeywordOrClauses,
   projectLifecycleWhere,
   canManageExportProjects,
@@ -67,6 +69,8 @@ export async function GET(request: NextRequest) {
   const country = searchParams.get("country")?.trim();
   const entryStatus = searchParams.get("entryStatus")?.trim();
   const ownerId = searchParams.get("ownerId")?.trim();
+  const assignment = searchParams.get("assignment")?.trim();
+  const progressMark = searchParams.get("progressMark")?.trim();
   const role = searchParams.get("role")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -101,13 +105,18 @@ export async function GET(request: NextRequest) {
       ? await findSalesUsersByName({ tenant: "export", tenantId: ctx!.tenantId, keyword })
       : { exactIds: [] as string[] };
   const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
-  if (manageAll) {
+  const assignmentWhere = projectAssignmentWhere(assignment, manageAll);
+  if (assignmentWhere) {
+    Object.assign(where, assignmentWhere);
+  } else if (manageAll) {
     if (matchedOwnerIds) {
       where.ownerId = matchedOwnerIds.length === 1 ? matchedOwnerIds[0] : { in: matchedOwnerIds };
     } else if (ownerId) {
       where.ownerId = ownerId;
     }
   }
+  if (progressMark === "unset") where.progressMark = null;
+  else if (progressMark && isProjectProgressMark(progressMark)) where.progressMark = progressMark;
   if (role && isProjectPartyRole(role)) {
     and.push({ parties: { some: { role } } });
   }

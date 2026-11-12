@@ -209,6 +209,15 @@ describe("lead list where", () => {
     resetAccessPolicyCache();
   });
 
+  it("unassigned scope is the same as the public pool", () => {
+    const where = buildExportLeadListWhere(
+      { tenantId: "t1", user: { id: "boss", role: "ADMIN" } },
+      { scope: "unassigned" },
+    );
+    const and = where.AND as Record<string, unknown>[];
+    assert.deepEqual(and[0], { ownerId: null });
+  });
+
   it("pool scope hides claimed leads", () => {
     const where = buildExportLeadListWhere(
       { tenantId: "t1", user: { id: "me", role: "SALES" } },
