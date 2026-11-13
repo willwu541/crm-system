@@ -191,6 +191,31 @@ export function canManageExportProjects(user: Pick<SessionUser, "id" | "role">) 
   return canAssignExportWork(user);
 }
 
+export async function claimUnassignedExportProject(args: {
+  tenantId: string;
+  projectId: string;
+  user: Pick<SessionUser, "id" | "role">;
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (!canManageExportProjects(args.user)) {
+    return { ok: false, error: "只有管理者可以认领项目", status: 403 };
+  }
+  const current = await prisma.exportProject.findUnique({
+    where: { id: args.projectId, tenantId: args.tenantId },
+    select: { id: true, ownerId: true },
+  });
+  if (!current) return { ok: false, error: "项目不存在", status: 404 };
+  if (current.ownerId) {
+    if (current.ownerId === args.user.id) return { ok: true };
+    return { ok: false, error: "这个项目已经有负责人，请用分配修改", status: 409 };
+  }
+  const taken = await prisma.exportProject.updateMany({
+    where: { id: args.projectId, tenantId: args.tenantId, ownerId: null },
+    data: { ownerId: args.user.id },
+  });
+  if (taken.count !== 1) return { ok: false, error: "这个项目刚刚被分配走了", status: 409 };
+  return { ok: true };
+}
+
 /** 管理者看全部；业务员和经理只看分给自己的。 */
 export function canViewExportProject(
   user: Pick<SessionUser, "id" | "role">,

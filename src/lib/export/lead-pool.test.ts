@@ -3,6 +3,7 @@ import { after, describe, it } from "node:test";
 import { resetAccessPolicyCache, saveAccessPolicy } from "../access-policy";
 import {
   canAssignExportWork,
+  canClaimUnassignedExportProject,
   canSeeExportCustomer,
   canSeeExportLeadContacts,
   canStartUsingExportLead,
@@ -79,6 +80,23 @@ describe("export lead pool visibility", () => {
     resetAccessPolicyCache();
     assert.equal(canViewExportLead(sales, "other"), false);
     assert.equal(canSeeExportLeadContacts(sales, "other"), false);
+  });
+
+  it("lets the export boss claim an unassigned lead, but not one that already has an owner", () => {
+    saveAccessPolicy({ directorUserId: "director", canView: {} });
+    resetAccessPolicyCache();
+    const boss = { id: "boss", role: "ADMIN" as const };
+    const director = { id: "director", role: "ADMIN" as const };
+    const pool = presentExportLead({ ownerId: null, companyName: "Acme" }, boss);
+    const owned = presentExportLead({ ownerId: "sales", companyName: "Acme" }, boss);
+    assert.equal(pool.canClaim, true);
+    assert.equal(owned.canClaim, false);
+    assert.equal(presentExportLead({ ownerId: null, companyName: "Acme" }, sales).canClaim, true);
+    assert.equal(presentExportLead({ ownerId: null, companyName: "Acme" }, director).canClaim, false);
+    assert.equal(canClaimUnassignedExportProject(boss, null), true);
+    assert.equal(canClaimUnassignedExportProject(boss, "sales"), false);
+    assert.equal(canClaimUnassignedExportProject(sales, null), false);
+    assert.equal(canClaimUnassignedExportProject(director, null), false);
   });
 
   it("lets only the manager assign work, not the sales director", () => {

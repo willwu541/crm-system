@@ -39,6 +39,14 @@ export function canAssignExportWork(user: Pick<SessionUser, "id" | "role">) {
   return isExportBoss(user);
 }
 
+/** 认领只针对还没有负责人的项目，不能把别人的项目领走。 */
+export function canClaimUnassignedExportProject(
+  user: Pick<SessionUser, "id" | "role">,
+  ownerId?: string | null,
+) {
+  return canAssignExportWork(user) && !ownerId;
+}
+
 function grantedOwnerIds(user: Pick<SessionUser, "id" | "role">) {
   return exportDataOwnerIds(user) ?? [user.id];
 }
@@ -149,7 +157,8 @@ export function presentExportLead<T extends { ownerId?: string | null; converted
     hasEmail: filled(record.email),
     hasPhone: filled(record.phone),
     hasWhatsapp: filled(record.whatsapp),
-    canClaim: inPool && !isExportAdmin(user) && canUseExportPool(user),
+    // 业务员从公海认领；管理者也可以领到自己名下。业务经理只接收分配，不认领。
+    canClaim: inPool && canUseExportPool(user) && !isDirector(user),
     canWork: canWorkExportLead(user, ownerId),
     canRelease: isExportAdmin(user) && !inPool && !lead.convertedToCustomerId,
   };

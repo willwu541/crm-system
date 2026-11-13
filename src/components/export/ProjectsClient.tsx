@@ -160,6 +160,7 @@ export function ProjectsClient() {
   const [valueMax, setValueMax] = useState(valueMaxParam);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
   const [abandoningId, setAbandoningId] = useState<string | null>(null);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -239,6 +240,26 @@ export function ProjectsClient() {
       cancelled = true;
     };
   }, [canManage]);
+
+  async function claimProject(id: string) {
+    setClaimingId(id);
+    try {
+      const res = await fetch(`/api/export/projects/${id}/claim`, { method: "POST" });
+      const json = await parseResponseJson<{
+        error?: string;
+        data?: { owner?: { id: string; name: string } | null };
+      }>(res);
+      if (!res.ok) throw new Error(json.error ?? "认领失败");
+      setProjects((rows) =>
+        rows.map((row) => (row.id === id ? { ...row, owner: json.data?.owner ?? row.owner } : row)),
+      );
+      toast("已领到你名下");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "认领失败", "error");
+    } finally {
+      setClaimingId(null);
+    }
+  }
 
   async function assignProject(id: string, userId: string) {
     setAssigningId(id);
@@ -787,6 +808,17 @@ export function ProjectsClient() {
                     </td>
                     {canManage && (
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                        {!p.owner && (
+                          <button
+                            type="button"
+                            onClick={() => claimProject(p.id)}
+                            disabled={claimingId === p.id}
+                            className="inline-flex rounded border border-teal-600 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800 hover:bg-teal-100 disabled:opacity-50"
+                          >
+                            {claimingId === p.id ? "认领中..." : "认领"}
+                          </button>
+                        )}
                         <select
                           value={p.owner?.id ?? ""}
                           disabled={assigningId === p.id}
@@ -805,6 +837,7 @@ export function ProjectsClient() {
                             </option>
                           ))}
                         </select>
+                        </div>
                       </td>
                     )}
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>

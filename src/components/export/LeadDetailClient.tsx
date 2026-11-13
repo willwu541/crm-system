@@ -279,7 +279,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               disabled={claiming}
               className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {claiming ? "认领中..." : "认领到我名下"}
+              {claiming ? "认领中..." : "认领"}
             </button>
           )}
           {lead.canRelease && (

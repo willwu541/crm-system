@@ -158,6 +158,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [savingUpdate, setSavingUpdate] = useState(false);
   const [updateForm, setUpdateForm] = useState({ stage: "", note: "" });
+  const [claiming, setClaiming] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [report, setReport] = useState({
     company: "",
@@ -196,6 +197,21 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   }, [project]);
 
   const abandoned = project?.status === PROJECT_ABANDONED_STATUS;
+
+  async function claimProject() {
+    setClaiming(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}/claim`, { method: "POST" });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "认领失败");
+      toast("已领到你名下");
+      fetchProject({ silent: true });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "认领失败", "error");
+    } finally {
+      setClaiming(false);
+    }
+  }
 
   async function toggleAbandoned() {
     if (!project) return;
@@ -414,6 +430,16 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           ← 返回项目列表
         </ListBackLink>
         <div className="flex flex-wrap items-center gap-2">
+          {project.canManage && !project.owner && (
+            <button
+              type="button"
+              onClick={claimProject}
+              disabled={claiming}
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {claiming ? "认领中..." : "认领"}
+            </button>
+          )}
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <span>进度标记</span>
             <select

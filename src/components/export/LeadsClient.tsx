@@ -841,7 +841,7 @@ export function LeadsClient() {
                             type="button"
                             onClick={() => claimLead(l.id)}
                             disabled={claimingId === l.id}
-                            className="text-teal-700 hover:underline disabled:opacity-50"
+                            className="inline-flex rounded border border-teal-600 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800 hover:bg-teal-100 disabled:opacity-50"
                           >
                             {claimingId === l.id ? "认领中..." : "认领"}
                           </button>
