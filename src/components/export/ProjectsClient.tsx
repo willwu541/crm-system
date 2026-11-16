@@ -163,6 +163,7 @@ export function ProjectsClient() {
   const [valueMin, setValueMin] = useState(valueMinParam);
   const [valueMax, setValueMax] = useState(valueMaxParam);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<Assignee[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [abandoningId, setAbandoningId] = useState<string | null>(null);
@@ -235,9 +236,15 @@ export function ProjectsClient() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/export/users?assignable=1");
-        const json = await parseResponseJson<{ data?: Assignee[] }>(res);
-        if (!cancelled && res.ok && json.data) setAssignees(json.data);
+        const [assignRes, ownerRes] = await Promise.all([
+          fetch("/api/export/users?assignable=1"),
+          fetch("/api/export/users?ownerFilter=1"),
+        ]);
+        const assignJson = await parseResponseJson<{ data?: Assignee[] }>(assignRes);
+        const ownerJson = await parseResponseJson<{ data?: Assignee[] }>(ownerRes);
+        if (cancelled) return;
+        if (assignRes.ok && assignJson.data) setAssignees(assignJson.data);
+        if (ownerRes.ok && ownerJson.data) setOwnerOptions(ownerJson.data);
       } catch {
         // ignore
       }
@@ -607,12 +614,12 @@ export function ProjectsClient() {
             >
               <option value="">全部业务员</option>
               <option value="unassigned">未分配</option>
-              {ownerId && !assignees.some((u) => u.id === ownerId) && (
-                <option value={ownerId}>当前业务员</option>
+              {ownerId && !ownerOptions.some((u) => u.id === ownerId) && (
+                <option value={ownerId}>当前负责人</option>
               )}
-              {assignees.map((u) => (
+              {ownerOptions.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.name}
+                  {u.roleLabel ? `${u.name}（${u.roleLabel}）` : u.name}
                 </option>
               ))}
             </select>

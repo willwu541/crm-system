@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAccessPolicy, roleLabel } from "@/lib/access-policy";
 import { requireExportSession } from "@/lib/export/auth";
+import { assignableExportUserWhere, projectOwnerFilterUserWhere } from "@/lib/export/assignees";
 import { canAssignExportWork } from "@/lib/export/lead-pool";
 
 export async function GET(request: NextRequest) {
   const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
-  const assignable = new URL(request.url).searchParams.get("assignable") === "1";
-  if (assignable && !canAssignExportWork(user!)) {
+  const params = new URL(request.url).searchParams;
+  const assignable = params.get("assignable") === "1";
+  const ownerFilter = params.get("ownerFilter") === "1";
+  if ((assignable || ownerFilter) && !canAssignExportWork(user!)) {
     return NextResponse.json({ error: "只有管理者可以分配" }, { status: 403 });
   }
 
@@ -20,14 +23,11 @@ export async function GET(request: NextRequest) {
         tenant: "export",
         tenantId: ctx!.tenantId,
         isActive: true,
-        ...(assignable
-          ? {
-              OR: [
-                { role: { in: ["SALES", "MANAGER"] as const } },
-                ...(directorId ? [{ id: directorId }] : []),
-              ],
-            }
-          : {}),
+        ...(ownerFilter
+          ? projectOwnerFilterUserWhere(directorId)
+          : assignable
+            ? assignableExportUserWhere(directorId)
+            : {}),
       },
       select: { id: true, name: true, email: true, role: true },
       orderBy: { name: "asc" },

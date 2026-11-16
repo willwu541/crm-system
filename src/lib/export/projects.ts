@@ -94,7 +94,7 @@ export function projectAssignmentWhere(assignment: string | null | undefined, ma
   return { ownerId: null as string | null };
 }
 
-/** 按某个业务员筛。只有管理者生效；业务员传了也仍只看自己的。 */
+/** 按某个负责人筛。只有管理者生效；业务员传了也仍只看自己的。 */
 export function projectOwnerFilterWhere(ownerId: string | null | undefined, manageAll: boolean) {
   const id = ownerId?.trim();
   if (!id || !manageAll) return null;
