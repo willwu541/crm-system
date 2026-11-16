@@ -6,6 +6,7 @@ import { formatSourceUpdatedAt } from "@/lib/export/source-updated-at";
 import { useToast } from "@/components/ui/Toast";
 import {
   PROJECT_ABANDONED_STATUS,
+  PROJECT_PARKED_STATUS,
   PROJECT_DEMAND_STATUSES,
   PROJECT_PARTY_ROLE_CHOICES,
   PROJECT_PARTY_ROLE_CHOICE_TEXT,
@@ -210,6 +211,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   }, [project]);
 
   const abandoned = project?.status === PROJECT_ABANDONED_STATUS;
+  const parked = project?.status === PROJECT_PARKED_STATUS;
 
   async function claimProject() {
     setClaiming(true);
@@ -223,6 +225,27 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       toast(e instanceof Error ? e.message : "认领失败", "error");
     } finally {
       setClaiming(false);
+    }
+  }
+
+  async function toggleDeferred() {
+    if (!project) return;
+    setSavingLifecycle(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parked ? { resumeParked: true } : { status: PROJECT_PARKED_STATUS }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      if (json.data) setProject(json.data);
+      else fetchProject({ silent: true });
+      toast(parked ? "已取消暂缓" : "已标为暂缓开发");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setSavingLifecycle(false);
     }
   }
 
@@ -496,6 +519,18 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           </label>
           <button
             type="button"
+            disabled={savingLifecycle || project.canMark === false}
+            onClick={toggleDeferred}
+            className={`rounded-md px-4 py-2 text-sm disabled:opacity-50 ${
+              parked
+                ? "export-btn-secondary"
+                : "border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+            }`}
+          >
+            {parked ? "取消暂缓" : "暂缓开发"}
+          </button>
+          <button
+            type="button"
             disabled={savingLifecycle}
             onClick={toggleAbandoned}
             className={`rounded-md px-4 py-2 text-sm ${
@@ -603,6 +638,11 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             {abandoned ? (
               <span className="inline-flex rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-xs text-rose-800">
                 废弃
+              </span>
+            ) : null}
+            {parked ? (
+              <span className="inline-flex rounded-full border border-amber-400 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+                暂缓开发
               </span>
             ) : null}
             <span

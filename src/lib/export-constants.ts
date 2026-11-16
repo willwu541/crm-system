@@ -49,6 +49,7 @@ export const LEAD_STATUSES = [
   "valid",
   "invalid",
   "converted",
+  "parked",
 ] as const;
 
 export const CUSTOMER_STATUSES = [
@@ -132,10 +133,15 @@ export const PROJECT_STATUSES = [
   "abandoned",
 ] as const;
 
-/** 列表生命周期：进行中默认排除废弃；已废弃只看 abandoned */
-export const PROJECT_LIFECYCLES = ["active", "abandoned"] as const;
+/** 列表生命周期：进行中排除废弃和暂缓开发；后两者各自可筛回来 */
+export const PROJECT_LIFECYCLES = ["active", "parked", "abandoned"] as const;
 
 export const PROJECT_ABANDONED_STATUS = "abandoned" as const;
+
+/** 暂缓开发。目前不适合开发，先放一边。和进度标记、废弃不是一回事。 */
+export const PROJECT_PARKED_STATUS = "parked" as const;
+
+export const LEAD_PARKED_STATUS = "parked" as const;
 
 /** 取消废弃后回到可跟进默认态 */
 export const PROJECT_UNABANDON_STATUS = "hunting" as const;

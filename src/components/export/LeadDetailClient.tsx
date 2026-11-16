@@ -89,6 +89,7 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
   const [onboard, setOnboard] = useState<{ customerId: string; companyName: string } | null>(null);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [deferring, setDeferring] = useState(false);
 
   const sortedActivities = useMemo(
     () =>
@@ -199,6 +200,27 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
     }
   }
 
+  async function toggleDefer() {
+    if (!lead) return;
+    const parked = lead.status === "parked";
+    setDeferring(true);
+    try {
+      const res = await fetch(`/api/export/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parked ? { resumeParked: true } : { status: "parked" }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Lead }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      if (json.data) setLead(json.data);
+      toast(parked ? "已取消暂缓" : "已标为暂缓开发");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setDeferring(false);
+    }
+  }
+
   async function releaseLead() {
     if (!confirm("放回公海后，其他业务员又能看到这家公司，但看不到你已经记下的联系方式，直到有人重新认领。")) return;
     setClaiming(true);
@@ -233,7 +255,14 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
     <div className="space-y-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="export-page-title text-xl font-semibold">{lead.companyName}</h1>
+          <h1 className="export-page-title text-xl font-semibold">
+            {lead.companyName}
+            {lead.status === "parked" ? (
+              <span className="ml-2 inline-flex align-middle rounded-full border border-amber-400 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">
+                暂缓开发
+              </span>
+            ) : null}
+          </h1>
           <p className="text-sm text-slate-500">
             {leadStatusLabel[lead.status] ?? lead.status} · {owner} ·
             {" 已联系 "}<span className="font-medium text-slate-700">{lead.contactCount}</span> 次
@@ -280,6 +309,20 @@ export function LeadDetailClient({ leadId }: { leadId: string }) {
               className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {claiming ? "认领中..." : "认领"}
+            </button>
+          )}
+          {canWork && lead.status !== "converted" && (
+            <button
+              type="button"
+              onClick={toggleDefer}
+              disabled={deferring}
+              className={`rounded-md px-4 py-2 text-sm disabled:opacity-50 ${
+                lead.status === "parked"
+                  ? "export-btn-secondary"
+                  : "border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+              }`}
+            >
+              {lead.status === "parked" ? "取消暂缓" : "暂缓开发"}
             </button>
           )}
           {lead.canRelease && (

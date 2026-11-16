@@ -54,6 +54,7 @@ export const leadStatusLabel: Record<string, string> = {
   valid: "有效",
   invalid: "无效",
   converted: "已转化",
+  parked: "暂缓开发",
 };
 
 export const customerStatusLabel: Record<string, string> = {
@@ -175,12 +176,13 @@ export const projectStatusLabel: Record<string, string> = {
   quoted: "已报价",
   won: "已成交",
   lost: "已丢单",
-  parked: "暂缓",
+  parked: "暂缓开发",
   abandoned: "废弃",
 };
 
 export const projectLifecycleLabel: Record<string, string> = {
   active: "进行中",
+  parked: "暂缓开发",
   abandoned: "已废弃",
 };
 

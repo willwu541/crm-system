@@ -154,16 +154,19 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
   for (const activity of activities) {
     const company =
       activity.customerNameSnapshot || activity.customer?.companyName || activity.lead?.companyName || null;
+    const lifecycleNote = activity.type === "lifecycle" ? activity.content?.trim() : "";
     actions.push({
       id: `activity:${activity.id}`,
       ...actorFields(activity.owner, directorUserId),
       at: activity.createdAt,
-      text: activityActionText({
-        type: activity.type,
-        company,
-        feedback: activity.customerFeedback,
-        content: activity.content,
-      }),
+      text: lifecycleNote
+        ? [lifecycleNote, company].filter(Boolean).join(" · ")
+        : activityActionText({
+            type: activity.type,
+            company,
+            feedback: activity.customerFeedback,
+            content: activity.content,
+          }),
       href: activity.customerId
         ? `/export/customers/${activity.customerId}`
         : activity.leadId

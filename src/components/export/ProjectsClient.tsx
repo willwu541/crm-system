@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   PROJECT_ABANDONED_STATUS,
+  PROJECT_PARKED_STATUS,
   PROJECT_CONFIDENCE,
   PROJECT_INDUSTRIES,
   PROJECT_LIFECYCLES,
@@ -134,8 +135,9 @@ export function ProjectsClient() {
   const confidence = searchParams.get("confidence") ?? "";
   const country = searchParams.get("country") ?? "";
   const lifecycleRaw = searchParams.get("lifecycle");
-  const lifecycle =
-    lifecycleRaw === "abandoned" || lifecycleRaw === "active" ? lifecycleRaw : "active";
+  const lifecycle = (PROJECT_LIFECYCLES as readonly string[]).includes(lifecycleRaw ?? "")
+    ? (lifecycleRaw as (typeof PROJECT_LIFECYCLES)[number])
+    : "active";
   const entryStatusRaw = searchParams.get("entryStatus");
   const entryStatus =
     entryStatusRaw === "pending" || entryStatusRaw === "entered" || entryStatusRaw === "all"
@@ -167,6 +169,7 @@ export function ProjectsClient() {
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [abandoningId, setAbandoningId] = useState<string | null>(null);
+  const [deferringId, setDeferringId] = useState<string | null>(null);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [savingUpdateId, setSavingUpdateId] = useState<string | null>(null);
@@ -389,6 +392,26 @@ export function ProjectsClient() {
     }
   }
 
+  async function toggleDeferred(project: ProjectRow) {
+    const parked = project.status === PROJECT_PARKED_STATUS;
+    setDeferringId(project.id);
+    try {
+      const res = await fetch(`/api/export/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parked ? { resumeParked: true } : { status: PROJECT_PARKED_STATUS }),
+      });
+      const json = await parseResponseJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      setProjects((rows) => rows.filter((row) => row.id !== project.id));
+      toast(parked ? "已取消暂缓" : "已标为暂缓开发");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setDeferringId(null);
+    }
+  }
+
   async function toggleAbandoned(project: ProjectRow) {
     const abandoned = project.status === PROJECT_ABANDONED_STATUS;
     const nextStatus = abandoned ? PROJECT_UNABANDON_STATUS : PROJECT_ABANDONED_STATUS;
@@ -505,7 +528,9 @@ export function ProjectsClient() {
           const activeClass =
             tab.id === "abandoned"
               ? "border-rose-700 bg-rose-800 text-white"
-              : "border-stone-700 bg-stone-800 text-white";
+              : tab.id === "parked"
+                ? "border-amber-700 bg-amber-800 text-white"
+                : "border-stone-700 bg-stone-800 text-white";
           return (
             <button
               key={tab.id}
@@ -789,6 +814,11 @@ export function ProjectsClient() {
                             废弃
                           </span>
                         ) : null}
+                        {p.status === PROJECT_PARKED_STATUS ? (
+                          <span className="inline-flex rounded-full border border-amber-400 bg-amber-50 px-2 py-0.5 text-xs text-amber-900">
+                            暂缓开发
+                          </span>
+                        ) : null}
                         {formatSourceUpdatedAt(p.sourceUpdatedAt) ? (
                           <span className="inline-flex rounded-full border border-sky-400 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-900">
                             已更新 {formatSourceUpdatedAt(p.sourceUpdatedAt)}
@@ -900,6 +930,18 @@ export function ProjectsClient() {
                     )}
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={deferringId === p.id || !(canManage || (me && p.owner?.id === me.id))}
+                          onClick={() => toggleDeferred(p)}
+                          className={`inline-flex rounded border px-2.5 py-1 text-xs disabled:opacity-60 ${
+                            p.status === PROJECT_PARKED_STATUS
+                              ? "border-stone-400 bg-white text-slate-700 hover:bg-stone-50"
+                              : "border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                          }`}
+                        >
+                          {p.status === PROJECT_PARKED_STATUS ? "取消暂缓" : "暂缓开发"}
+                        </button>
                         <button
                           type="button"
                           disabled={abandoningId === p.id}

@@ -136,7 +136,7 @@ export async function GET() {
     prisma.exportLead.count({
       where: {
         ...leadBase,
-        status: { not: "converted" },
+        status: { notIn: ["converted", "parked"] },
         ...leadChannelWhere("no_whatsapp"),
       },
     }),

@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireExportSession } from "@/lib/export/auth";
 import type { SessionUser } from "@/lib/auth";
 import { canViewExportLead, canWorkExportLead, presentExportLead } from "@/lib/export/lead-pool";
+import {
+  DEFER_MARK_TEXT,
+  DEFER_UNMARK_TEXT,
+  LEAD_LIFECYCLE_ACTIVITY,
+  deferStatusChange,
+} from "@/lib/export/defer-development";
+import { LEAD_STATUSES } from "@/lib/export-constants";
 import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { exportDuplicateConflictBody, findExportDuplicate } from "@/lib/export/dedupe";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
@@ -65,6 +72,7 @@ const updateSchema = z.object({
   nextFollowUpAt: z.string().datetime().optional().nullable(),
   priority: z.string().optional(),
   status: z.string().optional(),
+  resumeParked: z.literal(true).optional(),
   notes: z.string().optional(),
   fitEvidence: z.string().optional(),
 });
@@ -95,13 +103,31 @@ export async function PATCH(
       );
     }
 
-    const { nextFollowUpAt, ...rest } = parsed.data;
+    const { nextFollowUpAt, resumeParked, status, ...rest } = parsed.data;
     const inPool = !lead!.ownerId;
     if (!inPool && !canWorkExportLead(user!, lead!.ownerId)) {
       return NextResponse.json({ error: "请先认领这条线索，再进行开发" }, { status: 403 });
     }
+    const touchesDefer = resumeParked === true || status === "parked" || (status !== undefined && lead!.status === "parked");
+    if (touchesDefer && !canWorkExportLead(user!, lead!.ownerId)) {
+      return NextResponse.json({ error: "只有负责人和管理者可以把线索标为暂缓开发" }, { status: 403 });
+    }
+    if (status === "parked" && lead!.status === "converted") {
+      return NextResponse.json({ error: "已转化的线索不能暂缓开发" }, { status: 400 });
+    }
+
+    const deferred = deferStatusChange({
+      currentStatus: lead!.status,
+      parkedFromStatus: lead!.parkedFromStatus,
+      requestedStatus: resumeParked ? undefined : status,
+      resume: resumeParked,
+      allowed: LEAD_STATUSES,
+      fallback: "new",
+    });
 
     const data: Record<string, unknown> = nullifyBlankFields({ ...rest });
+    if (deferred.status !== undefined) data.status = deferred.status;
+    if (deferred.parkedFromStatus !== undefined) data.parkedFromStatus = deferred.parkedFromStatus;
     if (nextFollowUpAt !== undefined) {
       data.nextFollowUpAt = nextFollowUpAt ? new Date(nextFollowUpAt) : null;
     }
@@ -121,10 +147,26 @@ export async function PATCH(
       return NextResponse.json(exportDuplicateConflictBody(duplicate, user!), { status: 400 });
     }
 
-    const updated = await prisma.exportLead.update({
-      where: { id, tenantId: ctx!.tenantId },
-      data,
-      include: { owner: { select: { id: true, name: true } } },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.exportLead.update({
+        where: { id, tenantId: ctx!.tenantId },
+        data,
+        include: { owner: { select: { id: true, name: true } } },
+      });
+      if (deferred.log) {
+        await tx.exportActivity.create({
+          data: {
+            tenantId: ctx!.tenantId,
+            leadId: id,
+            type: LEAD_LIFECYCLE_ACTIVITY,
+            direction: "inbound",
+            content: deferred.log === "mark" ? DEFER_MARK_TEXT : DEFER_UNMARK_TEXT,
+            customerNameSnapshot: row.companyName,
+            ownerId: user!.id,
+          },
+        });
+      }
+      return row;
     });
     return NextResponse.json({ data: presentExportLead(updated, user!) });
   } catch (e) {

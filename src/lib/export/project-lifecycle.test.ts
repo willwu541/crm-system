@@ -3,13 +3,14 @@ import { describe, it } from "node:test";
 import { projectLifecycleWhere } from "./project-lifecycle";
 
 describe("projectLifecycleWhere", () => {
-  it("defaults to excluding abandoned", () => {
-    assert.deepEqual(projectLifecycleWhere(undefined), { status: { not: "abandoned" } });
-    assert.deepEqual(projectLifecycleWhere("active"), { status: { not: "abandoned" } });
+  it("defaults to excluding abandoned and deferred", () => {
+    assert.deepEqual(projectLifecycleWhere(undefined), { status: { notIn: ["abandoned", "parked"] } });
+    assert.deepEqual(projectLifecycleWhere("active"), { status: { notIn: ["abandoned", "parked"] } });
   });
 
-  it("filters abandoned tab", () => {
+  it("filters abandoned and deferred tabs", () => {
     assert.deepEqual(projectLifecycleWhere("abandoned"), { status: "abandoned" });
+    assert.deepEqual(projectLifecycleWhere("parked"), { status: "parked" });
   });
 
   it("skips lifecycle when exact status is set", () => {

@@ -29,7 +29,7 @@ export async function GET() {
           where: {
             tenantId: ctx!.tenantId,
             ownerId: o.id,
-            status: { notIn: ["converted", "invalid"] },
+            status: { notIn: ["converted", "invalid", "parked"] },
             contactCount: { gte: 2 },
             lastContactAt: { lte: threeDaysAgo },
           },

@@ -29,7 +29,7 @@ export async function GET() {
 
   const leadDueWhere = {
     tenantId: ctx!.tenantId,
-    status: { notIn: ["converted", "invalid"] },
+    status: { notIn: ["converted", "invalid", "parked"] },
     ...(ownerScope ? { ownerId: { in: ownerScope } } : {}),
     nextFollowUpAt: { gte: todayStart, lt: todayEnd },
   };

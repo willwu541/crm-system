@@ -176,6 +176,11 @@ export function buildExportLeadListWhere(
     pushAnd(where, channelWhere);
   }
 
+  if (!params.status) {
+    if (where.status === undefined) where.status = { not: "parked" };
+    else pushAnd(where, { status: { not: "parked" } });
+  }
+
   return where;
 }
 

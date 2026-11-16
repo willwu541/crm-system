@@ -1,6 +1,7 @@
 import type { SessionUser } from "@/lib/auth";
 import { projectStageLabel, projectStatusLabel } from "@/lib/export-display-labels";
-import { PROJECT_ABANDONED_STATUS } from "@/lib/export-constants";
+import { PROJECT_ABANDONED_STATUS, PROJECT_PARKED_STATUS } from "@/lib/export-constants";
+import { DEFER_MARK_TEXT, DEFER_UNMARK_TEXT } from "@/lib/export/defer-development";
 import { canAssignExportWork } from "@/lib/export/lead-pool";
 
 export type ProjectActivityKind =
@@ -75,6 +76,8 @@ export function planProjectActivities(input: {
     let content = `跟进状态改为${statusText(input.next.status)}`;
     if (input.next.status === PROJECT_ABANDONED_STATUS) content = "标为废弃";
     else if (input.prev.status === PROJECT_ABANDONED_STATUS) content = "取消废弃";
+    else if (input.next.status === PROJECT_PARKED_STATUS) content = DEFER_MARK_TEXT;
+    else if (input.prev.status === PROJECT_PARKED_STATUS) content = DEFER_UNMARK_TEXT;
     events.push({ kind: "status", content });
   }
   if (

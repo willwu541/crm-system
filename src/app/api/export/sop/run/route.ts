@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   const leads = await prisma.exportLead.findMany({
     where: {
       tenantId: ctx!.tenantId,
-      status: { notIn: ["converted", "invalid"] },
+      status: { notIn: ["converted", "invalid", "parked"] },
       ...("ownerId" in ownerWhere ? ownerWhere : { ownerId: { not: null } }),
     },
     select: {

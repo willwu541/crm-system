@@ -121,6 +121,7 @@ export function LeadsClient() {
   });
   const [fillWhatsapp, setFillWhatsapp] = useState<FillWhatsappTarget | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [deferringId, setDeferringId] = useState<string | null>(null);
   const [releasingPool, setReleasingPool] = useState(false);
   const [claimRemaining, setClaimRemaining] = useState<number | null>(null);
   const [canAssign, setCanAssign] = useState(false);
@@ -389,6 +390,32 @@ export function LeadsClient() {
     }
   }
 
+  async function toggleDefer(lead: Lead) {
+    const parked = lead.status === "parked";
+    setDeferringId(lead.id);
+    try {
+      const res = await fetch(`/api/export/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parked ? { resumeParked: true } : { status: "parked" }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Lead }>(res);
+      if (!res.ok) throw new Error(json.error ?? "操作失败");
+      const nextStatus = json.data?.status ?? (parked ? "new" : "parked");
+      const stays = status ? status === nextStatus : nextStatus !== "parked";
+      setLeads((rows) =>
+        stays
+          ? rows.map((row) => (row.id === lead.id ? { ...row, ...(json.data ?? {}), status: nextStatus } : row))
+          : rows.filter((row) => row.id !== lead.id),
+      );
+      toast(parked ? "已取消暂缓" : "已标为暂缓开发");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "操作失败", "error");
+    } finally {
+      setDeferringId(null);
+    }
+  }
+
   async function claimLead(id: string) {
     setClaimingId(id);
     try {
@@ -451,7 +478,7 @@ export function LeadsClient() {
             onChange={(e) => updateUrl({ status: e.target.value || undefined, page: 1 })}
             className="px-3 py-2 text-sm"
           >
-            <option value="">全部状态</option>
+            <option value="">全部（不含暂缓）</option>
             {LEAD_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {leadStatusLabel[s] ?? s}
@@ -780,7 +807,9 @@ export function LeadsClient() {
                               ? "bg-teal-50 text-teal-700"
                               : l.status === "invalid"
                                 ? "bg-slate-100 text-slate-500"
-                                : "bg-slate-100 text-slate-600"
+                                : l.status === "parked"
+                                  ? "bg-amber-50 text-amber-800"
+                                  : "bg-slate-100 text-slate-600"
                         }`}
                       >
                         {leadStatusLabel[l.status] ?? l.status}
@@ -836,6 +865,20 @@ export function LeadsClient() {
                     <td className="px-4 py-3 text-slate-500">{renderTime(l)}</td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <span className="flex gap-3">
+                        {l.canWork && l.status !== "converted" && (
+                          <button
+                            type="button"
+                            disabled={deferringId === l.id}
+                            onClick={() => toggleDefer(l)}
+                            className={`inline-flex rounded border px-2.5 py-1 text-xs disabled:opacity-50 ${
+                              l.status === "parked"
+                                ? "border-stone-400 bg-white text-slate-700 hover:bg-stone-50"
+                                : "border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                            }`}
+                          >
+                            {l.status === "parked" ? "取消暂缓" : "暂缓开发"}
+                          </button>
+                        )}
                         {l.canClaim && (
                           <button
                             type="button"

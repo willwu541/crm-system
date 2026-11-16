@@ -64,6 +64,25 @@ describe("project change log", () => {
     ]);
   });
 
+  it("records deferring development separately from a progress mark", () => {
+    const events = planProjectActivities({
+      prev: { ...prev, status: "contacting" },
+      next: { status: "parked", progressMark: "跟进中" },
+    });
+    assert.deepEqual(events, [
+      { kind: "status", content: "标为暂缓开发" },
+      { kind: "progress", content: "跟进中" },
+    ]);
+  });
+
+  it("records leaving deferred development", () => {
+    const events = planProjectActivities({
+      prev: { ...prev, status: "parked" },
+      next: { status: "contacting" },
+    });
+    assert.deepEqual(events, [{ kind: "status", content: "取消暂缓开发" }]);
+  });
+
   it("records leaving abandoned", () => {
     const events = planProjectActivities({
       prev: { ...prev, status: "abandoned", ownerId: "sales" },

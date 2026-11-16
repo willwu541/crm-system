@@ -13,7 +13,7 @@ export interface LeadPaceInput {
   contactCount: number;
 }
 
-const ACTIVE_STATUSES = ["converted", "invalid"] as const;
+const ACTIVE_STATUSES = ["converted", "invalid", "parked"] as const;
 
 export function isActiveLeadStatus(status: string): boolean {
   return !ACTIVE_STATUSES.includes(status as (typeof ACTIVE_STATUSES)[number]);
@@ -116,6 +116,9 @@ export function getLeadPaceBadge(lead: LeadPaceInput, now = new Date()): { label
   }
   if (lead.status === "invalid") {
     return { label: "无效", className: "bg-slate-100 text-slate-500" };
+  }
+  if (lead.status === "parked") {
+    return { label: "暂缓开发", className: "bg-amber-50 text-amber-800" };
   }
   if (!lead.lastContactAt) {
     return { label: "未联系", className: "bg-slate-100 text-slate-600" };

@@ -658,6 +658,8 @@ model ExportLead {
   ownerId               String?   @map("owner_id")
   claimedAt             DateTime? @map("claimed_at")
   status                String    @default("new")
+  /// 标成暂缓开发之前的状态。取消暂缓时恢复。空着就回到 new。
+  parkedFromStatus      String?   @map("parked_from_status")
   notes                 String?
   lastContactAt         DateTime? @map("last_contact_at")
   nextFollowUpAt        DateTime? @map("next_follow_up_at")
@@ -1033,6 +1035,8 @@ model ExportProject {
   actualBuyerContact String?   @map("actual_buyer_contact")
   purchaseProgress   String?   @map("purchase_progress") @db.Text
   status             String    @default("hunting")
+  /// 标成暂缓开发之前的跟进状态。取消暂缓时恢复。空着就回到 hunting。
+  parkedFromStatus   String?   @map("parked_from_status")
   bidDeadline        DateTime? @map("bid_deadline")
   ownerId            String?   @map("owner_id")
   createdById        String    @map("created_by_id")

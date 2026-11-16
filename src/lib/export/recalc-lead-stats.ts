@@ -9,11 +9,12 @@ export async function recalcLeadContactStats(
   const activities = await tx.exportActivity.findMany({
     where: { leadId, tenantId },
     orderBy: { createdAt: "desc" },
-    select: { createdAt: true, direction: true },
+    select: { createdAt: true, direction: true, type: true },
   });
 
-  const lastContactAt = activities[0]?.createdAt ?? null;
-  const contactCount = activities.filter((a) => a.direction === "outbound").length;
+  const contacts = activities.filter((item) => item.type !== "lifecycle");
+  const lastContactAt = contacts[0]?.createdAt ?? null;
+  const contactCount = contacts.filter((a) => a.direction === "outbound").length;
 
   await tx.exportLead.update({
     where: { id: leadId },

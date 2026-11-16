@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const where: Record<string, unknown> = { tenantId: ctx!.tenantId };
+  const where: Record<string, unknown> = { tenantId: ctx!.tenantId, type: { not: "lifecycle" } };
   if (customerId) where.customerId = customerId;
   if (leadId) where.leadId = leadId;
 

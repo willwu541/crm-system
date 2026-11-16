@@ -12,6 +12,7 @@ import {
   PROJECT_PROGRESS_MARKS,
   PROJECT_STAGES,
   PROJECT_STATUSES,
+  PROJECT_UNABANDON_STATUS,
 } from "@/lib/export-constants";
 import { extractLeadManagerProjectNumber } from "@/lib/export/project-dispatch";
 import { blankToNull } from "@/lib/export/blank-to-null";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/export/projects";
 import { appendProjectUpdateNote, buildProjectUpdateNoteEntry } from "@/lib/export/project-update-note";
 import { canMarkExportProject, planProjectActivities } from "@/lib/export/project-activity";
+import { deferStatusChange } from "@/lib/export/defer-development";
 import { z } from "zod";
 
 export async function GET(
@@ -88,6 +90,8 @@ const updateSchema = z.object({
   actualBuyerContact: z.string().optional().nullable(),
   purchaseProgress: z.string().optional().nullable(),
   status: z.enum(PROJECT_STATUSES).optional(),
+  /** 取消暂缓开发，恢复标之前的跟进状态 */
+  resumeParked: z.literal(true).optional(),
   bidDeadline: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -129,6 +133,7 @@ export async function PATCH(
       parsed.data.progressMark !== undefined ||
       parsed.data.stage !== undefined ||
       parsed.data.status !== undefined ||
+      parsed.data.resumeParked === true ||
       parsed.data.updateNote !== undefined;
     if (marking && !canMarkExportProject(user!, existing!.ownerId)) {
       return NextResponse.json({ error: "只有负责人和管理者可以改项目标记" }, { status: 403 });
@@ -209,7 +214,17 @@ export async function PATCH(
     if (parsed.data.purchaseProgress !== undefined) {
       data.purchaseProgress = blankToNull(parsed.data.purchaseProgress) ?? null;
     }
-    if (parsed.data.status !== undefined) data.status = parsed.data.status;
+    const deferred = deferStatusChange({
+      currentStatus: existing!.status,
+      parkedFromStatus: existing!.parkedFromStatus,
+      requestedStatus: parsed.data.resumeParked ? undefined : parsed.data.status,
+      resume: parsed.data.resumeParked,
+      allowed: PROJECT_STATUSES,
+      fallback: PROJECT_UNABANDON_STATUS,
+    });
+    if (deferred.status !== undefined) data.status = deferred.status;
+    if (deferred.parkedFromStatus !== undefined) data.parkedFromStatus = deferred.parkedFromStatus;
+    const nextStatus = typeof data.status === "string" ? data.status : parsed.data.status;
     if (parsed.data.notes !== undefined) data.notes = parsed.data.notes?.trim() || null;
     if (parsed.data.updateNote !== undefined) {
       const nextStage = parsed.data.stage ?? existing!.stage;
@@ -261,7 +276,7 @@ export async function PATCH(
       },
       next: {
         stage: parsed.data.stage,
-        status: parsed.data.status,
+        status: nextStatus,
         progressMark: parsed.data.progressMark,
         ownerId: nextOwnerId,
         updateNote: parsed.data.updateNote,
