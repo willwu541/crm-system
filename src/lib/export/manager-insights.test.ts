@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { progressMarkCounts, sumProjectValueWan } from "./manager-insights";
-import { projectAssignmentWhere } from "./projects";
+import { projectAssignmentWhere, projectOwnerFilterWhere } from "./projects";
 
 describe("manager insights", () => {
   it("sums 万元 and skips blank or unreadable amounts", () => {
@@ -35,5 +35,17 @@ describe("project unassigned filter", () => {
 
   it("does not open unassigned projects to other roles", () => {
     assert.deepEqual(projectAssignmentWhere("unassigned", false), { ownerId: { in: [] } });
+  });
+});
+
+describe("project owner filter", () => {
+  it("lets a manager filter to one salesperson", () => {
+    assert.deepEqual(projectOwnerFilterWhere("user-1", true), { ownerId: "user-1" });
+    assert.equal(projectOwnerFilterWhere("  ", true), null);
+    assert.equal(projectOwnerFilterWhere(null, true), null);
+  });
+
+  it("ignores the salesperson filter for other roles", () => {
+    assert.equal(projectOwnerFilterWhere("user-1", false), null);
   });
 });

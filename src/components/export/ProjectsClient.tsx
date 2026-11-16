@@ -150,6 +150,7 @@ export function ProjectsClient() {
   const valueMinParam = searchParams.get("valueMin") ?? "";
   const valueMaxParam = searchParams.get("valueMax") ?? "";
   const assignment = searchParams.get("assignment") === "unassigned" ? "unassigned" : "";
+  const ownerId = searchParams.get("ownerId") ?? "";
   const progressMark = searchParams.get("progressMark") ?? "";
   const sourceUpdatedOnly = searchParams.get("sourceUpdated") === "1";
 
@@ -200,6 +201,7 @@ export function ProjectsClient() {
         valueMin: valueMinParam || undefined,
         valueMax: valueMaxParam || undefined,
         assignment: assignment || undefined,
+        ownerId: ownerId || undefined,
         progressMark: progressMark || undefined,
         sourceUpdated: sourceUpdatedOnly ? "1" : undefined,
         page,
@@ -310,6 +312,7 @@ export function ProjectsClient() {
         if (valueMinParam) params.set("valueMin", valueMinParam);
         if (valueMaxParam) params.set("valueMax", valueMaxParam);
         if (assignment) params.set("assignment", assignment);
+        if (ownerId) params.set("ownerId", ownerId);
         if (progressMark) params.set("progressMark", progressMark);
         if (sourceUpdatedOnly) params.set("sourceUpdated", "1");
         const res = await fetch(`/api/export/projects?${params}`);
@@ -352,6 +355,7 @@ export function ProjectsClient() {
     valueMinParam,
     valueMaxParam,
     assignment,
+    ownerId,
     progressMark,
     sourceUpdatedOnly,
   ]);
@@ -588,14 +592,31 @@ export function ProjectsClient() {
               </option>
             ))}
           </select>
-          <select
-            value={assignment}
-            onChange={(e) => updateUrl({ assignment: e.target.value || undefined, page: 1 })}
-            className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
-          >
-            <option value="">全部分配</option>
-            <option value="unassigned">未分配</option>
-          </select>
+          {canManage && (
+            <select
+              value={assignment === "unassigned" ? "unassigned" : ownerId}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next === "unassigned") {
+                  updateUrl({ assignment: "unassigned", ownerId: undefined, page: 1 });
+                } else {
+                  updateUrl({ assignment: undefined, ownerId: next || undefined, page: 1 });
+                }
+              }}
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm"
+            >
+              <option value="">全部业务员</option>
+              <option value="unassigned">未分配</option>
+              {ownerId && !assignees.some((u) => u.id === ownerId) && (
+                <option value={ownerId}>当前业务员</option>
+              )}
+              {assignees.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             value={progressMark}
             onChange={(e) => updateUrl({ progressMark: e.target.value || undefined, page: 1 })}
@@ -734,7 +755,11 @@ export function ProjectsClient() {
                 <th className="px-3 py-2.5">总包</th>
                 <th className="px-3 py-2.5">潜在采购公司</th>
                 <th className="px-3 py-2.5">可靠度</th>
-                {canManage && <th className="px-3 py-2.5">分配</th>}
+                {canManage ? (
+                  <th className="px-3 py-2.5">分配</th>
+                ) : (
+                  <th className="px-3 py-2.5">负责人</th>
+                )}
                 <th className="px-3 py-2.5" />
               </tr>
             </thead>
@@ -828,7 +853,7 @@ export function ProjectsClient() {
                     <td className="px-3 py-3 align-top text-stone-500">
                       {displayLabel(projectConfidenceLabel, p.confidence)}
                     </td>
-                    {canManage && (
+                    {canManage ? (
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-wrap items-center gap-1.5">
                         {!p.owner && (
@@ -860,6 +885,10 @@ export function ProjectsClient() {
                           ))}
                         </select>
                         </div>
+                      </td>
+                    ) : (
+                      <td className="max-w-[8rem] px-3 py-3 align-top text-slate-700">
+                        {p.owner?.name?.trim() || "未分配"}
                       </td>
                     )}
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
@@ -895,7 +924,7 @@ export function ProjectsClient() {
                   {updatingId === p.id ? (
                     <tr className="border-b border-stone-200/80 bg-teal-50/40">
                       <td
-                        colSpan={canManage ? 14 : 13}
+                        colSpan={14}
                         className="px-4 py-3"
                         onClick={(e) => e.stopPropagation()}
                       >

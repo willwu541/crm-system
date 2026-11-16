@@ -34,6 +34,7 @@ import {
   isProjectStatus,
   parseOptionalDate,
   projectAssignmentWhere,
+  projectOwnerFilterWhere,
   projectKeywordOrClauses,
   projectLifecycleWhere,
   canManageExportProjects,
@@ -107,14 +108,13 @@ export async function GET(request: NextRequest) {
       : { exactIds: [] as string[] };
   const matchedOwnerIds = salesMatch.exactIds.length ? salesMatch.exactIds : undefined;
   const assignmentWhere = projectAssignmentWhere(assignment, manageAll);
+  const ownerFilter = projectOwnerFilterWhere(ownerId, manageAll);
   if (assignmentWhere) {
     Object.assign(where, assignmentWhere);
-  } else if (manageAll) {
-    if (matchedOwnerIds) {
-      where.ownerId = matchedOwnerIds.length === 1 ? matchedOwnerIds[0] : { in: matchedOwnerIds };
-    } else if (ownerId) {
-      where.ownerId = ownerId;
-    }
+  } else if (ownerFilter) {
+    Object.assign(where, ownerFilter);
+  } else if (manageAll && matchedOwnerIds) {
+    where.ownerId = matchedOwnerIds.length === 1 ? matchedOwnerIds[0] : { in: matchedOwnerIds };
   }
   if (progressMark === "unset") where.progressMark = null;
   else if (progressMark && isProjectProgressMark(progressMark)) where.progressMark = progressMark;

@@ -87,11 +87,18 @@ export function isProjectProgressMark(value: string): value is (typeof PROJECT_P
   return (PROJECT_PROGRESS_MARKS as readonly string[]).includes(value);
 }
 
-/** 列表「未分配」：负责人空着。非管理者不能借这个条件看别人的项目。 */
+/** 列表按负责人筛。非管理者不能借这个条件看别人的项目。 */
 export function projectAssignmentWhere(assignment: string | null | undefined, manageAll: boolean) {
   if (assignment !== "unassigned") return null;
   if (!manageAll) return { ownerId: { in: [] as string[] } };
   return { ownerId: null as string | null };
+}
+
+/** 按某个业务员筛。只有管理者生效；业务员传了也仍只看自己的。 */
+export function projectOwnerFilterWhere(ownerId: string | null | undefined, manageAll: boolean) {
+  const id = ownerId?.trim();
+  if (!id || !manageAll) return null;
+  return { ownerId: id };
 }
 
 export function partyRoleToCustomerType(role: string): string | undefined {
