@@ -37,6 +37,16 @@ export const PROJECT_LIST_INCLUDE = {
 export const PROJECT_DETAIL_INCLUDE = {
   owner: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
+  activities: {
+    where: { kind: "follow_up" },
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      id: true,
+      content: true,
+      createdAt: true,
+      user: { select: { id: true, name: true } },
+    },
+  },
   parties: {
     orderBy: { createdAt: "desc" as const },
     include: {
@@ -208,11 +218,23 @@ export async function claimUnassignedExportProject(args: {
     if (current.ownerId === args.user.id) return { ok: true };
     return { ok: false, error: "这个项目已经有负责人，请用分配修改", status: 409 };
   }
-  const taken = await prisma.exportProject.updateMany({
-    where: { id: args.projectId, tenantId: args.tenantId, ownerId: null },
-    data: { ownerId: args.user.id },
+  const taken = await prisma.$transaction(async (tx) => {
+    const updated = await tx.exportProject.updateMany({
+      where: { id: args.projectId, tenantId: args.tenantId, ownerId: null },
+      data: { ownerId: args.user.id },
+    });
+    if (updated.count !== 1) return updated.count;
+    await tx.exportProjectActivity.create({
+      data: {
+        tenantId: args.tenantId,
+        projectId: args.projectId,
+        userId: args.user.id,
+        kind: "claim",
+      },
+    });
+    return updated.count;
   });
-  if (taken.count !== 1) return { ok: false, error: "这个项目刚刚被分配走了", status: 409 };
+  if (taken !== 1) return { ok: false, error: "这个项目刚刚被分配走了", status: 409 };
   return { ok: true };
 }
 

@@ -1,6 +1,7 @@
 import { formatRole } from "@/lib/role-labels";
 import { activityTypeLabel } from "@/lib/export-display-labels";
 import { startOfLocalDay } from "@/lib/export/lead-pool";
+import { projectCreatedVerb } from "@/lib/export/project-activity";
 
 const DELETION_LABEL: Record<string, string> = {
   lead: "线索",
@@ -156,8 +157,40 @@ export function activityActionText(input: {
   return joinParts([activityTypeLabel[input.type] ?? input.type, input.company, note]);
 }
 
-export function projectActionText(name: string) {
-  return joinParts(["新建项目", name]);
+export function projectActionText(
+  name: string,
+  source?: { source?: string | null; sourceProjectNumber?: string | null } | null,
+) {
+  return joinParts([projectCreatedVerb(source ?? {}), name]);
+}
+
+export function projectActivityActionText(input: {
+  kind: string;
+  projectName: string;
+  content?: string | null;
+}) {
+  const name = input.projectName;
+  const note = clipText(input.content);
+  switch (input.kind) {
+    case "claim":
+      return joinParts(["认领项目", name]);
+    case "assign":
+      return input.content?.trim()
+        ? joinParts([`分配项目给${input.content.trim()}`, name])
+        : joinParts(["收回项目分配", name]);
+    case "progress":
+      return joinParts([input.content ? `进度标记改为${input.content}` : "更新进度标记", name]);
+    case "stage":
+      return joinParts([input.content ? `阶段改为${input.content}` : "变更阶段", name]);
+    case "status":
+      return joinParts([input.content || "变更跟进状态", name]);
+    case "source_update":
+      return joinParts(["更新项目资料", name, note]);
+    case "follow_up":
+      return joinParts(["项目跟进", name, note]);
+    default:
+      return joinParts(["项目变更", name, note]);
+  }
 }
 
 export function partyActionText(projectName: string, companyName: string) {

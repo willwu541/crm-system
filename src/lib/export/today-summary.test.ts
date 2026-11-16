@@ -11,6 +11,8 @@ import {
   formatDayKey,
   isTodayStaff,
   parseSummaryDay,
+  projectActionText,
+  projectActivityActionText,
   summaryLogDays,
   todayRange,
   type TodayActionInput,
@@ -151,5 +153,37 @@ describe("today summary grouping", () => {
     );
     assert.equal(days[0]?.label, "今天");
     assert.equal(days[0]?.isToday, true);
+  });
+});
+
+describe("project lines on the daily summary", () => {
+  it("distinguishes a new import from a manual entry", () => {
+    assert.equal(projectActionText("厂房A", { source: "LeadManager", sourceProjectNumber: "137" }), "导入项目 · 厂房A");
+    assert.equal(projectActionText("厂房B", { source: null, sourceProjectNumber: null }), "录入项目 · 厂房B");
+  });
+
+  it("names claim, assign, mark, stage, abandon, data update, and follow-up", () => {
+    assert.equal(projectActivityActionText({ kind: "claim", projectName: "厂房A" }), "认领项目 · 厂房A");
+    assert.equal(
+      projectActivityActionText({ kind: "assign", projectName: "厂房A", content: "小张" }),
+      "分配项目给小张 · 厂房A",
+    );
+    assert.equal(
+      projectActivityActionText({ kind: "progress", projectName: "厂房A", content: "跟进中" }),
+      "进度标记改为跟进中 · 厂房A",
+    );
+    assert.equal(
+      projectActivityActionText({ kind: "stage", projectName: "厂房A", content: "招标" }),
+      "阶段改为招标 · 厂房A",
+    );
+    assert.equal(projectActivityActionText({ kind: "status", projectName: "厂房A", content: "标为废弃" }), "标为废弃 · 厂房A");
+    assert.equal(
+      projectActivityActionText({ kind: "source_update", projectName: "厂房A", content: "施工推迟" }),
+      "更新项目资料 · 厂房A · 施工推迟",
+    );
+    assert.equal(
+      projectActivityActionText({ kind: "follow_up", projectName: "厂房A", content: "已打总机" }),
+      "项目跟进 · 厂房A · 已打总机",
+    );
   });
 });

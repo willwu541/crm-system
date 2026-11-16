@@ -31,6 +31,7 @@ import {
   projectSubtitle,
   wrapSlashLabel,
 } from "@/lib/export/project-board";
+import { formatSourceUpdatedAt } from "@/lib/export/source-updated-at";
 import { useToast } from "@/components/ui/Toast";
 import { useExportMe } from "./use-export-me";
 import { Pagination } from "./shared/Pagination";
@@ -46,6 +47,7 @@ interface ProjectRow {
   stage: string;
   status: string;
   progressMark: string | null;
+  sourceUpdatedAt: string | null;
   confidence: string;
   entryStatus: string;
   ownerOperator: string | null;
@@ -149,6 +151,7 @@ export function ProjectsClient() {
   const valueMaxParam = searchParams.get("valueMax") ?? "";
   const assignment = searchParams.get("assignment") === "unassigned" ? "unassigned" : "";
   const progressMark = searchParams.get("progressMark") ?? "";
+  const sourceUpdatedOnly = searchParams.get("sourceUpdated") === "1";
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -198,6 +201,7 @@ export function ProjectsClient() {
         valueMax: valueMaxParam || undefined,
         assignment: assignment || undefined,
         progressMark: progressMark || undefined,
+        sourceUpdated: sourceUpdatedOnly ? "1" : undefined,
         page,
         ...updates,
       }),
@@ -307,6 +311,7 @@ export function ProjectsClient() {
         if (valueMaxParam) params.set("valueMax", valueMaxParam);
         if (assignment) params.set("assignment", assignment);
         if (progressMark) params.set("progressMark", progressMark);
+        if (sourceUpdatedOnly) params.set("sourceUpdated", "1");
         const res = await fetch(`/api/export/projects?${params}`);
         const json = await parseResponseJson<{
           error?: string;
@@ -348,6 +353,7 @@ export function ProjectsClient() {
     valueMaxParam,
     assignment,
     progressMark,
+    sourceUpdatedOnly,
   ]);
 
   async function changeProgressMark(project: ProjectRow, next: string) {
@@ -430,8 +436,11 @@ export function ProjectsClient() {
       if (stage && stage !== nextStage) {
         setProjects((rows) => rows.filter((row) => row.id !== project.id));
       } else {
+        const markedAt = new Date().toISOString();
         setProjects((rows) =>
-          rows.map((row) => (row.id === project.id ? { ...row, stage: nextStage } : row)),
+          rows.map((row) =>
+            row.id === project.id ? { ...row, stage: nextStage, sourceUpdatedAt: markedAt } : row,
+          ),
         );
       }
       setUpdatingId(null);
@@ -600,6 +609,14 @@ export function ProjectsClient() {
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={sourceUpdatedOnly}
+              onChange={(e) => updateUrl({ sourceUpdated: e.target.checked ? "1" : undefined, page: 1 })}
+            />
+            只看更新过的
+          </label>
           <select
             value={confidence}
             onChange={(e) => updateUrl({ confidence: e.target.value || undefined, page: 1 })}
@@ -738,6 +755,11 @@ export function ProjectsClient() {
                         {p.status === PROJECT_ABANDONED_STATUS ? (
                           <span className="inline-flex rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-xs text-rose-800">
                             废弃
+                          </span>
+                        ) : null}
+                        {formatSourceUpdatedAt(p.sourceUpdatedAt) ? (
+                          <span className="inline-flex rounded-full border border-sky-400 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-900">
+                            已更新 {formatSourceUpdatedAt(p.sourceUpdatedAt)}
                           </span>
                         ) : null}
                       </div>

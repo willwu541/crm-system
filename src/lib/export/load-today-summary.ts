@@ -12,6 +12,7 @@ import {
   isTodayStaff,
   partyActionText,
   projectActionText,
+  projectActivityActionText,
   todayRange,
   type TodayActionInput,
   type TodayPerson,
@@ -40,7 +41,8 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
   const createdAt = { gte: start, lt: end };
   const directorUserId = getAccessPolicy().directorUserId;
 
-  const [users, claims, activities, projects, parties, customers, deletions] = await Promise.all([
+  const [users, claims, activities, projects, parties, customers, deletions, projectActivities] =
+    await Promise.all([
     prisma.user.findMany({
       where: { tenant: "export", tenantId },
       select: { id: true, name: true, role: true, isActive: true },
@@ -77,6 +79,8 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
       select: {
         id: true,
         name: true,
+        source: true,
+        sourceProjectNumber: true,
         createdAt: true,
         createdBy: { select: { id: true, name: true, role: true } },
       },
@@ -108,6 +112,17 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
         summary: true,
         createdAt: true,
         deletedBy: { select: { id: true, name: true, role: true } },
+      },
+    }),
+    prisma.exportProjectActivity.findMany({
+      where: { tenantId, createdAt },
+      select: {
+        id: true,
+        kind: true,
+        content: true,
+        createdAt: true,
+        project: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, role: true } },
       },
     }),
   ]);
@@ -162,7 +177,7 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
       id: `project:${project.id}`,
       ...actorFields(project.createdBy, directorUserId),
       at: project.createdAt,
-      text: projectActionText(project.name),
+      text: projectActionText(project.name, project),
       href: `/export/projects/${project.id}`,
     });
   }
@@ -184,6 +199,20 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
       at: customer.createdAt,
       text: customerActionText(customer.companyName),
       href: `/export/customers/${customer.id}`,
+    });
+  }
+
+  for (const item of projectActivities) {
+    actions.push({
+      id: `project-activity:${item.id}`,
+      ...actorFields(item.user, directorUserId),
+      at: item.createdAt,
+      text: projectActivityActionText({
+        kind: item.kind,
+        projectName: item.project.name,
+        content: item.content,
+      }),
+      href: `/export/projects/${item.project.id}`,
     });
   }
 

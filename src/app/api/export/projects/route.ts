@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
   const ownerId = searchParams.get("ownerId")?.trim();
   const assignment = searchParams.get("assignment")?.trim();
   const progressMark = searchParams.get("progressMark")?.trim();
+  const sourceUpdatedOnly = searchParams.get("sourceUpdated") === "1";
   const role = searchParams.get("role")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -117,6 +118,7 @@ export async function GET(request: NextRequest) {
   }
   if (progressMark === "unset") where.progressMark = null;
   else if (progressMark && isProjectProgressMark(progressMark)) where.progressMark = progressMark;
+  if (sourceUpdatedOnly) where.sourceUpdatedAt = { not: null };
   if (role && isProjectPartyRole(role)) {
     and.push({ parties: { some: { role } } });
   }
@@ -416,6 +418,9 @@ export async function POST(request: NextRequest) {
     const country = canonicalizeCountry(parsed.data.country ?? "") || parsed.data.country?.trim() || null;
     const tenderUrl = parsed.data.tenderUrl?.trim() || null;
     const project = await prisma.$transaction(async (tx) => {
+      const assignee = ownerId
+        ? await tx.user.findUnique({ where: { id: ownerId }, select: { name: true } })
+        : null;
       const created = await tx.exportProject.create({
         data: {
           tenantId: ctx!.tenantId,
@@ -463,6 +468,17 @@ export async function POST(request: NextRequest) {
           notes: parsed.data.notes?.trim() || null,
         },
       });
+      if (ownerId) {
+        await tx.exportProjectActivity.create({
+          data: {
+            tenantId: ctx!.tenantId,
+            projectId: created.id,
+            userId: user!.id,
+            kind: "assign",
+            content: assignee?.name ?? null,
+          },
+        });
+      }
 
       let board = {
         ownerOperator: created.ownerOperator,

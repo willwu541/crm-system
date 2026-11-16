@@ -137,6 +137,7 @@ model User {
   exportProjectsOwned        ExportProject[]      @relation("ExportProjectOwner")
   exportProjectsCreated      ExportProject[]      @relation("ExportProjectCreator")
   exportProjectPartiesFound  ExportProjectParty[] @relation("ExportProjectPartyFinder")
+  exportProjectActivities    ExportProjectActivity[]
 
   @@map("users")
 }
@@ -606,6 +607,7 @@ model ExportTenant {
   emailTemplates ExportEmailTemplate[]
   projects       ExportProject[]
   projectParties ExportProjectParty[]
+  projectActivities ExportProjectActivity[]
 
   @@map("export_tenants")
 }
@@ -1024,6 +1026,8 @@ model ExportProject {
   demandStatus       String    @default("需求待核实") @map("demand_status")
   /// 跟进进度标记，和 hunting/abandoned 分开。空着表示还没标。
   progressMark       String?   @map("progress_mark")
+  /// 资料被更新的时间。手动点「更新」，或 Hubexo 导入改到已有项目号时写入。新插入留空。
+  sourceUpdatedAt    DateTime? @map("source_updated_at")
   /// 实际采购公司。空着时界面显示待确认，不覆盖第一通的总包。
   actualBuyerCompany String?   @map("actual_buyer_company")
   actualBuyerContact String?   @map("actual_buyer_contact")
@@ -1038,8 +1042,9 @@ model ExportProject {
 
   tenant    ExportTenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   owner     User?                @relation("ExportProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  createdBy User                 @relation("ExportProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  parties   ExportProjectParty[]
+  createdBy  User                 @relation("ExportProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  parties    ExportProjectParty[]
+  activities ExportProjectActivity[]
 
   @@index([tenantId])
   @@index([ownerId])
@@ -1089,6 +1094,30 @@ model ExportProjectParty {
   @@index([foundById])
   @@index([leadId])
   @@map("export_project_parties")
+}
+
+/**
+ * 项目上的可查询动作：认领、分配、阶段/废弃、进度标记、资料更新、跟进正文。
+ * 跟进正文在 content，不写进 progressMark。
+ */
+model ExportProjectActivity {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  projectId String   @map("project_id")
+  userId    String   @map("user_id")
+  /// claim | assign | progress | stage | status | source_update | follow_up
+  kind      String
+  content   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  ExportTenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project ExportProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+  @@map("export_project_activities")
 }
 
 /**

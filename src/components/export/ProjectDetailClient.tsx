@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { formatSourceUpdatedAt } from "@/lib/export/source-updated-at";
 import { useToast } from "@/components/ui/Toast";
 import {
   PROJECT_ABANDONED_STATUS,
@@ -78,6 +79,7 @@ interface Project {
   tenderUrl: string | null;
   status: string;
   progressMark: string | null;
+  sourceUpdatedAt: string | null;
   bidDeadline: string | null;
   notes: string | null;
   sourceProjectNumber: string | null;
@@ -107,7 +109,16 @@ interface Project {
   owner: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   parties: Party[];
+  activities?: ProjectFollowUp[];
   canManage?: boolean;
+  canMark?: boolean;
+}
+
+interface ProjectFollowUp {
+  id: string;
+  content: string | null;
+  createdAt: string;
+  user: { id: string; name: string };
 }
 
 /** 详情页环节顺序跟 PDF / 录入页一致 */
@@ -159,6 +170,8 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [savingUpdate, setSavingUpdate] = useState(false);
   const [updateForm, setUpdateForm] = useState({ stage: "", note: "" });
   const [claiming, setClaiming] = useState(false);
+  const [followText, setFollowText] = useState("");
+  const [savingFollow, setSavingFollow] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [report, setReport] = useState({
     company: "",
@@ -232,6 +245,29 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       toast(e instanceof Error ? e.message : "操作失败", "error");
     } finally {
       setSavingLifecycle(false);
+    }
+  }
+
+  async function addFollowUp(event: FormEvent) {
+    event.preventDefault();
+    const content = followText.trim();
+    if (!content) return;
+    setSavingFollow(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}/follow-ups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "跟进保存失败");
+      if (json.data) setProject(json.data);
+      setFollowText("");
+      toast("已记下跟进");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "跟进保存失败", "error");
+    } finally {
+      setSavingFollow(false);
     }
   }
 
@@ -444,7 +480,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             <span>进度标记</span>
             <select
               value={project.progressMark ?? ""}
-              disabled={savingMark}
+              disabled={savingMark || project.canMark === false}
               onChange={(e) => changeProgressMark(e.target.value)}
               className="rounded-md border border-stone-300 bg-white px-2 py-2 text-sm"
             >
@@ -553,6 +589,11 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
               {project.name}
               {project.sourceProjectNumber ? (
                 <span className="ml-2 text-sm font-normal text-slate-500">LM {project.sourceProjectNumber}</span>
+              ) : null}
+              {formatSourceUpdatedAt(project.sourceUpdatedAt) ? (
+                <span className="ml-2 inline-flex align-middle rounded-full border border-sky-400 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-900">
+                  已更新 {formatSourceUpdatedAt(project.sourceUpdatedAt)}
+                </span>
               ) : null}
             </h1>
             <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{formatProjectPlace(project)}</p>
@@ -770,6 +811,52 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
 
       <div className="export-card export-detail-group space-y-4 p-7">
         <h2 className="text-base font-semibold text-slate-800">跟进与内部</h2>
+        {project.canMark !== false ? (
+          <form onSubmit={addFollowUp} className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">写跟进</label>
+            <textarea
+              value={followText}
+              onChange={(e) => setFollowText(e.target.value)}
+              rows={3}
+              required
+              placeholder="例如：已联系总包采购，下周给规格"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={savingFollow || !followText.trim()}
+              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {savingFollow ? "保存中..." : "保存跟进"}
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm text-slate-500">未分配项目只有管理者可以写跟进和改进度标记。</p>
+        )}
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-700">跟进记录</h3>
+          {(project.activities ?? []).length === 0 ? (
+            <p className="text-sm text-slate-500">还没有跟进。</p>
+          ) : (
+            <ul className="space-y-2">
+              {(project.activities ?? []).map((item) => (
+                <li key={item.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+                  <p className="text-xs text-slate-500">
+                    {new Intl.DateTimeFormat("zh-CN", {
+                      month: "numeric",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(item.createdAt))}
+                    {" · "}
+                    {item.user.name}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-800">{item.content}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <span className="text-slate-500">可靠度：</span>

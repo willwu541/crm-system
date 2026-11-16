@@ -25,6 +25,7 @@ import {
   resolveExportOwnerId,
 } from "@/lib/export/projects";
 import { appendProjectUpdateNote, buildProjectUpdateNoteEntry } from "@/lib/export/project-update-note";
+import { canMarkExportProject, planProjectActivities } from "@/lib/export/project-activity";
 import { z } from "zod";
 
 export async function GET(
@@ -40,6 +41,7 @@ export async function GET(
     data: {
       ...project,
       canManage: canManageExportProjects(user!),
+      canMark: canMarkExportProject(user!, project!.ownerId),
     },
   });
 }
@@ -122,6 +124,14 @@ export async function PATCH(
 
     if (!manageAll && parsed.data.ownerId !== undefined) {
       return NextResponse.json({ error: "只有管理者可以分配项目" }, { status: 403 });
+    }
+    const marking =
+      parsed.data.progressMark !== undefined ||
+      parsed.data.stage !== undefined ||
+      parsed.data.status !== undefined ||
+      parsed.data.updateNote !== undefined;
+    if (marking && !canMarkExportProject(user!, existing!.ownerId)) {
+      return NextResponse.json({ error: "只有负责人和管理者可以改项目标记" }, { status: 403 });
     }
 
     const data: Record<string, unknown> = {};
@@ -212,6 +222,7 @@ export async function PATCH(
         typeof data.notes === "string" || data.notes === null ? (data.notes as string | null) : existing!.notes,
         entry,
       );
+      data.sourceUpdatedAt = new Date();
     }
     if (parsed.data.bidDeadline !== undefined) {
       const bidDeadline = parseOptionalDate(parsed.data.bidDeadline);
@@ -231,12 +242,59 @@ export async function PATCH(
       data.ownerId = await resolveExportOwnerId(ctx!.tenantId, parsed.data.ownerId);
     }
 
-    const updated = await prisma.exportProject.update({
-      where: { id, tenantId: ctx!.tenantId },
-      data,
-      include: PROJECT_DETAIL_INCLUDE,
+    const nextOwnerId =
+      parsed.data.ownerId !== undefined ? ((data.ownerId as string | null | undefined) ?? null) : undefined;
+    let assigneeName: string | null = null;
+    if (typeof nextOwnerId === "string") {
+      const assignee = await prisma.user.findUnique({
+        where: { id: nextOwnerId },
+        select: { name: true },
+      });
+      assigneeName = assignee?.name ?? null;
+    }
+    const changes = planProjectActivities({
+      prev: {
+        stage: existing!.stage,
+        status: existing!.status,
+        progressMark: existing!.progressMark,
+        ownerId: existing!.ownerId,
+      },
+      next: {
+        stage: parsed.data.stage,
+        status: parsed.data.status,
+        progressMark: parsed.data.progressMark,
+        ownerId: nextOwnerId,
+        updateNote: parsed.data.updateNote,
+      },
+      assigneeName,
     });
-    return NextResponse.json({ data: updated });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.exportProject.update({
+        where: { id, tenantId: ctx!.tenantId },
+        data,
+        include: PROJECT_DETAIL_INCLUDE,
+      });
+      if (changes.length > 0) {
+        await tx.exportProjectActivity.createMany({
+          data: changes.map((change) => ({
+            tenantId: ctx!.tenantId,
+            projectId: id,
+            userId: user!.id,
+            kind: change.kind,
+            content: change.content,
+          })),
+        });
+      }
+      return row;
+    });
+    return NextResponse.json({
+      data: {
+        ...updated,
+        canManage: manageAll,
+        canMark: canMarkExportProject(user!, updated.ownerId),
+      },
+    });
   } catch (e) {
     console.error("Update export project error:", e);
     return NextResponse.json(
