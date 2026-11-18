@@ -3,10 +3,12 @@ info:
   title: 外贸 CRM 管理者 AI 接口
   version: "1.0.0"
   description: |
-    只给 ChatGPT 读取分析。只读，不能发信，不能改数据。
-    仅管理者可用。请求头 Authorization: Bearer <EXPORT_AI_API_KEY>。
+    管理者本人使用。请求头 Authorization: Bearer <EXPORT_AI_API_KEY>。
     未配置 EXPORT_AI_API_KEY 时接口关闭（503），空密钥不会放行。
-    没有写跟进、没有邮件草稿、没有发信接口。
+    可以查客户、线索、项目。可以标记联系、追加跟进、写客户分析、分配线索和项目。
+    不能发信，不能改登录，不能改金额，不能删数据，不能看国内 CRM。
+    作者固定为密钥对应的管理者，请求体不能借 ownerId 冒充业务员。
+    分配对象与页面相同：在职业务员、经理，以及被设为业务经理的人。已有负责人可以改派。已转化线索不能再分配。
 servers:
   - url: https://你的域名
     description: 换成 CRM 实际访问地址，不要带末尾斜杠
@@ -115,6 +117,136 @@ paths:
       responses:
         "200":
           description: 项目、相关公司和最近活动
+  /api/export/ai/leads/{id}/progress-mark:
+    post:
+      operationId: markLead
+      summary: 标记线索联系进度
+      description: 进度标记只接受待联系、已联系、有意向、无需求、跟进中、已结束。写入线索活动，作者是管理者。相同标记不重复记。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressMarkBody"
+      responses:
+        "200":
+          description: 已标记
+  /api/export/ai/projects/{id}/progress-mark:
+    post:
+      operationId: markProject
+      summary: 标记项目联系进度
+      description: 与线索使用同一组进度标记。写入项目活动，每日总结里操作者是管理者。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressMarkBody"
+      responses:
+        "200":
+          description: 已标记
+  /api/export/ai/leads/{id}/follow-ups:
+    post:
+      operationId: followLead
+      summary: 给线索追加跟进
+      description: 只追加一条跟进，不覆盖历史，不改负责人。content 为正文，时间由服务器写入。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FollowUpBody"
+      responses:
+        "200":
+          description: 已追加
+  /api/export/ai/projects/{id}/follow-ups:
+    post:
+      operationId: followProject
+      summary: 给项目追加跟进
+      description: 只追加一条项目跟进，不覆盖历史，不改金额和负责人。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FollowUpBody"
+      responses:
+        "200":
+          description: 已追加
+  /api/export/ai/customers/{id}/analysis:
+    post:
+      operationId: writeCustomerAnalysis
+      summary: 追加客户分析
+      description: 写入客户的 aiAnalysis，每段带时间。不改业务员写的 notes。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalysisBody"
+      responses:
+        "200":
+          description: 已追加
+  /api/export/ai/leads/{id}/assign:
+    post:
+      operationId: assignLead
+      summary: 分配线索
+      description: 与页面分配线索相同。请求体 userId 为被分配人。已有负责人可以改派。已转化线索不能分配。分配记录的操作者是管理者。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadAssignBody"
+      responses:
+        "200":
+          description: 已分配
+        "400":
+          description: 对象不在可分配名单，或线索已转化
+  /api/export/ai/projects/{id}/assign:
+    post:
+      operationId: assignProject
+      summary: 分配项目
+      description: 与页面分配项目相同。请求体 ownerId 为被分配人。已有负责人可以改派。写入项目活动，每日总结里操作者是管理者。不能把负责人清掉。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectAssignBody"
+      responses:
+        "200":
+          description: 已分配
+        "400":
+          description: 对象不在可分配名单
 components:
   securitySchemes:
     bearerAuth:
@@ -215,3 +347,38 @@ components:
               status:
                 type: string
                 nullable: true
+    ProgressMarkBody:
+      type: object
+      required: [progressMark]
+      properties:
+        progressMark:
+          type: string
+          enum: ["待联系", "已联系", "有意向", "无需求", "跟进中", "已结束"]
+    FollowUpBody:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: 跟进正文，1 到 4000 字。不要传 ownerId。
+    AnalysisBody:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: 客户分析正文。追加到 aiAnalysis，不改 notes。
+    LeadAssignBody:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+          description: 被分配人的用户 id。在职业务员、经理，或被设为业务经理的人。
+    ProjectAssignBody:
+      type: object
+      required: [ownerId]
+      properties:
+        ownerId:
+          type: string
+          description: 被分配人的用户 id。和线索分配同一名单。这里的 ownerId 是新负责人，不是冒充作者。

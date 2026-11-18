@@ -29,7 +29,7 @@ export function authorizeExportAiKey(
   return { ok: true };
 }
 
-/** 只有鉴权通过才读取。此接口不写数据、不发信。 */
+/** 只有鉴权通过才读取。写操作另走路由，作者固定为管理者。 */
 export async function readWithExportAiKey<T>(
   authorization: string | null | undefined,
   reader: () => Promise<T>,

@@ -658,6 +658,8 @@ model ExportLead {
   ownerId               String?   @map("owner_id")
   claimedAt             DateTime? @map("claimed_at")
   status                String    @default("new")
+  /// 跟进进度标记，和项目用同一组词。空着表示还没标。
+  progressMark          String?   @map("progress_mark")
   /// 标成暂缓开发之前的状态。取消暂缓时恢复。空着就回到 new。
   parkedFromStatus      String?   @map("parked_from_status")
   notes                 String?
@@ -732,6 +734,8 @@ model ExportCustomer {
   isWon              Boolean   @default(false) @map("is_won")
   fitEvidence        String?   @map("fit_evidence")
   lastOutcome        String?   @map("last_outcome")
+  /// 管理者 AI 追加的客户分析，每段自带时间。不改业务员写的 notes。
+  aiAnalysis         String?   @map("ai_analysis") @db.Text
   notes              String?
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")

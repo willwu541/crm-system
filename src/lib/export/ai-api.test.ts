@@ -41,23 +41,39 @@ describe("export ai api key", () => {
   });
 });
 
-describe("export ai write endpoints are gone", () => {
-  it("does not export POST and does not mention draft mail or follow-up writes", () => {
+describe("export ai manager writes", () => {
+  it("documents the allowed writes and keeps mail and deletes out", () => {
     const route = readFileSync(new URL("../../app/api/export/ai/[[...path]]/route.ts", import.meta.url), "utf8");
     const spec = readFileSync(new URL("../../../docs/export-ai-openapi.yaml", import.meta.url), "utf8");
-    assert.doesNotMatch(route, /export async function POST/);
-    assert.doesNotMatch(route, /follow-ups|createEmailDraft|buildEmailDraft|待发送草稿/);
-    assert.doesNotMatch(spec, /\/api\/export\/ai\/(emails|follow-ups)/);
+    const page = readFileSync(new URL("../../app/(admin-console)/admin/users/page.tsx", import.meta.url), "utf8");
+    assert.match(route, /export async function POST/);
+    assert.doesNotMatch(route, /createEmailDraft|buildEmailDraft|待发送草稿|sendMail|resend/);
+    assert.doesNotMatch(spec, /\/api\/export\/ai\/emails/);
     assert.match(spec, /不能发信/);
+    assert.match(page, /可标记联系、写进度、写客户分析/);
+    assert.match(page, /不能发邮件/);
     for (const path of [
       "/api/export/ai/customers:",
       "/api/export/ai/customers/{id}:",
+      "/api/export/ai/customers/{id}/analysis:",
       "/api/export/ai/leads:",
       "/api/export/ai/leads/{id}:",
+      "/api/export/ai/leads/{id}/progress-mark:",
+      "/api/export/ai/leads/{id}/follow-ups:",
+      "/api/export/ai/leads/{id}/assign:",
       "/api/export/ai/projects:",
       "/api/export/ai/projects/{id}:",
+      "/api/export/ai/projects/{id}/progress-mark:",
+      "/api/export/ai/projects/{id}/follow-ups:",
+      "/api/export/ai/projects/{id}/assign:",
     ]) {
       assert.match(spec, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
+    assert.match(route, /assignExportLead/);
+    assert.match(route, /kind: "assign"/);
+    assert.match(route, /kind: "progress"/);
+    assert.match(route, /kind: "follow_up"/);
+    assert.match(route, /assignedById: boss\.id/);
+    assert.doesNotMatch(route, /deleteMany|exportCustomer\.delete|exportLead\.delete|exportProject\.delete/);
   });
 });

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { PROJECT_PROGRESS_MARKS } from "@/lib/export-constants";
 import { buildExportCustomerListWhere } from "@/lib/export/customer-list-where";
 import { buildExportLeadListWhere } from "@/lib/export/lead-list-where";
 import { isProjectProgressMark, isProjectStage, projectAssignmentWhere, projectKeywordOrClauses } from "@/lib/export/projects";
@@ -7,6 +9,10 @@ import { countryPrismaWhere } from "@/lib/export/countries";
 import { projectStageLabel } from "@/lib/export-display-labels";
 import { authorizeExportAiKey, type ExportAiBoss } from "@/lib/export/ai-api";
 import { loadExportAiBoss } from "@/lib/export/ai-api-boss";
+import { appendTimestampedNote, progressMarkActivityText } from "@/lib/export/ai-writes";
+import { findAssignableExportUser } from "@/lib/export/assignees";
+import { LEAD_LIFECYCLE_ACTIVITY } from "@/lib/export/defer-development";
+import { ExportLeadTakeError, assertLeadTaken, assignExportLead } from "@/lib/export/take-lead";
 
 const DEFAULT_TENANT_SLUG = "default";
 
@@ -89,6 +95,335 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pat
   return NextResponse.json({ error: "未知路径" }, { status: 404 });
 }
 
+const progressBody = z.object({ progressMark: z.enum(PROJECT_PROGRESS_MARKS) }).strict();
+const followBody = z.object({
+  content: z.string().trim().min(1, "请填写跟进内容").max(4000, "跟进内容太长"),
+}).strict();
+const analysisBody = z.object({
+  content: z.string().trim().min(1, "请填写分析").max(8000, "内容太长"),
+}).strict();
+const leadAssignBody = z.object({ userId: z.string().trim().min(1, "请选择要分配的人") }).strict();
+const projectAssignBody = z.object({ ownerId: z.string().trim().min(1, "请选择要分配的人") }).strict();
+
+export async function POST(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const gate = await requireBoss(request);
+  if ("error" in gate && gate.error) return gate.error;
+  const { boss, tenantId } = gate as { boss: ExportAiBoss; tenantId: string };
+  const { path = [] } = await context.params;
+  const [resource, id, action] = path;
+  if (!id || !action || path.length !== 3) {
+    return NextResponse.json({ error: "未知路径" }, { status: 404 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "请求体无效" }, { status: 400 });
+  }
+
+  if (resource === "leads" && action === "progress-mark") return markLead(tenantId, boss, id, body);
+  if (resource === "projects" && action === "progress-mark") return markProject(tenantId, boss, id, body);
+  if (resource === "leads" && action === "follow-ups") return followLead(tenantId, boss, id, body);
+  if (resource === "projects" && action === "follow-ups") return followProject(tenantId, boss, id, body);
+  if (resource === "customers" && action === "analysis") return writeCustomerAnalysis(tenantId, id, body);
+  if (resource === "leads" && action === "assign") return assignLead(tenantId, boss, id, body);
+  if (resource === "projects" && action === "assign") return assignProject(tenantId, boss, id, body);
+  return NextResponse.json({ error: "未知路径" }, { status: 404 });
+}
+
+function parseProgress(body: unknown) {
+  const parsed = progressBody.safeParse(body);
+  if (!parsed.success) {
+    const owns = body && typeof body === "object" && ("ownerId" in body || "assigneeId" in body);
+    return {
+      error: NextResponse.json(
+        { error: owns ? "不能指定负责人" : "进度标记无效" },
+        { status: 400 },
+      ),
+    };
+  }
+  return { progressMark: parsed.data.progressMark };
+}
+
+function parseNote(body: unknown, schema: typeof followBody | typeof analysisBody) {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    const owns = body && typeof body === "object" && ("ownerId" in body || "assigneeId" in body || "userId" in body);
+    return {
+      error: NextResponse.json(
+        { error: owns ? "不能指定负责人" : parsed.error.issues[0]?.message ?? "参数错误" },
+        { status: 400 },
+      ),
+    };
+  }
+  return { content: parsed.data.content };
+}
+
+async function assigneeOrError(tenantId: string, userId: string) {
+  const assignee = await findAssignableExportUser(tenantId, userId);
+  if (!assignee) {
+    return { error: NextResponse.json({ error: "只能分配给业务员或业务经理" }, { status: 400 }) };
+  }
+  const person = await prisma.user.findUnique({
+    where: { id: assignee.id },
+    select: { id: true, name: true },
+  });
+  if (!person) {
+    return { error: NextResponse.json({ error: "只能分配给业务员或业务经理" }, { status: 400 }) };
+  }
+  return { person };
+}
+
+async function markLead(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {
+  const parsed = parseProgress(body);
+  if ("error" in parsed) return parsed.error;
+  const lead = await prisma.exportLead.findFirst({
+    where: { id, tenantId },
+    select: { id: true, companyName: true, progressMark: true, ownerId: true },
+  });
+  if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+  if ((lead.progressMark ?? "") === parsed.progressMark) {
+    return NextResponse.json({ data: { id: lead.id, progressMark: parsed.progressMark, unchanged: true } });
+  }
+  const activity = await prisma.$transaction(async (tx) => {
+    await tx.exportLead.update({
+      where: { id, tenantId },
+      data: { progressMark: parsed.progressMark },
+    });
+    return tx.exportActivity.create({
+      data: {
+        tenantId,
+        leadId: id,
+        type: LEAD_LIFECYCLE_ACTIVITY,
+        direction: "outbound",
+        content: progressMarkActivityText(parsed.progressMark),
+        customerNameSnapshot: lead.companyName,
+        ownerId: boss.id,
+      },
+      select: { id: true, createdAt: true, ownerId: true },
+    });
+  });
+  return NextResponse.json({
+    data: {
+      id: lead.id,
+      progressMark: parsed.progressMark,
+      activityId: activity.id,
+      createdAt: activity.createdAt,
+      authorId: activity.ownerId,
+    },
+  });
+}
+
+async function markProject(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {
+  const parsed = parseProgress(body);
+  if ("error" in parsed) return parsed.error;
+  const project = await prisma.exportProject.findFirst({
+    where: { id, tenantId },
+    select: { id: true, progressMark: true, ownerId: true },
+  });
+  if (!project) return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  if ((project.progressMark ?? "") === parsed.progressMark) {
+    return NextResponse.json({ data: { id: project.id, progressMark: parsed.progressMark, unchanged: true } });
+  }
+  const activity = await prisma.$transaction(async (tx) => {
+    await tx.exportProject.update({
+      where: { id, tenantId },
+      data: { progressMark: parsed.progressMark },
+    });
+    return tx.exportProjectActivity.create({
+      data: {
+        tenantId,
+        projectId: id,
+        userId: boss.id,
+        kind: "progress",
+        content: parsed.progressMark,
+      },
+      select: { id: true, createdAt: true, userId: true },
+    });
+  });
+  return NextResponse.json({
+    data: {
+      id: project.id,
+      progressMark: parsed.progressMark,
+      activityId: activity.id,
+      createdAt: activity.createdAt,
+      authorId: activity.userId,
+    },
+  });
+}
+
+async function followLead(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {
+  const parsed = parseNote(body, followBody);
+  if ("error" in parsed) return parsed.error;
+  const lead = await prisma.exportLead.findFirst({
+    where: { id, tenantId },
+    select: { id: true, companyName: true, ownerId: true },
+  });
+  if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+  const activity = await prisma.exportActivity.create({
+    data: {
+      tenantId,
+      leadId: id,
+      type: "other",
+      direction: "outbound",
+      content: parsed.content,
+      customerNameSnapshot: lead.companyName,
+      ownerId: boss.id,
+    },
+    select: { id: true, content: true, createdAt: true, ownerId: true },
+  });
+  return NextResponse.json({
+    data: {
+      id: lead.id,
+      activityId: activity.id,
+      content: activity.content,
+      createdAt: activity.createdAt,
+      authorId: activity.ownerId,
+    },
+  });
+}
+
+async function followProject(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {
+  const parsed = parseNote(body, followBody);
+  if ("error" in parsed) return parsed.error;
+  const project = await prisma.exportProject.findFirst({
+    where: { id, tenantId },
+    select: { id: true },
+  });
+  if (!project) return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  const activity = await prisma.exportProjectActivity.create({
+    data: {
+      tenantId,
+      projectId: id,
+      userId: boss.id,
+      kind: "follow_up",
+      content: parsed.content,
+    },
+    select: { id: true, content: true, createdAt: true, userId: true },
+  });
+  return NextResponse.json({
+    data: {
+      id: project.id,
+      activityId: activity.id,
+      content: activity.content,
+      createdAt: activity.createdAt,
+      authorId: activity.userId,
+    },
+  });
+}
+
+async function writeCustomerAnalysis(tenantId: string, id: string, body: unknown) {
+  const parsed = parseNote(body, analysisBody);
+  if ("error" in parsed) return parsed.error;
+  const customer = await prisma.exportCustomer.findFirst({
+    where: { id, tenantId },
+    select: { id: true, aiAnalysis: true, notes: true, ownerId: true },
+  });
+  if (!customer) return NextResponse.json({ error: "客户不存在" }, { status: 404 });
+  const aiAnalysis = appendTimestampedNote(customer.aiAnalysis, parsed.content, new Date());
+  await prisma.exportCustomer.update({
+    where: { id, tenantId },
+    data: { aiAnalysis },
+  });
+  return NextResponse.json({
+    data: {
+      id: customer.id,
+      aiAnalysis,
+      notes: customer.notes,
+    },
+  });
+}
+
+async function assignLead(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {
+  const parsed = leadAssignBody.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "请选择要分配的人" }, { status: 400 });
+  }
+  const assignee = await assigneeOrError(tenantId, parsed.data.userId);
+  if ("error" in assignee) return assignee.error;
+  try {
+    const lead = await prisma.$transaction(async (tx) => {
+      const assigned = await assignExportLead(tx, {
+        tenantId,
+        leadId: id,
+        assigneeId: assignee.person.id,
+        assignedById: boss.id,
+      });
+      assertLeadTaken(assigned);
+      return tx.exportLead.findFirst({
+        where: { id, tenantId },
+        select: { id: true, ownerId: true, owner: { select: { id: true, name: true } } },
+      });
+    });
+    if (!lead) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+    return NextResponse.json({
+      data: {
+        id: lead.id,
+        ownerId: lead.ownerId,
+        ownerName: lead.owner?.name ?? null,
+        assignedById: boss.id,
+      },
+    });
+  } catch (e) {
+    if (e instanceof ExportLeadTakeError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    console.error("AI assign lead error:", e);
+    return NextResponse.json({ error: "分配失败" }, { status: 500 });
+  }
+}
+
+async function assignProject(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {
+  const parsed = projectAssignBody.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "请选择要分配的人" }, { status: 400 });
+  }
+  const assignee = await assigneeOrError(tenantId, parsed.data.ownerId);
+  if ("error" in assignee) return assignee.error;
+  const project = await prisma.exportProject.findFirst({
+    where: { id, tenantId },
+    select: { id: true, ownerId: true },
+  });
+  if (!project) return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  if (project.ownerId === assignee.person.id) {
+    return NextResponse.json({
+      data: {
+        id: project.id,
+        ownerId: project.ownerId,
+        ownerName: assignee.person.name,
+        unchanged: true,
+      },
+    });
+  }
+  const activity = await prisma.$transaction(async (tx) => {
+    await tx.exportProject.update({
+      where: { id, tenantId },
+      data: { ownerId: assignee.person.id },
+    });
+    return tx.exportProjectActivity.create({
+      data: {
+        tenantId,
+        projectId: id,
+        userId: boss.id,
+        kind: "assign",
+        content: assignee.person.name,
+      },
+      select: { id: true, createdAt: true, userId: true },
+    });
+  });
+  return NextResponse.json({
+    data: {
+      id: project.id,
+      ownerId: assignee.person.id,
+      ownerName: assignee.person.name,
+      activityId: activity.id,
+      createdAt: activity.createdAt,
+      authorId: activity.userId,
+    },
+  });
+}
+
 async function listCustomers(tenantId: string, searchParams: URLSearchParams) {
   const keyword = searchParams.get("keyword")?.trim() || undefined;
   const country = searchParams.get("country")?.trim() || undefined;
@@ -113,6 +448,7 @@ async function listCustomers(tenantId: string, searchParams: URLSearchParams) {
       ownerId: true,
       lastOutcome: true,
       lastFollowUpAt: true,
+      aiAnalysis: true,
       owner: { select: { id: true, name: true } },
       contacts: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
@@ -137,6 +473,7 @@ async function listCustomers(tenantId: string, searchParams: URLSearchParams) {
       status: row.status,
       projectValueWan: null,
       progressMark: null,
+      aiAnalysis: row.aiAnalysis,
     })),
   });
 }
@@ -153,6 +490,7 @@ async function customerDetail(tenantId: string, id: string) {
       status: true,
       ownerId: true,
       notes: true,
+      aiAnalysis: true,
       lastOutcome: true,
       lastFollowUpAt: true,
       nextFollowUpAt: true,
@@ -195,6 +533,7 @@ async function listLeads(tenantId: string, searchParams: URLSearchParams) {
       phone: true,
       lastOutcome: true,
       lastContactAt: true,
+      progressMark: true,
       owner: { select: { id: true, name: true } },
     },
   });
@@ -213,7 +552,7 @@ async function listLeads(tenantId: string, searchParams: URLSearchParams) {
       lastActionAt: row.lastContactAt,
       status: row.status,
       projectValueWan: null,
-      progressMark: null,
+      progressMark: row.progressMark || "未标记",
     })),
   });
 }
@@ -233,6 +572,7 @@ async function leadDetail(tenantId: string, id: string) {
       phone: true,
       whatsapp: true,
       notes: true,
+      progressMark: true,
       lastOutcome: true,
       lastContactAt: true,
       nextFollowUpAt: true,
