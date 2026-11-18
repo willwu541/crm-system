@@ -60,15 +60,19 @@ describe("export ai manager writes", () => {
       "/api/export/ai/leads/{id}:",
       "/api/export/ai/leads/{id}/progress-mark:",
       "/api/export/ai/leads/{id}/follow-ups:",
+      "/api/export/ai/leads/{id}/claim:",
       "/api/export/ai/leads/{id}/assign:",
       "/api/export/ai/projects:",
       "/api/export/ai/projects/{id}:",
       "/api/export/ai/projects/{id}/progress-mark:",
       "/api/export/ai/projects/{id}/follow-ups:",
+      "/api/export/ai/projects/{id}/claim:",
       "/api/export/ai/projects/{id}/assign:",
     ]) {
       assert.match(spec, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
+    assert.match(route, /takeExportLeadFromPool/);
+    assert.match(route, /claimUnassignedExportProject/);
     assert.match(route, /assignExportLead/);
     assert.match(route, /kind: "assign"/);
     assert.match(route, /kind: "progress"/);

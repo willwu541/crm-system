@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PROJECT_PROGRESS_MARKS } from "@/lib/export-constants";
 import { buildExportCustomerListWhere } from "@/lib/export/customer-list-where";
 import { buildExportLeadListWhere } from "@/lib/export/lead-list-where";
-import { isProjectProgressMark, isProjectStage, projectAssignmentWhere, projectKeywordOrClauses } from "@/lib/export/projects";
+import { claimUnassignedExportProject, isProjectProgressMark, isProjectStage, projectAssignmentWhere, projectKeywordOrClauses } from "@/lib/export/projects";
 import { countryPrismaWhere } from "@/lib/export/countries";
 import { projectStageLabel } from "@/lib/export-display-labels";
 import { authorizeExportAiKey, type ExportAiBoss } from "@/lib/export/ai-api";
@@ -12,7 +12,7 @@ import { loadExportAiBoss } from "@/lib/export/ai-api-boss";
 import { appendTimestampedNote, progressMarkActivityText } from "@/lib/export/ai-writes";
 import { findAssignableExportUser } from "@/lib/export/assignees";
 import { LEAD_LIFECYCLE_ACTIVITY } from "@/lib/export/defer-development";
-import { ExportLeadTakeError, assertLeadTaken, assignExportLead } from "@/lib/export/take-lead";
+import { ExportLeadTakeError, assertLeadTaken, assignExportLead, takeExportLeadFromPool } from "@/lib/export/take-lead";
 
 const DEFAULT_TENANT_SLUG = "default";
 
@@ -113,6 +113,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pa
   const [resource, id, action] = path;
   if (!id || !action || path.length !== 3) {
     return NextResponse.json({ error: "未知路径" }, { status: 404 });
+  }
+
+  if (action === "claim") {
+    if (resource === "leads") return claimLead(tenantId, boss, id);
+    if (resource === "projects") return claimProject(tenantId, boss, id);
   }
 
   let body: unknown;
@@ -333,6 +338,50 @@ async function writeCustomerAnalysis(tenantId: string, id: string, body: unknown
       notes: customer.notes,
     },
   });
+}
+
+async function claimLead(tenantId: string, boss: ExportAiBoss, id: string) {
+  const current = await prisma.exportLead.findFirst({
+    where: { id, tenantId },
+    select: { id: true, ownerId: true, convertedToCustomerId: true },
+  });
+  if (!current) return NextResponse.json({ error: "线索不存在" }, { status: 404 });
+  if (current.convertedToCustomerId) {
+    return NextResponse.json({ error: "该线索已转化" }, { status: 400 });
+  }
+  if (current.ownerId && current.ownerId !== boss.id) {
+    return NextResponse.json({ error: "这条线索已经有人在跟，请用分配修改" }, { status: 409 });
+  }
+  if (current.ownerId === boss.id) {
+    return NextResponse.json({ data: { id, ownerId: boss.id, claimed: false } });
+  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const taken = await takeExportLeadFromPool(tx, {
+        tenantId,
+        leadId: id,
+        user: { id: boss.id, role: boss.role },
+      });
+      assertLeadTaken(taken);
+    });
+    return NextResponse.json({ data: { id, ownerId: boss.id, claimed: true } });
+  } catch (e) {
+    if (e instanceof ExportLeadTakeError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    console.error("AI claim lead error:", e);
+    return NextResponse.json({ error: "认领失败，请稍后重试" }, { status: 500 });
+  }
+}
+
+async function claimProject(tenantId: string, boss: ExportAiBoss, id: string) {
+  const result = await claimUnassignedExportProject({
+    tenantId,
+    projectId: id,
+    user: { id: boss.id, role: boss.role },
+  });
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  return NextResponse.json({ data: { id, ownerId: boss.id, claimed: true } });
 }
 
 async function assignLead(tenantId: string, boss: ExportAiBoss, id: string, body: unknown) {

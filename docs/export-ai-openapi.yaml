@@ -5,7 +5,7 @@ info:
   description: |
     管理者本人使用。请求头 Authorization: Bearer <EXPORT_AI_API_KEY>。
     未配置 EXPORT_AI_API_KEY 时接口关闭（503），空密钥不会放行。
-    可以查客户、线索、项目。可以标记联系、追加跟进、写客户分析、分配线索和项目。
+    可以查客户、线索、项目。可以标记联系、追加跟进、写客户分析、分配线索和项目，也可以把未分配的线索和项目认领到管理者自己名下。
     不能发信，不能改登录，不能改金额，不能删数据，不能看国内 CRM。
     作者固定为密钥对应的管理者，请求体不能借 ownerId 冒充业务员。
     分配对象与页面相同：在职业务员、经理，以及被设为业务经理的人。已有负责人可以改派。已转化线索不能再分配。
@@ -207,6 +207,34 @@ paths:
       responses:
         "200":
           description: 已追加
+  /api/export/ai/leads/{id}/claim:
+    post:
+      operationId: claimLead
+      summary: 管理者认领线索
+      description: 只认领还没有负责人的公海线索，负责人写成密钥对应的管理者。不占业务员每日额度。已有负责人时返回 409，不能抢走。请求体可为空。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: 已认领到管理者名下
+        "409":
+          description: 已经有负责人
+  /api/export/ai/projects/{id}/claim:
+    post:
+      operationId: claimProject
+      summary: 管理者认领项目
+      description: 与页面上管理者认领项目相同。只认领 owner 为空的项目，不能抢走已有负责人。请求体可为空。每日总结记为管理者认领。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: 已认领到管理者名下
+        "409":
+          description: 已经有负责人
   /api/export/ai/leads/{id}/assign:
     post:
       operationId: assignLead
