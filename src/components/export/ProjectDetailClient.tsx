@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { formatSourceUpdatedAt } from "@/lib/export/source-updated-at";
+import { formatFollowUpDate } from "@/lib/export/follow-up-due";
+import { projectActivityHasBody, projectActivityLabel } from "@/lib/export/project-activity-label";
 import { useToast } from "@/components/ui/Toast";
 import {
   PROJECT_ABANDONED_STATUS,
@@ -103,6 +105,7 @@ interface Project {
   askForRole: string | null;
   nextStep: string | null;
   feedbackDueAt: string | null;
+  nextFollowUpAt: string | null;
   demandStatus: string;
   actualBuyerCompany: string | null;
   actualBuyerContact: string | null;
@@ -110,13 +113,15 @@ interface Project {
   owner: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   parties: Party[];
-  activities?: ProjectFollowUp[];
+  activities?: ProjectActivityItem[];
   canManage?: boolean;
   canMark?: boolean;
+  viewerId?: string;
 }
 
-interface ProjectFollowUp {
+interface ProjectActivityItem {
   id: string;
+  kind: string;
   content: string | null;
   createdAt: string;
   user: { id: string; name: string };
@@ -138,6 +143,18 @@ function partyRoleOptions(current: string) {
     return [...PROJECT_PARTY_ROLE_CHOICES];
   }
   return [...PROJECT_PARTY_ROLE_CHOICES, current];
+}
+
+function formatActivityTime(value: string) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
 }
 
 const emptyParty = {
@@ -172,7 +189,9 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [updateForm, setUpdateForm] = useState({ stage: "", note: "" });
   const [claiming, setClaiming] = useState(false);
   const [followText, setFollowText] = useState("");
+  const [followNextDate, setFollowNextDate] = useState("");
   const [savingFollow, setSavingFollow] = useState(false);
+  const [savingNextFollow, setSavingNextFollow] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [report, setReport] = useState({
     company: "",
@@ -280,12 +299,13 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       const res = await fetch(`/api/export/projects/${projectId}/follow-ups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(followNextDate ? { content, nextFollowUpAt: followNextDate } : { content }),
       });
       const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
       if (!res.ok) throw new Error(json.error ?? "跟进保存失败");
       if (json.data) setProject(json.data);
       setFollowText("");
+      setFollowNextDate("");
       toast("已记下跟进");
     } catch (e) {
       toast(e instanceof Error ? e.message : "跟进保存失败", "error");
@@ -312,6 +332,26 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       toast(e instanceof Error ? e.message : "标记失败", "error");
     } finally {
       setSavingMark(false);
+    }
+  }
+
+  async function changeNextFollowUp(next: string) {
+    if (!project || next === formatFollowUpDate(project.nextFollowUpAt)) return;
+    setSavingNextFollow(true);
+    try {
+      const res = await fetch(`/api/export/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nextFollowUpAt: next || null }),
+      });
+      const json = await parseResponseJson<{ error?: string; data?: Project }>(res);
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      if (json.data) setProject(json.data);
+      toast(next ? "已定下次跟进日期" : "已清除下次跟进日期");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "保存失败", "error");
+    } finally {
+      setSavingNextFollow(false);
     }
   }
 
@@ -517,6 +557,16 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
               ))}
             </select>
           </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <span>下次跟进</span>
+            <input
+              type="date"
+              value={formatFollowUpDate(project.nextFollowUpAt)}
+              disabled={savingNextFollow || project.canMark === false}
+              onChange={(e) => changeNextFollowUp(e.target.value)}
+              className="rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </label>
           <button
             type="button"
             disabled={savingLifecycle || project.canMark === false}
@@ -531,7 +581,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           </button>
           <button
             type="button"
-            disabled={savingLifecycle}
+            disabled={savingLifecycle || project.canMark === false}
             onClick={toggleAbandoned}
             className={`rounded-md px-4 py-2 text-sm ${
               abandoned
@@ -548,23 +598,25 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           >
             更新
           </button>
-          <button
-            type="button"
-            disabled={togglingEntry}
-            onClick={toggleEntryStatus}
-            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
-          >
-            {project.entryStatus === "entered" ? "改成未录入" : "标为已录入"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="export-btn-secondary rounded-md px-4 py-2 text-sm"
-          >
-            编辑项目
-          </button>
           {project.canManage && (
-            <ExportDeleteButton apiPath={`/api/export/projects/${projectId}`} redirectTo="/export/projects" />
+            <>
+              <button
+                type="button"
+                disabled={togglingEntry}
+                onClick={toggleEntryStatus}
+                className="export-btn-secondary rounded-md px-4 py-2 text-sm"
+              >
+                {project.entryStatus === "entered" ? "改成未录入" : "标为已录入"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="export-btn-secondary rounded-md px-4 py-2 text-sm"
+              >
+                编辑项目
+              </button>
+              <ExportDeleteButton apiPath={`/api/export/projects/${projectId}`} redirectTo="/export/projects" />
+            </>
           )}
         </div>
       </div>
@@ -862,38 +914,54 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
               placeholder="例如：已联系总包采购，下周给规格"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
-            <button
-              type="submit"
-              disabled={savingFollow || !followText.trim()}
-              className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
-              {savingFollow ? "保存中..." : "保存跟进"}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <span>顺便定下次跟进</span>
+                <input
+                  type="date"
+                  value={followNextDate}
+                  onChange={(e) => setFollowNextDate(e.target.value)}
+                  className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={savingFollow || !followText.trim()}
+                className="export-btn-primary rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {savingFollow ? "保存中..." : "保存跟进"}
+              </button>
+            </div>
           </form>
         ) : (
           <p className="text-sm text-slate-500">未分配项目只有管理者可以写跟进和改进度标记。</p>
         )}
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-700">跟进记录</h3>
+          <h3 className="text-sm font-medium text-slate-700">跟进与变更记录</h3>
           {(project.activities ?? []).length === 0 ? (
-            <p className="text-sm text-slate-500">还没有跟进。</p>
+            <p className="text-sm text-slate-500">还没有记录。</p>
           ) : (
             <ul className="space-y-2">
-              {(project.activities ?? []).map((item) => (
-                <li key={item.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
-                  <p className="text-xs text-slate-500">
-                    {new Intl.DateTimeFormat("zh-CN", {
-                      month: "numeric",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }).format(new Date(item.createdAt))}
-                    {" · "}
-                    {item.user.name}
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap text-slate-800">{item.content}</p>
-                </li>
-              ))}
+              {(project.activities ?? []).map((item) => {
+                const body = projectActivityHasBody(item.kind) ? item.content?.trim() : "";
+                return (
+                  <li
+                    key={item.id}
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      item.kind === "follow_up" ? "border-teal-200 bg-teal-50/40" : "border-slate-200"
+                    }`}
+                  >
+                    <p className="text-xs text-slate-500">
+                      {formatActivityTime(item.createdAt)}
+                      {" · "}
+                      {item.user.name}
+                      {" · "}
+                      <span className="font-medium text-slate-700">{projectActivityLabel(item.kind, item.content)}</span>
+                    </p>
+                    {body ? <p className="mt-1 whitespace-pre-wrap text-slate-800">{body}</p> : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -925,6 +993,14 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
           <div>
             <span className="text-slate-500">截止：</span>
             {project.bidDeadline ? new Date(project.bidDeadline).toLocaleDateString("zh-CN") : "-"}
+          </div>
+          <div>
+            <span className="text-slate-500">下次跟进：</span>
+            {formatFollowUpDate(project.nextFollowUpAt) || "-"}
+          </div>
+          <div>
+            <span className="text-slate-500">希望反馈日期：</span>
+            {formatFollowUpDate(project.feedbackDueAt) || "-"}
           </div>
           <div>
             <span className="text-slate-500">渠道：</span>
@@ -1028,12 +1104,14 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
                               {convertingId === party.id ? "处理中..." : "转为线索"}
                             </button>
                           )}
-                          <ExportDeleteButton
-                            apiPath={`/api/export/projects/${projectId}/parties/${party.id}`}
-                            onDeleted={() => fetchProject({ silent: true })}
-                            label="删除"
-                            className="text-sm text-red-600 hover:underline disabled:opacity-50"
-                          />
+                          {project.canManage || party.foundBy.id === project.viewerId ? (
+                            <ExportDeleteButton
+                              apiPath={`/api/export/projects/${projectId}/parties/${party.id}`}
+                              onDeleted={() => fetchProject({ silent: true })}
+                              label="删除"
+                              className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                            />
+                          ) : null}
                         </div>
                       </td>
                     </tr>

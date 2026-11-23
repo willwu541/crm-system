@@ -85,7 +85,7 @@ paths:
     get:
       operationId: listProjects
       summary: 查项目
-      description: 关键词、国家、阶段 stage、进度标记 progressMark、unassigned=true 表示未分配。projectValueWan 为资料里的金额原文（万元口径）。
+      description: 关键词、国家、阶段 stage、进度标记 progressMark、unassigned=true 表示未分配，另可按生命周期、负责人、资料更新、下次跟进、金额区间筛。projectValueWan 为资料里的金额原文（万元口径），projectValueWanNumber 为解析后的人民币万元数值。日期按东八区。
       security:
         - bearerAuth: []
       parameters:
@@ -98,6 +98,39 @@ paths:
           schema:
             type: string
         - $ref: "#/components/parameters/unassigned"
+        - name: lifecycle
+          in: query
+          description: active 跟进中（排除废弃和暂缓开发）、parked 暂缓开发、abandoned 废弃。不传则不限。
+          schema:
+            type: string
+            enum: [active, parked, abandoned]
+        - name: ownerId
+          in: query
+          description: 负责人用户 id。和 unassigned=true 同传时以 unassigned 为准。
+          schema:
+            type: string
+        - name: sourceUpdated
+          in: query
+          description: 资料更新。1 曾经更新过；today 今天；week 本周（周一起）。
+          schema:
+            type: string
+            enum: ["1", today, week]
+        - name: followUpDue
+          in: query
+          description: 下次跟进日期。overdue 已过期（今天之前）；today 今天；week 今天起 7 天内。
+          schema:
+            type: string
+            enum: [overdue, today, week]
+        - name: valueMin
+          in: query
+          description: 项目金额下限，人民币万元，按 projectValueWanNumber 比较。金额解析不出的项目不会出现。
+          schema:
+            type: number
+        - name: valueMax
+          in: query
+          description: 项目金额上限，人民币万元。
+          schema:
+            type: number
         - $ref: "#/components/parameters/limit"
       responses:
         "200":
@@ -109,14 +142,15 @@ paths:
   /api/export/ai/projects/{id}:
     get:
       operationId: getProject
-      summary: 项目详情和关联线索的最近沟通
+      summary: 项目详情和项目上的动作记录
+      description: activities 是项目自己的动作记录（认领、分配、进度标记、阶段、跟进状态、资料更新、跟进正文、下次跟进日期），新的在前，最多 30 条；每条有 kind、中文 label、content、createdAt、userName。nextFollowUpAt 为下次跟进日期（东八区当天零点），feedbackDueAt 为派单时希望业务员反馈的日期。
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/id"
       responses:
         "200":
-          description: 项目、相关公司和最近活动
+          description: 项目、相关公司和项目动作记录
   /api/export/ai/leads/{id}/progress-mark:
     post:
       operationId: markLead
@@ -366,6 +400,20 @@ components:
                 type: string
                 nullable: true
                 description: 项目金额（万元原文）。客户和线索为空
+              projectValueWanNumber:
+                type: number
+                nullable: true
+                description: 项目金额，人民币万元数值。仅项目列表有
+              nextFollowUpAt:
+                type: string
+                format: date-time
+                nullable: true
+                description: 下次跟进日期。仅项目列表有
+              sourceUpdatedAt:
+                type: string
+                format: date-time
+                nullable: true
+                description: 资料最近更新时间。仅项目列表有
               progressMark:
                 type: string
                 nullable: true
@@ -375,6 +423,7 @@ components:
               status:
                 type: string
                 nullable: true
+                description: 项目为跟进状态代码，如 hunting、parked、abandoned
     ProgressMarkBody:
       type: object
       required: [progressMark]

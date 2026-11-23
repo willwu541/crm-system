@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  filterProjectListRowsByParsedFields,
   parseOptionalNumber,
   parseProjectValueWan,
   parseScheduleBoundParam,
   parseScheduleMonthKey,
-  sortProjectListRows,
-  summarizeEntryCounts,
+  projectListOrderBy,
+  projectRangeWhere,
+  projectSortKeys,
 } from "./project-schedule-value";
+import * as scriptKeys from "../../../scripts/lib/project-sort-keys.mjs";
 
 describe("parseProjectValueWan", () => {
   it("parses plain 万元 text", () => {
@@ -40,75 +41,53 @@ describe("parseScheduleBoundParam", () => {
   });
 });
 
-describe("filter and sort project list rows", () => {
-  const rows = [
-    {
-      id: "a",
-      name: "Beta",
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-06-01"),
-      status: "hunting",
-      bidDeadline: null,
-      country: "Vietnam",
-      scheduleEnd: "2030年第四季度",
-      projectValueText: "500万元",
-      entryStatus: "entered",
-    },
-    {
-      id: "b",
-      name: "Alpha",
-      createdAt: new Date("2024-02-01"),
-      updatedAt: new Date("2024-05-01"),
-      status: "hunting",
-      bidDeadline: null,
-      country: "Indonesia",
-      scheduleEnd: "2027年10月",
-      projectValueText: "17073万元",
-      entryStatus: "pending",
-    },
-    {
-      id: "c",
-      name: "Gamma",
-      createdAt: new Date("2024-03-01"),
-      updatedAt: new Date("2024-07-01"),
-      status: "hunting",
-      bidDeadline: null,
-      country: null,
-      scheduleEnd: null,
-      projectValueText: null,
-      entryStatus: "entered",
-    },
-  ];
 
-  it("filters by value and schedule range", () => {
-    const filtered = filterProjectListRowsByParsedFields(rows, {
-      valueMin: 1000,
-      valueMax: 20000,
-      scheduleEndFrom: 202701,
-      scheduleEndTo: 202712,
+describe("database sort keys", () => {
+  it("stores parsed keys only for fields being written", () => {
+    assert.deepEqual(projectSortKeys({ projectValueText: "约 1,700.5 万元", scheduleEnd: "2027年第四季度" }), {
+      projectValueWan: 1700.5,
+      scheduleEndKey: 202710,
     });
+    assert.deepEqual(projectSortKeys({ projectValueText: null }), { projectValueWan: null });
+    assert.deepEqual(projectSortKeys({}), {});
+  });
+
+  it("builds range filters on the numeric columns", () => {
     assert.deepEqual(
-      filtered.map((row) => row.id),
-      ["b"],
+      projectRangeWhere({ valueMin: 1000, valueMax: null, scheduleEndFrom: 202701, scheduleEndTo: 202712 }),
+      { projectValueWan: { gte: 1000 }, scheduleEndKey: { gte: 202701, lte: 202712 } },
+    );
+    assert.deepEqual(
+      projectRangeWhere({ valueMin: null, valueMax: null, scheduleEndFrom: null, scheduleEndTo: null }),
+      {},
     );
   });
 
-  it("sorts by project value and schedule end", () => {
-    assert.deepEqual(
-      sortProjectListRows(rows, "projectValue", "desc").map((row) => row.id),
-      ["b", "a", "c"],
-    );
-    assert.deepEqual(
-      sortProjectListRows(rows, "scheduleEnd", "asc").map((row) => row.id),
-      ["b", "a", "c"],
-    );
-    assert.deepEqual(
-      sortProjectListRows(rows, "name", "asc").map((row) => row.id),
-      ["b", "a", "c"],
-    );
+  it("sorts nullable columns with blanks last and a stable tiebreak", () => {
+    assert.deepEqual(projectListOrderBy("projectValue", "desc"), [
+      { projectValueWan: { sort: "desc", nulls: "last" } },
+      { id: "asc" },
+    ]);
+    assert.deepEqual(projectListOrderBy("updatedAt", "asc"), [{ updatedAt: "asc" }, { id: "asc" }]);
   });
 
-  it("summarizes entry counts", () => {
-    assert.deepEqual(summarizeEntryCounts(rows), { pending: 1, entered: 2, all: 3 });
+  it("matches the node backfill and import parser", () => {
+    const samples = [
+      "17073万元",
+      "约 1,700.5 万元",
+      "",
+      null,
+      "2027年10月",
+      "2032年第四季度",
+      "2027年Q2",
+      "2027-10",
+      "2027年",
+      "2028",
+      "不明",
+    ];
+    for (const sample of samples) {
+      assert.equal(scriptKeys.parseProjectValueWan(sample), parseProjectValueWan(sample));
+      assert.equal(scriptKeys.parseScheduleMonthKey(sample), parseScheduleMonthKey(sample));
+    }
   });
 });

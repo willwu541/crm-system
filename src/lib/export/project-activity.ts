@@ -11,7 +11,8 @@ export type ProjectActivityKind =
   | "stage"
   | "status"
   | "source_update"
-  | "follow_up";
+  | "follow_up"
+  | "next_follow_up";
 
 export type PlannedProjectActivity = {
   kind: ProjectActivityKind;
@@ -54,6 +55,8 @@ export function planProjectActivities(input: {
     status: string;
     progressMark: string | null;
     ownerId: string | null;
+    /** 东八区 YYYY-MM-DD，空串表示没设。 */
+    nextFollowUpDay?: string;
   };
   next: {
     stage?: string;
@@ -61,6 +64,7 @@ export function planProjectActivities(input: {
     progressMark?: string;
     ownerId?: string | null;
     updateNote?: string;
+    nextFollowUpDay?: string;
   };
   assigneeName?: string | null;
 }): PlannedProjectActivity[] {
@@ -88,6 +92,12 @@ export function planProjectActivities(input: {
   }
   if (input.next.ownerId !== undefined && input.next.ownerId !== input.prev.ownerId) {
     events.push({ kind: "assign", content: input.assigneeName?.trim() || null });
+  }
+  if (
+    input.next.nextFollowUpDay !== undefined &&
+    input.next.nextFollowUpDay !== (input.prev.nextFollowUpDay ?? "")
+  ) {
+    events.push({ kind: "next_follow_up", content: input.next.nextFollowUpDay || null });
   }
   return events;
 }

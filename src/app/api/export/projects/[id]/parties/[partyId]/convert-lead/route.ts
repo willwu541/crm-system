@@ -61,31 +61,42 @@ export async function POST(
       .filter(Boolean)
       .join("\n");
 
-    const lead = await prisma.exportLead.create({
-      data: {
-        tenantId: ctx!.tenantId,
-        ownerId: null,
-        claimedAt: null,
-        companyName: party.companyName,
-        website: party.website,
-        country: party.country ?? project!.country,
-        customerType: partyRoleToCustomerType(party.role),
-        sourceChannel: "Tender / Bid Platform",
-        sourceKeyword: project!.name,
-        email: party.email,
-        phone: party.phone,
-        whatsapp: party.whatsapp,
-        linkedin: party.linkedin,
-        productInterest: project!.productNeed,
-        notes,
-        status: "new",
-      },
-      include: { owner: { select: { id: true, name: true } } },
-    });
-
-    await prisma.exportProjectParty.update({
-      where: { id: partyId },
-      data: { leadId: lead.id },
+    const lead = await prisma.$transaction(async (tx) => {
+      const created = await tx.exportLead.create({
+        data: {
+          tenantId: ctx!.tenantId,
+          ownerId: user!.id,
+          claimedAt: new Date(),
+          companyName: party.companyName,
+          website: party.website,
+          country: party.country ?? project!.country,
+          customerType: partyRoleToCustomerType(party.role),
+          sourceChannel: "Tender / Bid Platform",
+          sourceKeyword: project!.name,
+          email: party.email,
+          phone: party.phone,
+          whatsapp: party.whatsapp,
+          linkedin: party.linkedin,
+          productInterest: project!.productNeed,
+          notes,
+          status: "new",
+        },
+        include: { owner: { select: { id: true, name: true } } },
+      });
+      /** 自己从项目里挖出的公司，不是从公海领的：assignedById 记本人，不占每天认领额度。 */
+      await tx.exportLeadClaim.create({
+        data: {
+          tenantId: ctx!.tenantId,
+          leadId: created.id,
+          userId: user!.id,
+          assignedById: user!.id,
+        },
+      });
+      await tx.exportProjectParty.update({
+        where: { id: partyId },
+        data: { leadId: created.id },
+      });
+      return created;
     });
 
     return NextResponse.json({ data: lead });

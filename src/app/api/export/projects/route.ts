@@ -19,6 +19,7 @@ import {
   extractLeadManagerProjectNumber,
 } from "@/lib/export/project-dispatch";
 import { blankToNull } from "@/lib/export/blank-to-null";
+import { sourceUpdatedWhere } from "@/lib/export/source-updated-at";
 import { normalizeWebsiteUrl } from "@/lib/website";
 import {
   PROJECT_DETAIL_INCLUDE,
@@ -43,14 +44,14 @@ import {
   resolveExportOwnerId,
 } from "@/lib/export/projects";
 import {
-  filterProjectListRowsByParsedFields,
   isProjectListSortBy,
-  needsParsedProjectListPass,
   parseOptionalNumber,
   parseScheduleBoundParam,
-  sortProjectListRows,
-  summarizeEntryCounts,
+  projectListOrderBy,
+  projectRangeWhere,
+  projectSortKeys,
 } from "@/lib/export/project-schedule-value";
+import { followUpDueWhere, parseFollowUpDate } from "@/lib/export/follow-up-due";
 import { z } from "zod";
 import { findSalesUsersByName } from "@/lib/sales-user-search";
 
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
   const ownerId = searchParams.get("ownerId")?.trim();
   const assignment = searchParams.get("assignment")?.trim();
   const progressMark = searchParams.get("progressMark")?.trim();
-  const sourceUpdatedOnly = searchParams.get("sourceUpdated") === "1";
+  const sourceUpdated = searchParams.get("sourceUpdated");
   const role = searchParams.get("role")?.trim();
   const sortByRaw = searchParams.get("sortBy") ?? "updatedAt";
   const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -81,19 +82,15 @@ export async function GET(request: NextRequest) {
   const valueMax = parseOptionalNumber(searchParams.get("valueMax"));
   const scheduleEndFrom = parseScheduleBoundParam(searchParams.get("scheduleEndFrom"), "from");
   const scheduleEndTo = parseScheduleBoundParam(searchParams.get("scheduleEndTo"), "to");
-  const parsedPass = needsParsedProjectListPass({
-    sortBy,
-    valueMin,
-    valueMax,
-    scheduleEndFrom,
-    scheduleEndTo,
-  });
+  const followUpDue = followUpDueWhere(searchParams.get("followUpDue"));
 
   const where: Record<string, unknown> = {
     tenantId: ctx!.tenantId,
     ...projectListOwnerWhere(user!),
     ...projectLifecycleWhere(lifecycle, status),
+    ...projectRangeWhere({ valueMin, valueMax, scheduleEndFrom, scheduleEndTo }),
   };
+  if (followUpDue) where.nextFollowUpAt = followUpDue;
   const and: Record<string, unknown>[] = [];
   const manageAll = canManageExportProjects(user!);
 
@@ -118,7 +115,8 @@ export async function GET(request: NextRequest) {
   }
   if (progressMark === "unset") where.progressMark = null;
   else if (progressMark && isProjectProgressMark(progressMark)) where.progressMark = progressMark;
-  if (sourceUpdatedOnly) where.sourceUpdatedAt = { not: null };
+  const updatedWhere = sourceUpdatedWhere(sourceUpdated);
+  if (updatedWhere) where.sourceUpdatedAt = updatedWhere;
   if (role && isProjectPartyRole(role)) {
     and.push({ parties: { some: { role } } });
   }
@@ -141,87 +139,30 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    if (!parsedPass) {
-      const [data, total, countryRows, entryGroups] = await Promise.all([
-        prisma.exportProject.findMany({
-          where,
-          orderBy: { [sortBy]: sortOrder },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-          include: PROJECT_LIST_INCLUDE,
-        }),
-        prisma.exportProject.count({ where }),
-        countryRowsPromise,
-        prisma.exportProject.groupBy({
-          by: ["entryStatus"],
-          where: countWhere,
-          _count: { _all: true },
-        }),
-      ]);
-
-      const entryCounts = { pending: 0, entered: 0, all: 0 };
-      for (const row of entryGroups) {
-        const key = row.entryStatus;
-        const n = row._count._all;
-        if (key === "pending" || key === "entered") entryCounts[key] = n;
-        entryCounts.all += n;
-      }
-
-      return NextResponse.json({
-        data,
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
-        },
-        countries: extraCountryValues(countryRows.map((row) => row.country)),
-        entryCounts,
-      });
-    }
-
-    const [candidates, countryRows] = await Promise.all([
+    const [data, total, countryRows, entryGroups] = await Promise.all([
       prisma.exportProject.findMany({
-        where: countWhere,
-        select: {
-          id: true,
-          entryStatus: true,
-          name: true,
-          createdAt: true,
-          updatedAt: true,
-          status: true,
-          bidDeadline: true,
-          country: true,
-          scheduleEnd: true,
-          projectValueText: true,
-        },
+        where,
+        orderBy: projectListOrderBy(sortBy, sortOrder),
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: PROJECT_LIST_INCLUDE,
       }),
+      prisma.exportProject.count({ where }),
       countryRowsPromise,
+      prisma.exportProject.groupBy({
+        by: ["entryStatus"],
+        where: countWhere,
+        _count: { _all: true },
+      }),
     ]);
 
-    const ranged = filterProjectListRowsByParsedFields(candidates, {
-      valueMin,
-      valueMax,
-      scheduleEndFrom,
-      scheduleEndTo,
-    });
-    const entryCounts = summarizeEntryCounts(ranged);
-    const entryFiltered =
-      entryStatus && isProjectEntryStatus(entryStatus)
-        ? ranged.filter((row) => row.entryStatus === entryStatus)
-        : ranged;
-    const sorted = sortProjectListRows(entryFiltered, sortBy, sortOrder);
-    const total = sorted.length;
-    const pageIds = sorted.slice((page - 1) * pageSize, page * pageSize).map((row) => row.id);
-    const unordered =
-      pageIds.length === 0
-        ? []
-        : await prisma.exportProject.findMany({
-            where: { tenantId: ctx!.tenantId, id: { in: pageIds } },
-            include: PROJECT_LIST_INCLUDE,
-          });
-    const byId = new Map(unordered.map((row) => [row.id, row]));
-    const data = pageIds.map((id) => byId.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
+    const entryCounts = { pending: 0, entered: 0, all: 0 };
+    for (const row of entryGroups) {
+      const key = row.entryStatus;
+      const n = row._count._all;
+      if (key === "pending" || key === "entered") entryCounts[key] = n;
+      entryCounts.all += n;
+    }
 
     return NextResponse.json({
       data,
@@ -280,6 +221,7 @@ const createSchema = z.object({
   askForRole: z.string().optional().nullable(),
   nextStep: z.string().optional().nullable(),
   feedbackDueAt: z.string().optional().nullable(),
+  nextFollowUpAt: z.string().optional().nullable(),
   scheduleStatus: z.string().optional().nullable(),
   scheduleStart: z.string().optional().nullable(),
   scheduleEnd: z.string().optional().nullable(),
@@ -333,6 +275,10 @@ export async function POST(request: NextRequest) {
     const feedbackDueAt = parseOptionalDate(parsed.data.feedbackDueAt);
     if (parsed.data.feedbackDueAt && feedbackDueAt === undefined) {
       return NextResponse.json({ error: "反馈日期无效" }, { status: 400 });
+    }
+    const nextFollowUpAt = parseFollowUpDate(parsed.data.nextFollowUpAt);
+    if (parsed.data.nextFollowUpAt && nextFollowUpAt === undefined) {
+      return NextResponse.json({ error: "下次跟进日期无效" }, { status: 400 });
     }
 
     const mode = parsed.data.dispatch;
@@ -417,6 +363,8 @@ export async function POST(request: NextRequest) {
 
     const country = canonicalizeCountry(parsed.data.country ?? "") || parsed.data.country?.trim() || null;
     const tenderUrl = parsed.data.tenderUrl?.trim() || null;
+    const projectValueText = blankToNull(parsed.data.projectValueText) ?? null;
+    const scheduleEnd = blankToNull(parsed.data.scheduleEnd) ?? null;
     const project = await prisma.$transaction(async (tx) => {
       const assignee = ownerId
         ? await tx.user.findUnique({ where: { id: ownerId }, select: { name: true } })
@@ -447,14 +395,16 @@ export async function POST(request: NextRequest) {
           askForRole: blankToNull(parsed.data.askForRole) ?? null,
           nextStep,
           feedbackDueAt: feedbackDueAt ?? null,
+          nextFollowUpAt: nextFollowUpAt ?? null,
           scheduleStatus: blankToNull(parsed.data.scheduleStatus) ?? null,
           scheduleStart: blankToNull(parsed.data.scheduleStart) ?? null,
-          scheduleEnd: blankToNull(parsed.data.scheduleEnd) ?? null,
+          scheduleEnd,
           tenderDeadline: blankToNull(parsed.data.tenderDeadline) ?? null,
           tenderOpening: blankToNull(parsed.data.tenderOpening) ?? null,
           contractorState: blankToNull(parsed.data.contractorState) ?? null,
           appointmentMethod: blankToNull(parsed.data.appointmentMethod) ?? null,
-          projectValueText: blankToNull(parsed.data.projectValueText) ?? null,
+          projectValueText,
+          ...projectSortKeys({ projectValueText, scheduleEnd }),
           projectValueOriginal: blankToNull(parsed.data.projectValueOriginal) ?? null,
           projectStatusRaw: blankToNull(parsed.data.projectStatusRaw) ?? null,
           region: blankToNull(parsed.data.region) ?? null,

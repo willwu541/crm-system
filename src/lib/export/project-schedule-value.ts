@@ -102,6 +102,7 @@ export const PROJECT_LIST_SORT_FIELDS = [
   "country",
   "scheduleEnd",
   "projectValue",
+  "nextFollowUpAt",
 ] as const;
 
 export type ProjectListSortBy = (typeof PROJECT_LIST_SORT_FIELDS)[number];
@@ -110,161 +111,53 @@ export function isProjectListSortBy(value: string): value is ProjectListSortBy {
   return (PROJECT_LIST_SORT_FIELDS as readonly string[]).includes(value);
 }
 
-export function needsParsedProjectListPass(input: {
-  sortBy: string;
+/** 写库时和原文一起存的数值列。 */
+export function projectSortKeys(input: {
+  projectValueText?: string | null;
+  scheduleEnd?: string | null;
+}): { projectValueWan?: number | null; scheduleEndKey?: number | null } {
+  const keys: { projectValueWan?: number | null; scheduleEndKey?: number | null } = {};
+  if (input.projectValueText !== undefined) keys.projectValueWan = parseProjectValueWan(input.projectValueText);
+  if (input.scheduleEnd !== undefined) keys.scheduleEndKey = parseScheduleMonthKey(input.scheduleEnd);
+  return keys;
+}
+
+/** 金额、完工年月区间，走 projectValueWan / scheduleEndKey 列。 */
+export function projectRangeWhere(input: {
   valueMin: number | null;
   valueMax: number | null;
   scheduleEndFrom: number | null;
   scheduleEndTo: number | null;
-}): boolean {
-  return (
-    input.sortBy === "scheduleEnd" ||
-    input.sortBy === "projectValue" ||
-    input.valueMin != null ||
-    input.valueMax != null ||
-    input.scheduleEndFrom != null ||
-    input.scheduleEndTo != null
-  );
+}): Record<string, unknown> {
+  const where: Record<string, unknown> = {};
+  if (input.valueMin != null || input.valueMax != null) {
+    where.projectValueWan = {
+      ...(input.valueMin != null ? { gte: input.valueMin } : {}),
+      ...(input.valueMax != null ? { lte: input.valueMax } : {}),
+    };
+  }
+  if (input.scheduleEndFrom != null || input.scheduleEndTo != null) {
+    where.scheduleEndKey = {
+      ...(input.scheduleEndFrom != null ? { gte: input.scheduleEndFrom } : {}),
+      ...(input.scheduleEndTo != null ? { lte: input.scheduleEndTo } : {}),
+    };
+  }
+  return where;
 }
 
-export function matchesProjectValueRange(
-  projectValueText: string | null | undefined,
-  valueMin: number | null,
-  valueMax: number | null,
-): boolean {
-  if (valueMin == null && valueMax == null) return true;
-  const value = parseProjectValueWan(projectValueText);
-  if (value == null) return false;
-  if (valueMin != null && value < valueMin) return false;
-  if (valueMax != null && value > valueMax) return false;
-  return true;
-}
-
-export function matchesScheduleEndRange(
-  scheduleEnd: string | null | undefined,
-  fromKey: number | null,
-  toKey: number | null,
-): boolean {
-  if (fromKey == null && toKey == null) return true;
-  const key = parseScheduleMonthKey(scheduleEnd);
-  if (key == null) return false;
-  if (fromKey != null && key < fromKey) return false;
-  if (toKey != null && key > toKey) return false;
-  return true;
-}
-
-function compareNullableNumber(a: number | null, b: number | null, order: "asc" | "desc"): number {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-  const diff = a - b;
-  return order === "asc" ? diff : -diff;
-}
-
-function compareText(a: string | null | undefined, b: string | null | undefined, order: "asc" | "desc"): number {
-  const left = (a ?? "").trim();
-  const right = (b ?? "").trim();
-  if (!left && !right) return 0;
-  if (!left) return 1;
-  if (!right) return -1;
-  const diff = left.localeCompare(right, "zh-CN");
-  return order === "asc" ? diff : -diff;
-}
-
-function compareDate(a: Date | null | undefined, b: Date | null | undefined, order: "asc" | "desc"): number {
-  const left = a?.getTime();
-  const right = b?.getTime();
-  if (left == null && right == null) return 0;
-  if (left == null) return 1;
-  if (right == null) return -1;
-  const diff = left - right;
-  return order === "asc" ? diff : -diff;
-}
-
-export type ProjectListSortRow = {
-  id: string;
-  name: string;
-  createdAt: Date;
-  updatedAt: Date;
-  status: string;
-  bidDeadline: Date | null;
-  country: string | null;
-  scheduleEnd: string | null;
-  projectValueText: string | null;
+const NULLABLE_SORT_COLUMN: Partial<Record<ProjectListSortBy, string>> = {
+  projectValue: "projectValueWan",
+  scheduleEnd: "scheduleEndKey",
+  nextFollowUpAt: "nextFollowUpAt",
+  bidDeadline: "bidDeadline",
+  country: "country",
 };
 
-export function sortProjectListRows<T extends ProjectListSortRow>(
-  rows: T[],
-  sortBy: ProjectListSortBy,
-  sortOrder: "asc" | "desc",
-): T[] {
-  return [...rows].sort((a, b) => {
-    let cmp = 0;
-    switch (sortBy) {
-      case "projectValue":
-        cmp = compareNullableNumber(
-          parseProjectValueWan(a.projectValueText),
-          parseProjectValueWan(b.projectValueText),
-          sortOrder,
-        );
-        break;
-      case "scheduleEnd":
-        cmp = compareNullableNumber(
-          parseScheduleMonthKey(a.scheduleEnd),
-          parseScheduleMonthKey(b.scheduleEnd),
-          sortOrder,
-        );
-        break;
-      case "name":
-        cmp = compareText(a.name, b.name, sortOrder);
-        break;
-      case "status":
-        cmp = compareText(a.status, b.status, sortOrder);
-        break;
-      case "country":
-        cmp = compareText(a.country, b.country, sortOrder);
-        break;
-      case "bidDeadline":
-        cmp = compareDate(a.bidDeadline, b.bidDeadline, sortOrder);
-        break;
-      case "createdAt":
-        cmp = compareDate(a.createdAt, b.createdAt, sortOrder);
-        break;
-      case "updatedAt":
-      default:
-        cmp = compareDate(a.updatedAt, b.updatedAt, sortOrder);
-        break;
-    }
-    if (cmp !== 0) return cmp;
-    return a.id.localeCompare(b.id);
-  });
-}
-
-export function filterProjectListRowsByParsedFields<
-  T extends { scheduleEnd: string | null; projectValueText: string | null },
->(
-  rows: T[],
-  input: {
-    valueMin: number | null;
-    valueMax: number | null;
-    scheduleEndFrom: number | null;
-    scheduleEndTo: number | null;
-  },
-): T[] {
-  return rows.filter(
-    (row) =>
-      matchesProjectValueRange(row.projectValueText, input.valueMin, input.valueMax) &&
-      matchesScheduleEndRange(row.scheduleEnd, input.scheduleEndFrom, input.scheduleEndTo),
-  );
-}
-
-export function summarizeEntryCounts(rows: { entryStatus: string }[]) {
-  const entryCounts = { pending: 0, entered: 0, all: 0 };
-  for (const row of rows) {
-    if (row.entryStatus === "pending" || row.entryStatus === "entered") {
-      entryCounts[row.entryStatus] += 1;
-    }
-    entryCounts.all += 1;
-  }
-  return entryCounts;
+/** 列表排序。可空列空值排最后，最后按 id 稳定分页。 */
+export function projectListOrderBy(sortBy: ProjectListSortBy, sortOrder: "asc" | "desc") {
+  const column = NULLABLE_SORT_COLUMN[sortBy];
+  const primary = column
+    ? { [column]: { sort: sortOrder, nulls: "last" as const } }
+    : { [sortBy]: sortOrder };
+  return [primary, { id: "asc" as const }];
 }

@@ -23,8 +23,11 @@ import {
   findProjectBySourceNumber,
   getProjectOrError,
   parseOptionalDate,
+  projectDetailPayload,
   resolveExportOwnerId,
 } from "@/lib/export/projects";
+import { formatFollowUpDate, parseFollowUpDate } from "@/lib/export/follow-up-due";
+import { projectSortKeys } from "@/lib/export/project-schedule-value";
 import { appendProjectUpdateNote, buildProjectUpdateNoteEntry } from "@/lib/export/project-update-note";
 import { canMarkExportProject, planProjectActivities } from "@/lib/export/project-activity";
 import { deferStatusChange } from "@/lib/export/defer-development";
@@ -39,13 +42,7 @@ export async function GET(
   const { id } = await params;
   const { project, error: err } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (err) return err;
-  return NextResponse.json({
-    data: {
-      ...project,
-      canManage: canManageExportProjects(user!),
-      canMark: canMarkExportProject(user!, project!.ownerId),
-    },
-  });
+  return NextResponse.json({ data: projectDetailPayload(project!, user!) });
 }
 
 const updateSchema = z.object({
@@ -97,7 +94,22 @@ const updateSchema = z.object({
   notes: z.string().optional().nullable(),
   /** 一次「更新」说明：追加进 notes，并可同请求改 stage */
   updateNote: z.string().trim().min(1, "请填写更新内容").optional(),
+  nextFollowUpAt: z.string().optional().nullable(),
 });
+
+/** 负责人能改的字段。其余项目资料只有管理者能改。 */
+const OWNER_EDITABLE_FIELDS = new Set<string>([
+  "progressMark",
+  "stage",
+  "status",
+  "resumeParked",
+  "updateNote",
+  "nextFollowUpAt",
+  "actualBuyerCompany",
+  "actualBuyerContact",
+  "purchaseProgress",
+  "demandStatus",
+]);
 
 export async function PATCH(
   request: NextRequest,
@@ -129,12 +141,16 @@ export async function PATCH(
     if (!manageAll && parsed.data.ownerId !== undefined) {
       return NextResponse.json({ error: "只有管理者可以分配项目" }, { status: 403 });
     }
-    const marking =
-      parsed.data.progressMark !== undefined ||
-      parsed.data.stage !== undefined ||
-      parsed.data.status !== undefined ||
-      parsed.data.resumeParked === true ||
-      parsed.data.updateNote !== undefined;
+    const touched = Object.entries(parsed.data)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key);
+    if (!manageAll && touched.some((key) => !OWNER_EDITABLE_FIELDS.has(key))) {
+      return NextResponse.json(
+        { error: "项目名称、项目号、金额、工期、范围、地点、备注等资料只有管理者可以修改" },
+        { status: 403 },
+      );
+    }
+    const marking = touched.some((key) => OWNER_EDITABLE_FIELDS.has(key));
     if (marking && !canMarkExportProject(user!, existing!.ownerId)) {
       return NextResponse.json({ error: "只有负责人和管理者可以改项目标记" }, { status: 403 });
     }
@@ -253,6 +269,22 @@ export async function PATCH(
       }
       data.feedbackDueAt = feedbackDueAt ?? null;
     }
+    let nextFollowUpDay: string | undefined;
+    if (parsed.data.nextFollowUpAt !== undefined) {
+      const nextFollowUpAt = parseFollowUpDate(parsed.data.nextFollowUpAt);
+      if (nextFollowUpAt === undefined) {
+        return NextResponse.json({ error: "下次跟进日期无效" }, { status: 400 });
+      }
+      data.nextFollowUpAt = nextFollowUpAt;
+      nextFollowUpDay = formatFollowUpDate(nextFollowUpAt);
+    }
+    Object.assign(
+      data,
+      projectSortKeys({
+        projectValueText: data.projectValueText as string | null | undefined,
+        scheduleEnd: data.scheduleEnd as string | null | undefined,
+      }),
+    );
     if (parsed.data.ownerId !== undefined) {
       data.ownerId = await resolveExportOwnerId(ctx!.tenantId, parsed.data.ownerId);
     }
@@ -273,6 +305,7 @@ export async function PATCH(
         status: existing!.status,
         progressMark: existing!.progressMark,
         ownerId: existing!.ownerId,
+        nextFollowUpDay: formatFollowUpDate(existing!.nextFollowUpAt),
       },
       next: {
         stage: parsed.data.stage,
@@ -280,6 +313,7 @@ export async function PATCH(
         progressMark: parsed.data.progressMark,
         ownerId: nextOwnerId,
         updateNote: parsed.data.updateNote,
+        nextFollowUpDay,
       },
       assigneeName,
     });
@@ -303,13 +337,7 @@ export async function PATCH(
       }
       return row;
     });
-    return NextResponse.json({
-      data: {
-        ...updated,
-        canManage: manageAll,
-        canMark: canMarkExportProject(user!, updated.ownerId),
-      },
-    });
+    return NextResponse.json({ data: projectDetailPayload(updated, user!) });
   } catch (e) {
     console.error("Update export project error:", e);
     return NextResponse.json(

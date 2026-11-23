@@ -1002,6 +1002,8 @@ model ExportProject {
   nextStep           String?   @map("next_step") @db.Text
   /// 希望业务员反馈的日期。
   feedbackDueAt      DateTime? @map("feedback_due_at")
+  /// 下次跟进日期，东八区当天零点。负责人和管理者可改。
+  nextFollowUpAt     DateTime? @map("next_follow_up_at")
   /// 资料里的项目状态原文，如「计划进行中」。和跟进状态分开。
   scheduleStatus     String?   @map("schedule_status")
   /// 施工开始，按资料原文，如「2027年第四季度」。
@@ -1018,6 +1020,10 @@ model ExportProject {
   appointmentMethod  String?   @map("appointment_method")
   /// 展示用项目金额，人民币万元，如「17073万元」。
   projectValueText   String?   @map("project_value_text")
+  /// 从 projectValueText 解析出的万元数值，用于筛选和排序。
+  projectValueWan    Float?    @map("project_value_wan")
+  /// 从 scheduleEnd 解析出的 YYYYMM，用于筛选和排序。
+  scheduleEndKey     Int?      @map("schedule_end_key")
   /// 资料原币金额原文，如「估算 650,000.00百万越南盾」。
   projectValueOriginal String? @map("project_value_original")
   /// PDF Project Status 原文，如「Subcontractor(s) Appointed」。
@@ -1050,7 +1056,7 @@ model ExportProject {
 
   tenant    ExportTenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   owner     User?                @relation("ExportProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  createdBy  User                 @relation("ExportProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy  User                    @relation("ExportProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
   parties    ExportProjectParty[]
   activities ExportProjectActivity[]
 
@@ -1063,6 +1069,12 @@ model ExportProject {
   @@unique([tenantId, sourceProjectNumber])
   @@index([entryStatus])
   @@index([createdAt])
+  @@index([tenantId, progressMark])
+  @@index([tenantId, sourceUpdatedAt])
+  @@index([tenantId, ownerId])
+  @@index([tenantId, nextFollowUpAt])
+  @@index([tenantId, projectValueWan])
+  @@index([tenantId, scheduleEndKey])
   @@map("export_projects")
 }
 
@@ -1101,6 +1113,7 @@ model ExportProjectParty {
   @@index([projectId])
   @@index([foundById])
   @@index([leadId])
+  @@index([tenantId, companyName])
   @@map("export_project_parties")
 }
 

@@ -90,4 +90,25 @@ describe("project change log", () => {
     });
     assert.deepEqual(events, [{ kind: "status", content: "取消废弃" }]);
   });
+
+  it("records setting, moving and clearing the next follow-up day", () => {
+    assert.deepEqual(
+      planProjectActivities({ prev, next: { nextFollowUpDay: "2026-11-30" } }),
+      [{ kind: "next_follow_up", content: "2026-11-30" }],
+    );
+    assert.deepEqual(
+      planProjectActivities({
+        prev: { ...prev, nextFollowUpDay: "2026-11-30" },
+        next: { nextFollowUpDay: "" },
+      }),
+      [{ kind: "next_follow_up", content: null }],
+    );
+    assert.deepEqual(
+      planProjectActivities({
+        prev: { ...prev, nextFollowUpDay: "2026-11-30" },
+        next: { nextFollowUpDay: "2026-11-30" },
+      }),
+      [],
+    );
+  });
 });

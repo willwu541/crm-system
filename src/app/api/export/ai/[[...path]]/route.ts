@@ -4,7 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { PROJECT_PROGRESS_MARKS } from "@/lib/export-constants";
 import { buildExportCustomerListWhere } from "@/lib/export/customer-list-where";
 import { buildExportLeadListWhere } from "@/lib/export/lead-list-where";
-import { claimUnassignedExportProject, isProjectProgressMark, isProjectStage, projectAssignmentWhere, projectKeywordOrClauses } from "@/lib/export/projects";
+import {
+  claimUnassignedExportProject,
+  isProjectLifecycle,
+  isProjectProgressMark,
+  isProjectStage,
+  projectAssignmentWhere,
+  projectKeywordOrClauses,
+  projectLifecycleWhere,
+} from "@/lib/export/projects";
+import { followUpDueWhere } from "@/lib/export/follow-up-due";
+import { parseOptionalNumber, projectRangeWhere } from "@/lib/export/project-schedule-value";
+import { projectActivityLabel } from "@/lib/export/project-activity-label";
+import { sourceUpdatedWhere } from "@/lib/export/source-updated-at";
 import { countryPrismaWhere } from "@/lib/export/countries";
 import { projectStageLabel } from "@/lib/export-display-labels";
 import { authorizeExportAiKey, type ExportAiBoss } from "@/lib/export/ai-api";
@@ -640,9 +652,33 @@ async function listProjects(tenantId: string, searchParams: URLSearchParams) {
   const stage = searchParams.get("stage")?.trim();
   const progressMark = searchParams.get("progressMark")?.trim();
   const unassigned = flag(searchParams.get("unassigned"));
-  const where: Record<string, unknown> = { tenantId };
+  const lifecycle = searchParams.get("lifecycle")?.trim();
+  const ownerId = searchParams.get("ownerId")?.trim();
+  const sourceUpdated = searchParams.get("sourceUpdated")?.trim();
+  const followUpDue = searchParams.get("followUpDue")?.trim();
+  const valueMin = parseOptionalNumber(searchParams.get("valueMin"));
+  const valueMax = parseOptionalNumber(searchParams.get("valueMax"));
+  const where: Record<string, unknown> = {
+    tenantId,
+    ...projectRangeWhere({ valueMin, valueMax, scheduleEndFrom: null, scheduleEndTo: null }),
+  };
   const assignment = projectAssignmentWhere(unassigned ? "unassigned" : "", true);
   if (assignment) Object.assign(where, assignment);
+  else if (ownerId) where.ownerId = ownerId;
+  if (lifecycle) {
+    if (!isProjectLifecycle(lifecycle)) return NextResponse.json({ error: "lifecycle 无效" }, { status: 400 });
+    Object.assign(where, projectLifecycleWhere(lifecycle));
+  }
+  if (sourceUpdated) {
+    const updatedWhere = sourceUpdatedWhere(sourceUpdated);
+    if (!updatedWhere) return NextResponse.json({ error: "sourceUpdated 无效" }, { status: 400 });
+    where.sourceUpdatedAt = updatedWhere;
+  }
+  if (followUpDue) {
+    const dueWhere = followUpDueWhere(followUpDue);
+    if (!dueWhere) return NextResponse.json({ error: "followUpDue 无效" }, { status: 400 });
+    where.nextFollowUpAt = dueWhere;
+  }
   const countryWhere = countryPrismaWhere(country);
   if (countryWhere) where.AND = [countryWhere];
   if (stage) {
@@ -668,6 +704,10 @@ async function listProjects(tenantId: string, searchParams: URLSearchParams) {
       stage: true,
       progressMark: true,
       projectValueText: true,
+      projectValueWan: true,
+      status: true,
+      nextFollowUpAt: true,
+      sourceUpdatedAt: true,
       ownerId: true,
       notes: true,
       updatedAt: true,
@@ -697,7 +737,10 @@ async function listProjects(tenantId: string, searchParams: URLSearchParams) {
       stageLabel: projectStageLabel[row.stage] ?? row.stage,
       progressMark: row.progressMark || "未标记",
       projectValueWan: row.projectValueText,
-      status: null,
+      projectValueWanNumber: row.projectValueWan,
+      status: row.status,
+      nextFollowUpAt: row.nextFollowUpAt,
+      sourceUpdatedAt: row.sourceUpdatedAt,
     })),
   });
 }
@@ -713,11 +756,15 @@ async function projectDetail(tenantId: string, id: string) {
       stage: true,
       progressMark: true,
       projectValueText: true,
+      projectValueWan: true,
       status: true,
       ownerId: true,
       notes: true,
       productNeed: true,
       nextStep: true,
+      nextFollowUpAt: true,
+      feedbackDueAt: true,
+      sourceUpdatedAt: true,
       owner: { select: { id: true, name: true } },
       parties: {
         orderBy: { createdAt: "desc" },
@@ -731,23 +778,36 @@ async function projectDetail(tenantId: string, id: string) {
           leadId: true,
         },
       },
+      activities: {
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 30,
+        select: {
+          id: true,
+          kind: true,
+          content: true,
+          createdAt: true,
+          user: { select: { id: true, name: true } },
+        },
+      },
     },
   });
   if (!row) return NextResponse.json({ error: "项目不存在" }, { status: 404 });
-  const leadIds = row.parties.map((party) => party.leadId).filter((value): value is string => Boolean(value));
-  const activities = leadIds.length
-    ? await prisma.exportActivity.findMany({
-        where: { tenantId, leadId: { in: leadIds } },
-        ...activityInclude,
-      })
-    : [];
+  const { activities, projectValueWan, ...rest } = row;
   return NextResponse.json({
     data: {
-      ...row,
+      ...rest,
       stageLabel: projectStageLabel[row.stage] ?? row.stage,
       progressMark: row.progressMark || "未标记",
       projectValueWan: row.projectValueText,
-      activities: activities.map(slimActivity),
+      projectValueWanNumber: projectValueWan,
+      activities: activities.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        label: projectActivityLabel(item.kind, item.content),
+        content: item.content,
+        createdAt: item.createdAt,
+        userName: item.user.name,
+      })),
     },
   });
 }

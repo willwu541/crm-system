@@ -6,9 +6,27 @@ import { buildLeadPacePrismaWhere } from "@/lib/export/lead-pace";
 import { customerWhatsappFirstContactWhere, customerWhatsappMaintainWhere } from "@/lib/export/customer-list-where";
 import { customerChannelWhere, leadChannelWhere } from "@/lib/export/contact-channel-filter";
 import { mergeCountryStats } from "@/lib/export/countries";
+import type { SessionUser } from "@/lib/auth";
+import { canManageExportProjects, projectLifecycleWhere, projectListOwnerWhere } from "@/lib/export/projects";
+import { sourceUpdatedWhere } from "@/lib/export/source-updated-at";
+import { projectFollowUpDueWhere } from "@/lib/export/project-follow-up-due";
+
+async function projectAttention(tenantId: string, user: Pick<SessionUser, "id" | "role">) {
+  const manageAll = canManageExportProjects(user);
+  const base = { tenantId, ...projectListOwnerWhere(user), ...projectLifecycleWhere("active") };
+  const [unassigned, sourceUpdatedWeek, followUpOverdue, followUpToday, toContact, unmarked] = await Promise.all([
+    manageAll ? prisma.exportProject.count({ where: { ...base, ownerId: null } }) : Promise.resolve(0),
+    prisma.exportProject.count({ where: { ...base, sourceUpdatedAt: sourceUpdatedWhere("week")! } }),
+    prisma.exportProject.count({ where: { ...base, nextFollowUpAt: projectFollowUpDueWhere("overdue")! } }),
+    prisma.exportProject.count({ where: { ...base, nextFollowUpAt: projectFollowUpDueWhere("today")! } }),
+    manageAll ? Promise.resolve(0) : prisma.exportProject.count({ where: { ...base, progressMark: "待联系" } }),
+    manageAll ? Promise.resolve(0) : prisma.exportProject.count({ where: { ...base, progressMark: null } }),
+  ]);
+  return { manageAll, unassigned, sourceUpdatedWeek, followUpOverdue, followUpToday, toContact, unmarked };
+}
 
 export async function GET() {
-  const { ctx, error } = await requireExportSession();
+  const { user, ctx, error } = await requireExportSession();
   if (error) return error;
 
   const ownerWhere = prismaOwnerWhere(ctx!.ownerFilter);
@@ -46,6 +64,7 @@ export async function GET() {
     whatsappFirstContactCount,
     noWhatsappLeadCount,
     noWhatsappCustomerCount,
+    projects,
   ] = await Promise.all([
     prisma.exportCustomer.count({
       where: {
@@ -146,6 +165,7 @@ export async function GET() {
         ...customerChannelWhere("no_whatsapp"),
       },
     }),
+    projectAttention(ctx!.tenantId, user!),
   ]);
 
   const quoteNoFollowUp3Days = quoteCandidates
@@ -195,6 +215,7 @@ export async function GET() {
       whatsappFirstContactCount,
       noWhatsappLeadCount,
       noWhatsappCustomerCount,
+      projects,
     },
   });
 }

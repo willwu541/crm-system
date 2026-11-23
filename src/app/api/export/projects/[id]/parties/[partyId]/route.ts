@@ -5,7 +5,7 @@ import { deleteWithExportLog } from "@/lib/export/deletion-log";
 import { prismaErrorToUserMessage } from "@/lib/prisma-user-message";
 import { canonicalizeCountry } from "@/lib/export/countries";
 import { PROJECT_PARTY_ROLES } from "@/lib/export-constants";
-import { PARTY_INCLUDE, getProjectOrError } from "@/lib/export/projects";
+import { PARTY_INCLUDE, canEditProjectParty, getProjectOrError } from "@/lib/export/projects";
 import { blankToNull } from "@/lib/export/blank-to-null";
 import { normalizeWebsiteUrl } from "@/lib/website";
 import { z } from "zod";
@@ -47,8 +47,11 @@ export async function PATCH(
   const { id, partyId } = await params;
   const { error: projectErr } = await getProjectOrError(id, ctx!.tenantId, user!);
   if (projectErr) return projectErr;
-  const { error: partyErr } = await getPartyOrError(id, partyId, ctx!.tenantId);
+  const { party: current, error: partyErr } = await getPartyOrError(id, partyId, ctx!.tenantId);
   if (partyErr) return partyErr;
+  if (!canEditProjectParty(user!, current!)) {
+    return NextResponse.json({ error: "导入或别人找到的联系人只有管理者可以修改" }, { status: 403 });
+  }
 
   let body: unknown;
   try {
@@ -111,6 +114,9 @@ export async function DELETE(
   if (projectErr) return projectErr;
   const { party, error: partyErr } = await getPartyOrError(id, partyId, ctx!.tenantId);
   if (partyErr) return partyErr;
+  if (!canEditProjectParty(user!, party!)) {
+    return NextResponse.json({ error: "导入或别人找到的联系人只有管理者可以删除" }, { status: 403 });
+  }
 
   try {
     await deleteWithExportLog({

@@ -11,6 +11,7 @@ import {
   formatTodayLabel,
   isTodayStaff,
   partyActionText,
+  partyLeadActionText,
   projectActionText,
   projectActivityActionText,
   todayRange,
@@ -41,7 +42,7 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
   const createdAt = { gte: start, lt: end };
   const directorUserId = getAccessPolicy().directorUserId;
 
-  const [users, claims, activities, projects, parties, customers, deletions, projectActivities] =
+  const [users, claims, activities, projects, parties, customers, deletions, projectActivities, sourceUpdates] =
     await Promise.all([
     prisma.user.findMany({
       where: { tenant: "export", tenantId },
@@ -125,6 +126,15 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
         user: { select: { id: true, name: true, role: true } },
       },
     }),
+    prisma.exportProject.findMany({
+      where: { tenantId, sourceUpdatedAt: createdAt, createdAt: { lt: start } },
+      select: {
+        id: true,
+        name: true,
+        sourceUpdatedAt: true,
+        createdBy: { select: { id: true, name: true, role: true } },
+      },
+    }),
   ]);
 
   const actions: TodayActionInput[] = [];
@@ -132,7 +142,15 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
   for (const claim of claims) {
     const company = claim.lead.companyName;
     const href = `/export/leads/${claim.lead.id}`;
-    if (claim.assignedById && claim.assignedBy) {
+    if (claim.assignedById && claim.assignedById === claim.user.id) {
+      actions.push({
+        id: `party-lead:${claim.id}`,
+        ...actorFields(claim.user, directorUserId),
+        at: claim.createdAt,
+        text: partyLeadActionText(company),
+        href,
+      });
+    } else if (claim.assignedById && claim.assignedBy) {
       actions.push({
         id: `assign:${claim.id}`,
         ...actorFields(claim.assignedBy, directorUserId),
@@ -216,6 +234,20 @@ export async function loadTodaySummary(tenantId: string, now = new Date()): Prom
         content: item.content,
       }),
       href: `/export/projects/${item.project.id}`,
+    });
+  }
+
+  const loggedSourceUpdates = new Set(
+    projectActivities.filter((item) => item.kind === "source_update").map((item) => item.project.id),
+  );
+  for (const project of sourceUpdates) {
+    if (!project.sourceUpdatedAt || loggedSourceUpdates.has(project.id)) continue;
+    actions.push({
+      id: `source-update:${project.id}`,
+      ...actorFields(project.createdBy, directorUserId),
+      at: project.sourceUpdatedAt,
+      text: projectActivityActionText({ kind: "source_update", projectName: project.name }),
+      href: `/export/projects/${project.id}`,
     });
   }
 

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 import { canAssignExportWork } from "@/lib/export/lead-pool";
 import { findAssignableExportUser } from "@/lib/export/assignees";
+import { canMarkExportProject } from "@/lib/export/project-activity";
 import {
   PROJECT_CONFIDENCE,
   PROJECT_ENTRY_STATUSES,
@@ -38,10 +39,11 @@ export const PROJECT_DETAIL_INCLUDE = {
   owner: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   activities: {
-    where: { kind: "follow_up" },
-    orderBy: { createdAt: "desc" as const },
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+    take: 50,
     select: {
       id: true,
+      kind: true,
       content: true,
       createdAt: true,
       user: { select: { id: true, name: true } },
@@ -252,6 +254,27 @@ export function canViewExportProject(
 ) {
   if (canManageExportProjects(user)) return true;
   return Boolean(ownerId && ownerId === user.id);
+}
+
+/** 详情接口统一带上当前用户能做的事，界面据此隐藏按钮。 */
+export function projectDetailPayload<T extends { ownerId: string | null }>(
+  project: T,
+  user: Pick<SessionUser, "id" | "role">,
+) {
+  return {
+    ...project,
+    canManage: canManageExportProjects(user),
+    canMark: canMarkExportProject(user, project.ownerId),
+    viewerId: user.id,
+  };
+}
+
+/** 删改项目联系人：管理者，或这条是自己找到的。导入的只给管理者删。 */
+export function canEditProjectParty(
+  user: Pick<SessionUser, "id" | "role">,
+  party: { foundById: string },
+) {
+  return canManageExportProjects(user) || party.foundById === user.id;
 }
 
 export function projectListOwnerWhere(user: Pick<SessionUser, "id" | "role">) {

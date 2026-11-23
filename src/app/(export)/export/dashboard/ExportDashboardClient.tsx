@@ -27,7 +27,45 @@ interface DashboardData {
   whatsappFirstContactCount: number;
   noWhatsappLeadCount: number;
   noWhatsappCustomerCount: number;
+  projects?: ProjectAttention;
 }
+
+interface ProjectAttention {
+  manageAll: boolean;
+  unassigned: number;
+  sourceUpdatedWeek: number;
+  followUpOverdue: number;
+  followUpToday: number;
+  toContact: number;
+  unmarked: number;
+}
+
+function ProjectTile({
+  href,
+  label,
+  count,
+  tone,
+  hint,
+}: {
+  href: string;
+  label: string;
+  count: number;
+  tone: string;
+  hint: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col rounded-lg border border-slate-100 p-4 transition-colors hover:bg-slate-50"
+    >
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className={`mt-1 text-2xl font-semibold ${count > 0 ? tone : "text-slate-400"}`}>{count}</span>
+      <span className="mt-1 text-xs text-sky-700">{hint}</span>
+    </Link>
+  );
+}
+
+const PROJECTS_BASE = "/export/projects?entryStatus=all";
 
 interface TeamInsightRow {
   ownerId: string;
@@ -135,6 +173,65 @@ export function ExportDashboardClient() {
         </div>
         <span className="export-soft-link text-sm">打开 →</span>
       </Link>
+      {data.projects && (
+        <div className="export-card p-4">
+          <h2 className="mb-4 text-base font-semibold text-slate-700">
+            {data.projects.manageAll ? "项目待办" : "我的项目待办"}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            {data.projects.manageAll && (
+              <ProjectTile
+                href={`${PROJECTS_BASE}&assignment=unassigned`}
+                label="待分配项目"
+                count={data.projects.unassigned}
+                tone="text-amber-600"
+                hint="去分配 →"
+              />
+            )}
+            <ProjectTile
+              href={`${PROJECTS_BASE}&sourceUpdated=week`}
+              label="本周资料更新"
+              count={data.projects.sourceUpdatedWeek}
+              tone="text-sky-700"
+              hint="查看 →"
+            />
+            <ProjectTile
+              href={`${PROJECTS_BASE}&followUpDue=overdue`}
+              label="跟进已逾期"
+              count={data.projects.followUpOverdue}
+              tone="text-red-600"
+              hint="查看 →"
+            />
+            <ProjectTile
+              href={`${PROJECTS_BASE}&followUpDue=today`}
+              label="今天要跟进"
+              count={data.projects.followUpToday}
+              tone="text-teal-600"
+              hint="查看 →"
+            />
+            {!data.projects.manageAll && (
+              <div className="flex flex-col rounded-lg border border-slate-100 p-4">
+                <span className="text-sm text-slate-500">待联系</span>
+                <span
+                  className={`mt-1 text-2xl font-semibold ${
+                    data.projects.toContact + data.projects.unmarked > 0 ? "text-amber-600" : "text-slate-400"
+                  }`}
+                >
+                  {data.projects.toContact + data.projects.unmarked}
+                </span>
+                <span className="mt-1 flex gap-3 text-xs text-sky-700">
+                  <Link href={`${PROJECTS_BASE}&progressMark=${encodeURIComponent("待联系")}`} className="hover:underline">
+                    待联系 {data.projects.toContact}
+                  </Link>
+                  <Link href={`${PROJECTS_BASE}&progressMark=unset`} className="hover:underline">
+                    未标记 {data.projects.unmarked}
+                  </Link>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* 线索开发待办 */}
       <div className="export-card bg-gradient-to-r from-blue-50 to-slate-50 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
