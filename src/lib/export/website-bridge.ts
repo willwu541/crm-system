@@ -4,9 +4,13 @@ export function getWebsiteBridge() {
   const formsUrl =
     process.env.WEBSITE_FORMS_API_URL?.trim() ||
     chatUrl.replace(/chat\.php$/i, "rfq-admin.php");
+  const visitsUrl =
+    process.env.WEBSITE_VISITS_API_URL?.trim() ||
+    chatUrl.replace(/chat\.php$/i, "visit-admin.php");
   return {
     chatUrl,
     formsUrl,
+    visitsUrl,
     bridgeKey,
     configured: Boolean(chatUrl && bridgeKey && formsUrl),
   };
