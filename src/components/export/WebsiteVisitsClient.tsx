@@ -220,7 +220,7 @@ export function WebsiteVisitsClient() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">网站访客</h1>
-          <p className="text-sm text-slate-500">按上海日期查看每一天。统计和列表都只含所选这一天，最多回溯 90 天里的 200 次访问。</p>
+          <p className="text-sm text-slate-500">按上海日期查看过去 31 天里的每一天。点某一天只看当天的国家和访问。</p>
         </div>
         <button
           type="button"
@@ -237,11 +237,15 @@ export function WebsiteVisitsClient() {
         <button type="button" onClick={() => setDay((current) => shiftDate(current, 1))} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">后一天</button>
         <button type="button" onClick={() => setDay(shanghaiDate(new Date().toISOString()))} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">今天</button>
         <div className="flex gap-1 overflow-auto">
-          {dayCounts.slice(0, 14).map(([date, count]) => (
-            <button key={date} type="button" onClick={() => setDay(date)} className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${date === day ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-              {date.slice(5)} · {count}
-            </button>
-          ))}
+          {Array.from({ length: 31 }, (_, index) => {
+            const date = shiftDate(shanghaiDate(new Date().toISOString()), -index);
+            const count = dayCounts.find(([item]) => item === date)?.[1] ?? 0;
+            return (
+              <button key={date} type="button" onClick={() => setDay(date)} className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${date === day ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                {index === 0 ? "今天" : index === 1 ? "昨天" : date.slice(5)} · {count}
+              </button>
+            );
+          })}
         </div>
       </div>
 
