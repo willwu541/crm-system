@@ -5,9 +5,10 @@ info:
   description: |
     管理者本人使用。请求头 Authorization: Bearer <EXPORT_AI_API_KEY>。
     未配置 EXPORT_AI_API_KEY 时接口关闭（503），空密钥不会放行。
-    可以查客户、线索、项目。可以标记联系、追加跟进、写客户分析、分配线索和项目，也可以把未分配的线索和项目认领到管理者自己名下。
-    不能发信，不能改登录，不能改金额，不能删数据，不能看国内 CRM。
-    作者固定为密钥对应的管理者，请求体不能借 ownerId 冒充业务员。
+    可以查客户、线索、项目。可以新建和修改线索、项目、客户、联系人，可以标记进度、追加跟进、写备注、写下次跟进、暂缓、写客户分析、分配线索和项目，也可以把未分配的线索和项目认领到管理者自己名下。
+    新建线索进入公海，负责人留空。新建客户的负责人是管理者本人。新建项目不分配，之后再用分配或认领。
+    不能发信，不能改登录和用户密钥，不能改金额，不能删除，不能废弃，不能看国内 CRM。
+    作者固定为密钥对应的管理者。新建和修改不能传 ownerId 冒充业务员。分配接口里的 userId / ownerId 只表示被分配人。
     分配对象与页面相同：在职业务员、经理，以及被设为业务经理的人。已有负责人可以改派。已转化线索不能再分配。
 servers:
   - url: https://你的域名
@@ -37,6 +38,21 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/NotConfigured"
+    post:
+      operationId: createCustomer
+      summary: 新建客户
+      description: 公司名称必填。负责人写成管理者本人，请求体不能传 ownerId。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerWriteBody"
+      responses:
+        "200":
+          description: 已新建
   /api/export/ai/customers/{id}:
     get:
       operationId: getCustomer
@@ -50,6 +66,59 @@ paths:
           description: 客户、联系人和最近 15 条活动
         "404":
           description: 不存在
+    patch:
+      operationId: updateCustomer
+      summary: 修改客户
+      description: 可改公司资料、备注、下次跟进、状态。不改负责人，不改 aiAnalysis（分析走 analysis）。不能改金额。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerWriteBody"
+      responses:
+        "200":
+          description: 已修改
+  /api/export/ai/customers/{id}/contacts:
+    post:
+      operationId: createCustomerContact
+      summary: 给客户新建联系人
+      description: 不能传 ownerId。联系人邮箱只是资料，不会发信。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactWriteBody"
+      responses:
+        "200":
+          description: 已新建
+  /api/export/ai/contacts/{id}:
+    patch:
+      operationId: updateContact
+      summary: 修改联系人
+      description: 可改姓名、职务、电话、邮箱、备注、是否主联系人。不会发信，不能删除。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactWriteBody"
+      responses:
+        "200":
+          description: 已修改
   /api/export/ai/leads:
     get:
       operationId: listLeads
@@ -70,6 +139,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecordList"
+    post:
+      operationId: createLead
+      summary: 新建线索
+      description: 公司名称必填。与页面相同，新建后在公海，负责人留空。不能传 ownerId。status 不能用来转化或废弃。可写备注和下次跟进。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadWriteBody"
+      responses:
+        "200":
+          description: 已新建
   /api/export/ai/leads/{id}:
     get:
       operationId: getLead
@@ -81,6 +165,23 @@ paths:
       responses:
         "200":
           description: 线索和最近活动
+    patch:
+      operationId: updateLead
+      summary: 修改线索
+      description: 可改公司资料、备注、下次跟进。status 传 parked 为暂缓，resumeParked 为 true 时取消暂缓。不能传 ownerId，不能废弃，不能转化。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadWriteBody"
+      responses:
+        "200":
+          description: 已修改
   /api/export/ai/projects:
     get:
       operationId: listProjects
@@ -139,6 +240,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecordList"
+    post:
+      operationId: createProject
+      summary: 新建项目
+      description: 项目名称必填。新建后不分配，负责人留空。之后用分配或认领。不能传金额字段，不能传 ownerId，不能标废弃。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectWriteBody"
+      responses:
+        "200":
+          description: 已新建
   /api/export/ai/projects/{id}:
     get:
       operationId: getProject
@@ -151,6 +267,23 @@ paths:
       responses:
         "200":
           description: 项目、相关公司和项目动作记录
+    patch:
+      operationId: updateProject
+      summary: 修改项目
+      description: 可改项目资料、备注、下次跟进、进度标记。status 传 parked 为暂缓，resumeParked 为 true 时取消暂缓。不能改金额，不能传 ownerId，不能废弃。分配仍走 assign，认领仍走 claim，且只能由管理者操作到自己或按页面规则改派。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectWriteBody"
+      responses:
+        "200":
+          description: 已修改
   /api/export/ai/leads/{id}/progress-mark:
     post:
       operationId: markLead
@@ -452,6 +585,71 @@ components:
         userId:
           type: string
           description: 被分配人的用户 id。在职业务员、经理，或被设为业务经理的人。
+    LeadWriteBody:
+      type: object
+      properties:
+        companyName:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        nextFollowUpAt:
+          type: string
+          nullable: true
+          description: YYYY-MM-DD 或 ISO，按东八区当天零点保存。
+        status:
+          type: string
+          description: 线索状态。parked 表示暂缓开发。不接受 converted。
+        resumeParked:
+          type: boolean
+          description: true 时取消暂缓。
+    ProjectWriteBody:
+      type: object
+      properties:
+        name:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        nextFollowUpAt:
+          type: string
+          nullable: true
+        progressMark:
+          type: string
+        status:
+          type: string
+          description: 跟进状态。parked 表示暂缓。不接受 abandoned。
+        resumeParked:
+          type: boolean
+    CustomerWriteBody:
+      type: object
+      properties:
+        companyName:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        nextFollowUpAt:
+          type: string
+          nullable: true
+        status:
+          type: string
+    ContactWriteBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        isPrimary:
+          type: boolean
     ProjectAssignBody:
       type: object
       required: [ownerId]

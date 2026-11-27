@@ -22,6 +22,16 @@ import { projectStageLabel } from "@/lib/export-display-labels";
 import { authorizeExportAiKey, type ExportAiBoss } from "@/lib/export/ai-api";
 import { loadExportAiBoss } from "@/lib/export/ai-api-boss";
 import { appendTimestampedNote, progressMarkActivityText } from "@/lib/export/ai-writes";
+import {
+  createAiContact,
+  createAiCustomer,
+  createAiLead,
+  createAiProject,
+  updateAiContact,
+  updateAiCustomer,
+  updateAiLead,
+  updateAiProject,
+} from "@/lib/export/ai-records";
 import { findAssignableExportUser } from "@/lib/export/assignees";
 import { LEAD_LIFECYCLE_ACTIVITY } from "@/lib/export/defer-development";
 import { ExportLeadTakeError, assertLeadTaken, assignExportLead, takeExportLeadFromPool } from "@/lib/export/take-lead";
@@ -123,11 +133,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pa
   const { boss, tenantId } = gate as { boss: ExportAiBoss; tenantId: string };
   const { path = [] } = await context.params;
   const [resource, id, action] = path;
-  if (!id || !action || path.length !== 3) {
-    return NextResponse.json({ error: "未知路径" }, { status: 404 });
-  }
-
-  if (action === "claim") {
+  if (path.length === 3 && action === "claim") {
     if (resource === "leads") return claimLead(tenantId, boss, id);
     if (resource === "projects") return claimProject(tenantId, boss, id);
   }
@@ -139,6 +145,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pa
     return NextResponse.json({ error: "请求体无效" }, { status: 400 });
   }
 
+  if (path.length === 1 && resource === "leads") return createAiLead(tenantId, body);
+  if (path.length === 1 && resource === "projects") return createAiProject(tenantId, boss, body);
+  if (path.length === 1 && resource === "customers") return createAiCustomer(tenantId, boss, body);
+  if (path.length === 3 && resource === "customers" && action === "contacts") {
+    return createAiContact(tenantId, id, body);
+  }
+
+  if (!id || !action || path.length !== 3) {
+    return NextResponse.json({ error: "未知路径" }, { status: 404 });
+  }
+
   if (resource === "leads" && action === "progress-mark") return markLead(tenantId, boss, id, body);
   if (resource === "projects" && action === "progress-mark") return markProject(tenantId, boss, id, body);
   if (resource === "leads" && action === "follow-ups") return followLead(tenantId, boss, id, body);
@@ -146,6 +163,28 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pa
   if (resource === "customers" && action === "analysis") return writeCustomerAnalysis(tenantId, id, body);
   if (resource === "leads" && action === "assign") return assignLead(tenantId, boss, id, body);
   if (resource === "projects" && action === "assign") return assignProject(tenantId, boss, id, body);
+  return NextResponse.json({ error: "未知路径" }, { status: 404 });
+}
+
+export async function PATCH(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
+  const gate = await requireBoss(request);
+  if ("error" in gate && gate.error) return gate.error;
+  const { boss, tenantId } = gate as { boss: ExportAiBoss; tenantId: string };
+  const { path = [] } = await context.params;
+  const [resource, id, extra] = path;
+  if (!id || extra || path.length !== 2) {
+    return NextResponse.json({ error: "未知路径" }, { status: 404 });
+  }
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "请求体无效" }, { status: 400 });
+  }
+  if (resource === "leads") return updateAiLead(tenantId, boss, id, body);
+  if (resource === "projects") return updateAiProject(tenantId, boss, id, body);
+  if (resource === "customers") return updateAiCustomer(tenantId, id, body);
+  if (resource === "contacts") return updateAiContact(tenantId, id, body);
   return NextResponse.json({ error: "未知路径" }, { status: 404 });
 }
 

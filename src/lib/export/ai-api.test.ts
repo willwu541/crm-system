@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { authorizeExportAiKey, readWithExportAiKey } from "./ai-api";
+import { rejectAiRecordBody } from "./ai-records";
 
 const KEY = "manager-test-key";
 
@@ -47,15 +48,23 @@ describe("export ai manager writes", () => {
     const spec = readFileSync(new URL("../../../docs/export-ai-openapi.yaml", import.meta.url), "utf8");
     const page = readFileSync(new URL("../../app/(admin-console)/admin/users/page.tsx", import.meta.url), "utf8");
     assert.match(route, /export async function POST/);
+    assert.match(route, /export async function PATCH/);
     assert.doesNotMatch(route, /createEmailDraft|buildEmailDraft|待发送草稿|sendMail|resend/);
+    assert.doesNotMatch(route, /deleteMany|exportCustomer\.delete|exportLead\.delete|exportProject\.delete|exportContact\.delete/);
+    assert.doesNotMatch(route, /status:\s*"abandoned"/);
     assert.doesNotMatch(spec, /\/api\/export\/ai\/emails/);
+    assert.doesNotMatch(spec, /\/abandon/);
     assert.match(spec, /不能发信/);
-    assert.match(page, /可标记联系、写进度、写客户分析/);
+    assert.match(spec, /不能废弃/);
+    assert.match(page, /可新建和修改线索、项目、客户、联系人/);
     assert.match(page, /不能发邮件/);
+    assert.match(page, /不能删除，不能废弃，不能改金额/);
     for (const path of [
       "/api/export/ai/customers:",
       "/api/export/ai/customers/{id}:",
+      "/api/export/ai/customers/{id}/contacts:",
       "/api/export/ai/customers/{id}/analysis:",
+      "/api/export/ai/contacts/{id}:",
       "/api/export/ai/leads:",
       "/api/export/ai/leads/{id}:",
       "/api/export/ai/leads/{id}/progress-mark:",
@@ -78,6 +87,19 @@ describe("export ai manager writes", () => {
     assert.match(route, /kind: "progress"/);
     assert.match(route, /kind: "follow_up"/);
     assert.match(route, /assignedById: boss\.id/);
-    assert.doesNotMatch(route, /deleteMany|exportCustomer\.delete|exportLead\.delete|exportProject\.delete/);
+    assert.match(route, /createAiLead/);
+    assert.match(route, /createAiProject/);
+    assert.match(route, /createAiCustomer/);
+    assert.match(route, /createAiContact/);
+    assert.match(route, /updateAiLead/);
+    assert.match(route, /updateAiProject/);
+    assert.match(route, /updateAiCustomer/);
+    assert.match(route, /updateAiContact/);
+    assert.match(spec, /post:/);
+    assert.match(spec, /patch:/);
+    assert.equal(rejectAiRecordBody({ ownerId: "someone" }), "不能指定负责人");
+    assert.equal(rejectAiRecordBody({ projectValueText: "1万元" }), "不能改金额");
+    assert.equal(rejectAiRecordBody({ status: "abandoned" }), "不能废弃");
+    assert.equal(rejectAiRecordBody({ companyName: "Acme", notes: "备注" }), null);
   });
 });
