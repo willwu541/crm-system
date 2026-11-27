@@ -68,6 +68,16 @@ const SOURCE_LABEL: Record<string, string> = {
   "Paid ads": "付费广告",
 };
 
+function countryLabel(code: string) {
+  const value = code.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(value)) return code.trim() || "国家未知";
+  try {
+    return new Intl.DisplayNames(["zh-CN"], { type: "region" }).of(value) || value;
+  } catch {
+    return value;
+  }
+}
+
 function sourceLabel(value: string) {
   return SOURCE_LABEL[value] || value || "未知";
 }
@@ -128,6 +138,7 @@ export function WebsiteVisitsClient() {
   const [selectedId, setSelectedId] = useState("");
   const [source, setSource] = useState("all");
   const [intent, setIntent] = useState("all");
+  const [country, setCountry] = useState("all");
   const [day, setDay] = useState(() => shanghaiDate(new Date().toISOString()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -156,6 +167,10 @@ export function WebsiteVisitsClient() {
   }, []);
 
   useEffect(() => {
+    setCountry("all");
+  }, [day]);
+
+  useEffect(() => {
     void load();
     const timer = window.setInterval(() => void load(), 60000);
     return () => window.clearInterval(timer);
@@ -177,7 +192,17 @@ export function WebsiteVisitsClient() {
     () => [...new Set(dayVisits.map((visit) => visit.source || "未记录"))],
     [dayVisits],
   );
+  const countryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const visit of dayVisits) {
+      const key = visit.country.trim().toUpperCase() || "未知";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [dayVisits]);
   const visible = dayVisits.filter((visit) => {
+    const code = visit.country.trim().toUpperCase() || "未知";
+    if (country !== "all" && code !== country) return false;
     if (source !== "all" && (visit.source || "未记录") !== source) return false;
     if (intent !== "all" && (visit.intent || "low") !== intent) return false;
     return true;
@@ -185,7 +210,7 @@ export function WebsiteVisitsClient() {
   const highIntent = dayVisits.filter((visit) => visit.intent === "high").length;
   const returningCount = dayVisits.filter((visit) => visit.returning).length;
   const selected = visible.find((visit) => visit.id === selectedId) ?? visible[0] ?? null;
-  const countries = topCounts(dayVisits, (visit) => [visit.country, visit.region].filter(Boolean).join(" "));
+  const countries = countryCounts.slice(0, 12).map(([code, count]) => [countryLabel(code), count] as [string, number]);
   const devices = topCounts(dayVisits, (visit) => visit.device);
   const pages = topCounts(dayVisits, (visit) => visit.landing_path);
   const adVisits = dayVisits.filter((visit) => visit.source === "Google Ads" || visit.gclid).length;
@@ -220,6 +245,15 @@ export function WebsiteVisitsClient() {
         </div>
       </div>
 
+      <div className="flex gap-1 overflow-auto">
+        <button type="button" onClick={() => setCountry("all")} className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${country === "all" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>全部国家 · {dayVisits.length}</button>
+        {countryCounts.map(([code, count]) => (
+          <button key={code} type="button" onClick={() => setCountry(code)} className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${country === code ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+            {countryLabel(code)} · {count}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="当天访问" value={String(dayVisits.length)} />
         <Stat label="高意向" value={String(highIntent)} />
@@ -229,7 +263,7 @@ export function WebsiteVisitsClient() {
 
       <div className="grid gap-3 lg:grid-cols-3">
         <Rank title="来源" rows={topCounts(dayVisits, (visit) => sourceLabel(visit.source))} />
-        <Rank title="地区" rows={countries} />
+        <Rank title="国家" rows={countries} />
         <Rank title="落地页" rows={pages} />
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
@@ -293,7 +327,7 @@ export function WebsiteVisitsClient() {
                       <span className="shrink-0 text-slate-500">{timeLabel(visit.updated_at)}</span>
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-slate-500">
-                      {[visit.country, visit.region].filter(Boolean).join(" ") || "地区未知"}
+                      {countryLabel(visit.country)}{visit.region ? ` ${visit.region}` : ""}
                       {" · "}
                       {visit.device || "设备未知"}
                       {" · "}
@@ -327,7 +361,8 @@ export function WebsiteVisitsClient() {
               <Field label="看过的行业" value={(selected.industries || []).join("、")} />
               <Field label="上海时间" value={selected.shanghai_weekday && selected.shanghai_hour !== undefined && selected.shanghai_hour !== "" ? `${selected.shanghai_weekday} ${selected.shanghai_hour} 点` : ""} />
               <Field label="访客当地时间" value={selected.visitor_hour !== undefined && selected.visitor_hour !== "" ? `${selected.visitor_hour} 点` : ""} />
-              <Field label="地区" value={[selected.country, selected.region].filter(Boolean).join(" ")} />
+              <Field label="国家" value={countryLabel(selected.country)} />
+              <Field label="地区" value={selected.region} />
               <Field label="设备" value={[selected.device, selected.os, selected.browser].filter(Boolean).join(" · ")} />
               <Field label="语言" value={selected.language} />
               <Field label="落地页" value={selected.landing_path} />
